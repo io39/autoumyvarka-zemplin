@@ -13,7 +13,7 @@ written.
 | 01 | [Foundation: edge auth, role mapping, staff](./01-foundation-auth-and-staff.md) | ✅ | §3, §11, §14 | — |
 | 02 | [Clients & cars (phone key, shared ŠPZ)](./02-clients-and-cars.md) | ✅ | §4, §10, §13#1 | 01 |
 | 03 | [Service catalog (services + per-category pricing)](./03-service-catalog.md) | ✅ | §9, §13#2, §13#3 | 01 |
-| 04 | Settings: opening hours & holidays | 📝 | §14 | 01 |
+| 04 | [Settings: opening hours & holidays](./04-settings-opening-hours-holidays.md) | ✅ | §14 | 01 |
 | 05 | Reservations & two-box calendar | 📝 | §4, §5, §6 | 01, 02, 03, 04 |
 | 06 | Order detail & lifecycle (status, notes, assignment, services) | 📝 | §6, §7, §9.3, §11 | 05 |
 | 07 | SMS notifications (reminder + "ready", webhook) | 📝 | §8 | 05, 06 |
