@@ -19,7 +19,7 @@ written.
 | 07 | [SMS notifications (reminder + "ready", webhook)](./07-sms-notifications.md) | ✅ | §8 | 05, 06 |
 | 08 | [Client detail & service history](./08-client-detail-and-history.md) | ✅ | §10, §13#1 | 02, 05, 06 |
 | 09 | [Audit log view (manager)](./09-audit-log-view.md) | ✅ | §11 | 01, 06 |
-| 10 | Orders archive & daily overview | 📝 | §10 (extends) | 05, 06 |
+| 10 | [Orders archive & daily overview](./10-orders-archive-and-overview.md) | ✅ | §10 (extends) | 05, 06 |
 | 11 | Unpaid-order alerts | 📝 | §9.3 (extends) | 06 |
 
 ---
