@@ -16,7 +16,7 @@ written.
 | 04 | [Settings: opening hours & day overrides](./04-settings-opening-hours-holidays.md) | ✅ | §14 | 01 |
 | 05 | [Reservations & two-box calendar](./05-reservations-and-calendar.md) | ✅ | §4, §5, §6 | 01, 02, 03, 04 |
 | 06 | [Order detail & lifecycle (status, notes, assignment, services)](./06-order-detail-and-lifecycle.md) | ✅ | §6, §7, §9.3, §11 | 05 |
-| 07 | SMS notifications (reminder + "ready", webhook) | 📝 | §8 | 05, 06 |
+| 07 | [SMS notifications (reminder + "ready", webhook)](./07-sms-notifications.md) | ✅ | §8 | 05, 06 |
 | 08 | Client detail & service history | 📝 | §10, §13#1 | 02, 05, 06 |
 | 09 | Audit log view (manager) | 📝 | §11 | 01, 06 |
 | 10 | Orders archive & daily overview | 📝 | §10 (extends) | 05, 06 |
