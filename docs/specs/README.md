@@ -19,8 +19,7 @@ written.
 | 07 | [SMS notifications (reminder + "ready", webhook)](./07-sms-notifications.md) | ✅ | §8 | 05, 06 |
 | 08 | [Client detail & service history](./08-client-detail-and-history.md) | ✅ | §10, §13#1 | 02, 05, 06 |
 | 09 | [Audit log view (manager)](./09-audit-log-view.md) | ✅ | §11 | 01, 06 |
-| 10 | [Orders archive & daily overview](./10-orders-archive-and-overview.md) | ✅ | §10 (extends) | 05, 06 |
-| 11 | Unpaid-order alerts | 📝 | §9.3 (extends) | 06 |
+| 10 | Unpaid-order alerts | 📝 | §9.3 (extends) | 06 |
 
 ---
 
@@ -87,17 +86,12 @@ Manager-only browsable/filterable view over `audit_log` (PRD §11), ≥3-month
 retention. The audit *write* path ships in 01 and each mutating spec; this spec is
 the *read* surface. Depends on 01 and 06 (most audited events live on orders).
 
-### 10 — Orders archive & daily overview *(requested 2026-05-27)*
-A **full cross-cutting overview** of completed/historical orders, distinct from the
-per-client history in spec 08. Browse **any past day** (e.g. today's orders still
-fully browsable in 2028): both boxes side by side, all vehicles, all services
-performed, and order status — a clean read-only archive filterable by date range
-(and ideally box / status / service). This is the manager's "what happened that day"
-view, independent of which customer it was. Orders are soft-deleted and never purged
-(data-model §4), so the archive is complete indefinitely. Depends on 05 (orders) and
-06 (lifecycle/services).
+> **Note:** "Browse any past day/week" is **not** a separate spec — it's the calendar's
+> date-navigation UI in spec 05 (date picker + prev/next + "dnes"). Orders are never
+> purged (data-model §4), so old dates load through the same `getCalendar` path. The
+> earlier standalone "orders archive" spec was removed as redundant (2026-05-27).
 
-### 11 — Unpaid-order alerts *(requested 2026-05-27)*
+### 10 — Unpaid-order alerts *(requested 2026-05-27)*
 A visible **warning/notification** surface for orders that are not `zaplatena` when
 they should be — especially **unpaid orders from previous days**, and any lingering
 unpaid from the current day. Shown to the manager (e.g. a badge/banner with a count

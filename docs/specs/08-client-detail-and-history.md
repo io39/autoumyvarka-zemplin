@@ -40,8 +40,8 @@ surface (PRD §15#5).
 ### 1.3 Non-goals
 
 - No editing from history (read-only; edits on the order — spec 06).
-- No cross-client *daily* overview / archive — that's spec 10 (a different axis: by day,
-  not by client).
+- No cross-client *daily* overview — browsing a day/week across all clients is the
+  calendar's date navigation (spec 05), not part of this per-client page.
 - No pricing totals / invoices (Phase 2 / POS).
 - No client/car deletion (data-model §4).
 

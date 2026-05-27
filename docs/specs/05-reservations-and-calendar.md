@@ -72,6 +72,12 @@ order requires create/find on clients & cars (spec 02), which both roles have.
   Box 2); vertical axis in **15-minute rows**; closed periods (from spec 04
   `getOpenInterval`) rendered greyed. Each block: color by status, **ŠPZ + model**,
   main service, **start–finish time**. Click → order detail (spec 06).
+  - **Date navigation (history lookup):** prev/next arrows, a **"dnes" (today)** button,
+    and a **date picker / calendar clicker** plus a typed-date field, so the manager *and*
+    workers can jump to **any** day or week — past or future — to review that period's
+    orders. Because orders are never purged (soft-delete only, data-model §4), arbitrarily
+    old dates load through the same `getCalendar({ view, date })` path; no separate
+    archive view is needed. (This replaces the former standalone "orders archive" spec.)
   - **Mobile (<… / ≥360px):** show **one box at a time** with a Box 1/Box 2 switcher
     (PRD §5). Day view is the mobile default.
 - **Booking flow**: a stepper (client → car → services → time → confirm). Reuses spec
@@ -265,3 +271,6 @@ pnpm test e2e/order-create-permissions   # exits 0
 - [ ] §15#11: the whole flow works at 360px and on desktop without layout breakage;
       mobile shows one box with a working switcher.
 - [ ] All visible strings are Slovak; closed periods render greyed.
+- [ ] Date navigation: prev/next, "dnes", and the date picker/typed-date jump the
+      day/week view to any chosen date; a far-past date (e.g. 2 years ago) still loads
+      that day's orders (no purge).
