@@ -89,7 +89,7 @@ All validate with zod; all that mutate write `audit_log`.
 | `findClientByPhone` | `{ phone }` | both | — (read) |
 | `searchClients` | `{ query }` | both | — (read) |
 | `createClient` | `{ phone, name?, note? }` | both | `client.create` |
-| `updateClient` | `{ id, name?, note? }` | **manager** | `client.update` |
+| `updateClient` | `{ id, phone?, name?, note? }` | **manager** | `client.update` (or `client.phone_change`) |
 | `addCarToClient` | `{ clientId, spz, model?, pricingCategory }` | both | `car.create` or `car.link` |
 | `linkExistingCar` | `{ clientId, carId }` | both | `car.link` |
 | `updateCar` | `{ id, model?, pricingCategory }` | **manager** | `car.update` |
@@ -101,8 +101,13 @@ All validate with zod; all that mutate write `audit_log`.
   - **Match under this client** → no-op with a notice.
   - **Match under a different client** → return `{ needsLinkConfirm: true, existingCar }`;
     UI prompts; confirm calls `linkExistingCar` (`car.link`). This is the shared-ŠPZ path.
-- Editing `phone` is **not** offered in Phase 1 (it's the identity key); changing owner
-  associations is link-only, never destructive.
+- `updateClient` may change the **phone** (the client key), but **manager only** —
+  people switch numbers. The new phone is normalized (E.164) and checked for
+  uniqueness; a collision with another client returns a friendly Slovak error (offer to
+  open that client). A phone change is audited as `client.phone_change` with
+  `{from, to}` in `details`, so the key change is traceable (PRD §11). The client's
+  cars and history are unaffected (history hangs off cars/orders, not the phone string).
+- Changing owner↔car associations is link-only, never destructive.
 
 ### 2.4 Data & migrations
 
@@ -191,9 +196,14 @@ pnpm test e2e/shared-spz            # exits 0
 
 ### 4.5 Authorization (e2e, must pass)
 
-- As **prevádzka**: `createClient` and `addCarToClient` succeed; `updateClient` and
-  `updateCar` are rejected with `ForbiddenError`.
-- As **manažér**: all of the above succeed.
+- As **prevádzka**: `createClient` and `addCarToClient` succeed; `updateClient`
+  (incl. phone) and `updateCar` are rejected with `ForbiddenError`.
+- As **manažér**: all of the above succeed, including changing a client's phone; the
+  change writes a `client.phone_change` audit row with `{from, to}`, and a subsequent
+  lookup by the **new** phone finds the client while the old phone returns the empty
+  state.
+- Changing a phone to one already used by another client is rejected with a friendly
+  Slovak error (no partial update).
 
 ```bash
 pnpm test e2e/clients-permissions   # exits 0
