@@ -20,7 +20,7 @@ Strict step order — the UI walks the manager through it, mobile-first:
 3. **Services** — pick from the active catalog. Duration/price come from the
    `service_prices` row for **(service × the car's pricing_category)**.
 4. **Time** — app suggests nearest free slots in both boxes (respecting opening
-   hours/holidays); manager may pick manually. Conflicts are rejected (see below).
+   hours/overrides); manager may pick manually. Conflicts are rejected (see below).
 
 ## Duration calculation
 

@@ -270,14 +270,24 @@ Per-weekday hours; closed hours render greyed in the calendar (PRD §14).
 | `close_time` | time null | |
 | `is_closed` | boolean not null default false | |
 
-### 2.13 `holidays`
+### 2.13 `day_overrides`
 
-One-off closed days managed by the manager (PRD §14).
+Per-date exceptions to the recurring weekly `opening_hours`, managed by the manager
+(PRD §14). A date can be either **fully closed** or **open with custom hours** (e.g.
+24 Dec 08:00–12:00). Generalizes the original "holidays" idea (closed-only) so
+half-days/shortened days are expressible without editing the weekly schedule.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `day` | date **pk** | |
-| `label` | text null | e.g. "Štátny sviatok" |
+| `day` | date **pk** | the overridden date |
+| `is_closed` | boolean not null default true | true = closed all day; false = use the custom times below |
+| `open_time` | time null | required (15-min boundary) when `is_closed=false`; null otherwise |
+| `close_time` | time null | required (15-min boundary) when `is_closed=false`; `open_time < close_time` |
+| `label` | text null | e.g. "Štátny sviatok", "Štedrý deň – skrátené" |
+
+When a `day_overrides` row exists for a date, it **wins** over that weekday's
+`opening_hours`. The availability helper (spec 04) resolves: override → else weekday
+hours.
 
 ---
 
@@ -336,4 +346,4 @@ skeleton's Realtime slice.
 | `clients`, `cars` | hard-delete avoided in Phase 1 | personal data; no delete flow in PRD. GDPR erasure handled ad-hoc by manager if ever needed (out of Phase 1 scope) |
 | `audit_log` | append-only, retain ≥3 months | PRD §11.2 |
 | `sms_messages` | append-only | delivery record |
-| `opening_hours`, `holidays`, `sms_templates` | mutable config | no history value |
+| `opening_hours`, `day_overrides`, `sms_templates` | mutable config | no history value |

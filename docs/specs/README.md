@@ -13,7 +13,7 @@ written.
 | 01 | [Foundation: edge auth, role mapping, staff](./01-foundation-auth-and-staff.md) | ✅ | §3, §11, §14 | — |
 | 02 | [Clients & cars (phone key, shared ŠPZ)](./02-clients-and-cars.md) | ✅ | §4, §10, §13#1 | 01 |
 | 03 | [Service catalog (services + per-category pricing)](./03-service-catalog.md) | ✅ | §9, §13#2, §13#3 | 01 |
-| 04 | [Settings: opening hours & holidays](./04-settings-opening-hours-holidays.md) | ✅ | §14 | 01 |
+| 04 | [Settings: opening hours & day overrides](./04-settings-opening-hours-holidays.md) | ✅ | §14 | 01 |
 | 05 | Reservations & two-box calendar | 📝 | §4, §5, §6 | 01, 02, 03, 04 |
 | 06 | Order detail & lifecycle (status, notes, assignment, services) | 📝 | §6, §7, §9.3, §11 | 05 |
 | 07 | SMS notifications (reminder + "ready", webhook) | 📝 | §8 | 05, 06 |
@@ -38,10 +38,12 @@ auth + audit + the migration baseline.
 durations. Manager-only activate/deactivate; never hard-delete (PRD §9.1). Depends on
 01.
 
-### 04 — Settings: opening hours & holidays
-`opening_hours` (per weekday, `is_closed`) + `holidays` (one-off days). Manager-only
-edit. Consumed by the calendar (closed hours render greyed — PRD §14) and by the
-"suggest nearest free slot" logic in 05. Depends on 01.
+### 04 — Settings: opening hours & day overrides
+`opening_hours` (recurring weekly, per weekday, `is_closed`) + `day_overrides`
+(per-date: closed **or** custom hours, e.g. a shortened holiday). Override wins over
+the weekday default. Manager-only edit. Consumed by the calendar (closed periods
+render greyed — PRD §14) and by the "suggest nearest free slot" logic in 05. Depends
+on 01.
 
 ### 05 — Reservations & two-box calendar
 The heart. The phone-call booking flow (client → car → services → time), the
@@ -50,7 +52,7 @@ DB-level **box-overlap exclusion constraint**, automatic **duration calculation*
 status colors, **Realtime live updates** (consuming the minted JWT + RLS read
 policies from spec 01 / data-model §3.1), and mobile single-box switching (PRD §5).
 Depends on 01 (auth/realtime), 02 (clients/cars), 03 (services/durations), 04
-(hours/holidays).
+(hours/overrides).
 
 **Planning-note refinements (requested 2026-05-27):**
 - **15-minute slot granularity** for time selection and the calendar grid (09:00,
@@ -116,5 +118,5 @@ and a drill-down list). Reads order status + per-line `paid` flags (data-model �
 | 7. Both SMS sent reliably + logged | 07 |
 | 8. Manual `zaplatena`, reflected realtime in every calendar | 06 (+ 05 realtime) |
 | 9. Audit log records create/status/note edits | 01, 06, 09 |
-| 10. Opening hours & holidays configurable, calendar respects | 04, 05 |
+| 10. Opening hours & day overrides configurable, calendar respects | 04, 05 |
 | 11. Whole flow works mobile + desktop | 02–08 (mobile-first NFR each) |
