@@ -19,6 +19,8 @@ written.
 | 07 | SMS notifications (reminder + "ready", webhook) | 📝 | §8 | 05, 06 |
 | 08 | Client detail & service history | 📝 | §10, §13#1 | 02, 05, 06 |
 | 09 | Audit log view (manager) | 📝 | §11 | 01, 06 |
+| 10 | Orders archive & daily overview | 📝 | §10 (extends) | 05, 06 |
+| 11 | Unpaid-order alerts | 📝 | §9.3 (extends) | 06 |
 
 ---
 
@@ -50,6 +52,14 @@ policies from spec 01 / data-model §3.1), and mobile single-box switching (PRD 
 Depends on 01 (auth/realtime), 02 (clients/cars), 03 (services/durations), 04
 (hours/holidays).
 
+**Planning-note refinements (requested 2026-05-27):**
+- **15-minute slot granularity** for time selection and the calendar grid (09:00,
+  09:15, 09:30, …), not full-hour intervals.
+- The **expected finish time** (`ends_at`) is shown prominently on order creation and
+  on the calendar block, so workers see when a wash should be done.
+- Order blocks/detail show the **vehicle model/type** alongside the ŠPZ, so workers
+  identify cars faster — not the plate alone.
+
 ### 06 — Order detail & lifecycle
 Status transitions with role rules (`vytvorena → hotova` any role; `→ zaplatena`
 manager; `→ nedostavil_sa` manager) + audit; manager-only **notes** (PRD §7);
@@ -73,6 +83,23 @@ including `nedostavil_sa` records (PRD §10, §13#1). Depends on 02, 05, 06.
 Manager-only browsable/filterable view over `audit_log` (PRD §11), ≥3-month
 retention. The audit *write* path ships in 01 and each mutating spec; this spec is
 the *read* surface. Depends on 01 and 06 (most audited events live on orders).
+
+### 10 — Orders archive & daily overview *(requested 2026-05-27)*
+A **full cross-cutting overview** of completed/historical orders, distinct from the
+per-client history in spec 08. Browse **any past day** (e.g. today's orders still
+fully browsable in 2028): both boxes side by side, all vehicles, all services
+performed, and order status — a clean read-only archive filterable by date range
+(and ideally box / status / service). This is the manager's "what happened that day"
+view, independent of which customer it was. Orders are soft-deleted and never purged
+(data-model §4), so the archive is complete indefinitely. Depends on 05 (orders) and
+06 (lifecycle/services).
+
+### 11 — Unpaid-order alerts *(requested 2026-05-27)*
+A visible **warning/notification** surface for orders that are not `zaplatena` when
+they should be — especially **unpaid orders from previous days**, and any lingering
+unpaid from the current day. Shown to the manager (e.g. a badge/banner with a count
+and a drill-down list). Reads order status + per-line `paid` flags (data-model §2.7,
+§2.8). Depends on 06 (status + per-line paid).
 
 ---
 
