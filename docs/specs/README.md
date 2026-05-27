@@ -1,0 +1,93 @@
+# Feature specs — index (dependency order)
+
+Every feature gets a spec (Requirements → Design → Tasks → Acceptance Criteria)
+**before** implementation (`CLAUDE.md`, spec-driven development). Spec 01 is the
+template; new specs are drafted by the `spec-writer` subagent in that format.
+
+Specs are listed in **dependency order** — implement top to bottom. Each entry notes
+its PRD section(s) and which prior specs it depends on. Status: ✅ written · 📝 to be
+written.
+
+| # | Spec | Status | PRD refs | Depends on |
+| --- | --- | --- | --- | --- |
+| 01 | [Foundation: edge auth, role mapping, staff](./01-foundation-auth-and-staff.md) | ✅ | §3, §11, §14 | — |
+| 02 | Clients & cars (phone key, shared ŠPZ) | 📝 | §4, §10, §13#1 | 01 |
+| 03 | Service catalog (services + per-category pricing) | 📝 | §9, §13#2, §13#3 | 01 |
+| 04 | Settings: opening hours & holidays | 📝 | §14 | 01 |
+| 05 | Reservations & two-box calendar | 📝 | §4, §5, §6 | 01, 02, 03, 04 |
+| 06 | Order detail & lifecycle (status, notes, assignment, services) | 📝 | §6, §7, §9.3, §11 | 05 |
+| 07 | SMS notifications (reminder + "ready", webhook) | 📝 | §8 | 05, 06 |
+| 08 | Client detail & service history | 📝 | §10, §13#1 | 02, 05, 06 |
+| 09 | Audit log view (manager) | 📝 | §11 | 01, 06 |
+
+---
+
+## Per-spec scope notes
+
+### 02 — Clients & cars
+`clients` (phone = unique key, optional name/note), `cars` (ŠPZ unique, shared,
+`pricing_category`), `client_cars` M:N. **Shared-ŠPZ duplicate detection** at car-add
+time (data-model §2.4). Search clients by phone or name (PRD §10). Depends on 01 for
+auth + audit + the migration baseline.
+
+### 03 — Service catalog
+`services` + `service_prices` seeded from `docs/services.md`: main + add-on (incl.
+`is_per_unit` and `price_from`), per-(service × category) duration & price, nullable
+durations. Manager-only activate/deactivate; never hard-delete (PRD §9.1). Depends on
+01.
+
+### 04 — Settings: opening hours & holidays
+`opening_hours` (per weekday, `is_closed`) + `holidays` (one-off days). Manager-only
+edit. Consumed by the calendar (closed hours render greyed — PRD §14) and by the
+"suggest nearest free slot" logic in 05. Depends on 01.
+
+### 05 — Reservations & two-box calendar
+The heart. The phone-call booking flow (client → car → services → time), the
+DB-level **box-overlap exclusion constraint**, automatic **duration calculation**
+(Σ line durations, manually editable), the two-box day/week calendar with the four
+status colors, **Realtime live updates** (consuming the minted JWT + RLS read
+policies from spec 01 / data-model §3.1), and mobile single-box switching (PRD §5).
+Depends on 01 (auth/realtime), 02 (clients/cars), 03 (services/durations), 04
+(hours/holidays).
+
+### 06 — Order detail & lifecycle
+Status transitions with role rules (`vytvorena → hotova` any role; `→ zaplatena`
+manager; `→ nedostavil_sa` manager) + audit; manager-only **notes** (PRD §7);
+worker-or-manager **staff assignment**; **add/remove/pay services** on an existing
+order in any state with per-line `paid` (PRD §9.3). The `hotova` transition is the
+hook the SMS spec attaches to. Depends on 05.
+
+### 07 — SMS notifications
+`sms_templates` (simple Slovak placeholders now), the "ready" SMS fired on
+`vytvorena → hotova`, the 30-min **reminder** via `pg_cron` → Route Handler
+(architecture §6), the provider **webhook** Route Handler for delivery status, and
+failure visibility + retry on the order (PRD §8). Depends on 05 (orders) and 06 (the
+`hotova` transition).
+
+### 08 — Client detail & service history
+Read-only client page: details, all linked cars, and each car's chronological visit
+history aggregated across **all linked clients** (shared-ŠPZ — dad's 5 + son's 1 = 6),
+including `nedostavil_sa` records (PRD §10, §13#1). Depends on 02, 05, 06.
+
+### 09 — Audit log view
+Manager-only browsable/filterable view over `audit_log` (PRD §11), ≥3-month
+retention. The audit *write* path ships in 01 and each mutating spec; this spec is
+the *read* surface. Depends on 01 and 06 (most audited events live on orders).
+
+---
+
+## Coverage check against PRD §15 acceptance criteria
+
+| PRD §15 criterion | Spec(s) |
+| --- | --- |
+| 1. Create reservation < 1 min on mobile | 05 |
+| 2. Both boxes visible, 4 status colors | 05 |
+| 3. No conflicting reservation | 05 (DB exclusion constraint) |
+| 4. Worker can update to `hotova`/reassign, not delete/move/no-show | 05, 06 |
+| 5. Client lookup shows all cars + full history | 02, 08 |
+| 6. Manager note visible to workers, not editable by them | 06 |
+| 7. Both SMS sent reliably + logged | 07 |
+| 8. Manual `zaplatena`, reflected realtime in every calendar | 06 (+ 05 realtime) |
+| 9. Audit log records create/status/note edits | 01, 06, 09 |
+| 10. Opening hours & holidays configurable, calendar respects | 04, 05 |
+| 11. Whole flow works mobile + desktop | 02–08 (mobile-first NFR each) |
