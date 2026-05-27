@@ -65,8 +65,8 @@ Reading the catalog (for booking) is available to **both roles**.
 - `prevadzka` navigating to `/services` gets the 403 view (spec 01).
 - List groups by `kind` (main vs add-on), shows `active` badge, per-category price/
   duration grid. shadcn/ui `Table`, `Dialog`, `Input`, `Switch`, `Badge`. Mobile-first.
-- Editing a service shows up to 5 category rows (os/suv/van/dod/motorka); add-ons may
-  have a single category-independent (`NULL`) row.
+- Editing a service shows up to 6 category rows (os/suv/van/dod/motorka/stavba); add-
+  ons may have a single category-independent (`NULL`) row.
 
 ### 2.2 Seed (`supabase/seed.sql`, extended)
 
@@ -82,20 +82,24 @@ Translate `docs/services.md` into rows. Prices are euros → integer **cents**
 | Exteriér Classic | main | os | 45 | 1890 | |
 | Exteriér Classic | main | motorka | 30 | 1890 | |
 | Tepovanie (Int. Premium) | main | os | 360 | 13790 | |
-| Tepovanie — "Stavba auta" | main | (n/a) | 600 | 21790 | `price_from=true` |
+| Tepovanie (Int. Premium) | main | stavba | 600 | 21790 | `price_from=true` |
+| Ochrana laku MM1 | main | dod | 90 | 9790 | `price_from=true` ("Dod od") |
 | Tepovanie sedadla | addon | NULL | 15 | 1500 | `is_per_unit=true` |
 | Čistenie demont. kolies | addon | NULL | NULL | 500 | `is_per_unit=true` |
 | Dezinfekcia ozónom | addon | NULL | NULL | 2000 | |
 
-> **Seed clarifications to confirm with the client before launch** (documented, not
-> blocking — defaults chosen):
-> - `docs/services.md` lists no **SUV** row for some main services (e.g. Exteriér has
->   os/suv/van/dod/motorka but Interiér Classic lists os/suv/van/dod). Seed exactly the
->   rows present; a missing (service, category) pair means "not offered for that
->   category" and booking will hide it.
-> - "Stavba auta od …" is modeled as a `price_from` row under Tepovanie; confirm
->   whether it is its own service or a tier.
-> - The "Dod. … /kabína" note is captured in the service `name`, not a separate field.
+> **Seed notes** (defaults chosen; nothing blocking):
+> - Each main service is seeded with exactly the categories `docs/services.md` lists
+>   for it — these are not uniform (e.g. Interiér Classic has os/suv/van/dod;
+>   Exteriér adds motorka; Tepovanie has os/suv/dod/van + **stavba**; Ochrana MM1–4
+>   have os/suv/van/dod). A missing (service, category) pair means "not offered for
+>   that category" and booking hides it (handled by `getServicePrice`).
+> - **`stavba`** (stavebné auto / construction work vehicle) is a `pricing_category`,
+>   not a service — it currently has a price only under Tepovanie, modeled with
+>   `price_from=true` ("od 217,90 €").
+> - `price_from=true` also applies to the "Dod od" rows in Ochrana laku MM1 and MM2.
+> - The "Dod. … (/kabína)" note: kept in the service `name` for now; exact modeling
+>   to be specified later (per client) — not blocking the seed.
 
 ### 2.3 Server Actions (`lib/actions/services.ts`)
 

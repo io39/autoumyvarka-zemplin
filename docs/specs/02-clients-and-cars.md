@@ -19,7 +19,7 @@ that the booking flow (spec 05) and history (spec 08) depend on.
 
 1. **Clients** keyed by phone (E.164-normalized, unique), with optional name and note.
 2. **Cars** keyed by ŠPZ (unique), with optional model and a required
-   `pricing_category` (`os | suv | van | dod | motorka`).
+   `pricing_category` (`os | suv | van | dod | motorka | stavba`).
 3. **Many-to-many** client↔car: a car may belong to several clients; a client may
    have several cars (PRD §13#1).
 4. **Shared-ŠPZ duplicate detection:** adding a car whose ŠPZ already exists links the

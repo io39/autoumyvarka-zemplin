@@ -15,7 +15,7 @@ Strict step order — the UI walks the manager through it, mobile-first:
 1. **Client** — enter phone (the client key). Match ⇒ load client + their cars; no
    match ⇒ optional name, create client.
 2. **Car** — pick an existing linked car, or add one (ŠPZ + optional model +
-   `pricing_category`: `os | suv | van | dod | motorka`). On a new ŠPZ that already
+   `pricing_category`: `os | suv | van | dod | motorka | stavba`). On a new ŠPZ that already
    exists under another client, **prompt to link** (shared-ŠPZ) rather than duplicate.
 3. **Services** — pick from the active catalog. Duration/price come from the
    `service_prices` row for **(service × the car's pricing_category)**.

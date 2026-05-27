@@ -17,7 +17,7 @@ Conventions:
 ## 1. Enums
 
 ```sql
-create type pricing_category as enum ('os', 'suv', 'van', 'dod', 'motorka');
+create type pricing_category as enum ('os', 'suv', 'van', 'dod', 'motorka', 'stavba');
 create type staff_role       as enum ('manazer', 'prevadzka');
 create type order_status      as enum ('vytvorena', 'hotova', 'zaplatena', 'nedostavil_sa');
 create type service_kind      as enum ('main', 'addon');
@@ -26,7 +26,8 @@ create type sms_status        as enum ('pending', 'sent', 'delivered', 'failed')
 ```
 
 - `pricing_category` is sourced **only** from `docs/services.md` (os = osobné,
-  suv, van, dod = dodávka, motorka). The PRD §4 descriptive list (sedan/hatchback/
+  suv, van, dod = dodávka, motorka, stavba = stavebné auto / construction work
+  vehicle, typically very dirty). The PRD §4 descriptive list (sedan/hatchback/
   pickup/…) is illustrative and **not** modeled — a car's category *is* its pricing
   category (confirmed in planning).
 
