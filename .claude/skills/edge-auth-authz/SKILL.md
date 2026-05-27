@@ -18,8 +18,8 @@ it maps the edge identity to a role and enforces per-action rules (PRD §3). The
   - **Dev shim:** only when `NODE_ENV !== 'production'` and `DEV_AUTH_EMAIL` is set.
 - `getCurrentStaff()`: maps the email to an **active** `staff` row → `{ id, email,
   role, display_name }`; throws if no active match.
-- `requireManager()` / `requireRole(role)`: assert the role, throw `ForbiddenError`
-  otherwise.
+- `requireManager(staff)` / `requireRole(staff, role)`: assert the resolved actor's
+  role, throw `ForbiddenError` otherwise.
 
 ## Hard rules
 
@@ -52,7 +52,7 @@ So the browser must **not** rely on anon read policies for client data.
 export async function moveOrder(input: unknown) {
   const data = moveOrderSchema.parse(input);      // zod at the boundary
   const staff = await getCurrentStaff();
-  requireManager();                                // PRD §3: only manager may move
+  requireManager(staff);                           // PRD §3: only manager may move
   // ...mutate via service_role client...
   await writeAudit(staff, "order.status_change", "order", data.id, { ... });
 }
