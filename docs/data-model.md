@@ -65,7 +65,9 @@ Identified by phone number (PRD §4).
 | `note` | text null | optional free note (PRD §10) |
 | `created_at` | timestamptz not null default now() | |
 
-**Index:** unique on `phone` (search + identity).
+**Indexes:** unique on `phone` (identity); **trigram GIN** on `name` and `phone`
+(`gin_trgm_ops`) for fuzzy autocomplete search (spec 02 — requires the `pg_trgm`
+extension).
 
 ### 2.3 `cars`
 
@@ -80,8 +82,8 @@ confirmed). It carries the pricing category that drives durations/prices.
 | `pricing_category` | `pricing_category` not null | drives service duration + price |
 | `created_at` | timestamptz not null default now() | |
 
-**Index:** unique on `spz`. A car is never duplicated per owner; ownership is the
-M:N link below.
+**Indexes:** unique on `spz`; **trigram GIN** on `spz` (`gin_trgm_ops`) for fuzzy
+search (spec 02). A car is never duplicated per owner; ownership is the M:N link below.
 
 ### 2.4 `client_cars` (M:N)
 

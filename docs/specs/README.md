@@ -29,8 +29,9 @@ written.
 ### 02 — Clients & cars
 `clients` (phone = unique key, optional name/note), `cars` (ŠPZ unique, shared,
 `pricing_category`), `client_cars` M:N. **Shared-ŠPZ duplicate detection** at car-add
-time (data-model §2.4). Search clients by phone or name (PRD §10). Depends on 01 for
-auth + audit + the migration baseline.
+time (data-model §2.4). **Unified fuzzy search** for clients by phone, name, or ŠPZ in
+one autocomplete box, typo-tolerant via Postgres `pg_trgm` trigram indexes (PRD §10).
+Depends on 01 for auth + audit + the migration baseline.
 
 ### 03 — Service catalog
 `services` + `service_prices` seeded from `docs/services.md`: main + add-on (incl.

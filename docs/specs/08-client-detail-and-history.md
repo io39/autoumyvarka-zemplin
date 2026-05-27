@@ -30,8 +30,9 @@ surface (PRD §15#5).
 
 ### 1.2 User stories (PRD §10, §15#5)
 
-- As **either role**, I search a phone number and see all the client's cars and each
-  car's full service history, including past no-shows (PRD §15#5).
+- As **either role**, I find a client by **phone, name, or ŠPZ** (the unified fuzzy
+  search, spec 02) and see all their cars and each car's full service history, including
+  past no-shows (PRD §15#5).
 - As the **manager**, I can see a client's reliability at a glance (the `nedostavil_sa`
   records are visible — PRD §10 note).
 - As **either role**, from a calendar block I jump to the client and their history.
@@ -140,8 +141,9 @@ pnpm test clients/history-aggregation   # exits 0
 
 ### 4.3 End-to-end lookup (e2e, must pass — PRD §15#5)
 
-- Search a phone → the client's cars list, and each car's full chronological history
-  including at least one `nedostavil_sa` entry, render.
+- From the unified search (phone / name / ŠPZ), opening a client renders their cars
+  list and each car's full chronological history including at least one `nedostavil_sa`
+  entry. (Searching the car's ŠPZ also reaches the client — spec 02 §4.6.)
 - A shared-ŠPZ car shows orders booked by the other client too, with the "zdieľané auto"
   hint.
 - Clicking a history entry navigates to `/orders/[id]`.

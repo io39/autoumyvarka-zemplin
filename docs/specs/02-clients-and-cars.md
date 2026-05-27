@@ -24,7 +24,8 @@ that the booking flow (spec 05) and history (spec 08) depend on.
    have several cars (PRD §13#1).
 4. **Shared-ŠPZ duplicate detection:** adding a car whose ŠPZ already exists links the
    existing car to the client instead of creating a duplicate.
-5. **Search** clients by phone or name (PRD §10).
+5. **Unified fuzzy search** for clients by **phone, name, or ŠPZ** in one box — typo-
+   tolerant autocomplete (PRD §10).
 6. A **client detail** stub: client data + linked cars. (Full per-car *visit history*
    is spec 08, which needs orders — out of scope here.)
 7. Audit every client/car mutation (PRD §11).
@@ -63,13 +64,19 @@ explicit in §2.3.
 
 | Route | Access | Purpose |
 | --- | --- | --- |
-| `/clients` | both roles | search by phone/name; results list; "new client" entry |
+| `/clients` | both roles | unified fuzzy search (phone / name / ŠPZ); suggestions; "new client" entry |
 | `/clients/[id]` | both roles | client detail: data, linked cars, (history slot → spec 08) |
 
-- Phone-first search box; debounced; matches exact phone or `ilike` name.
+- **One search box, three fields:** a single debounced autocomplete that matches the
+  query against the client's **phone**, **name**, or **any linked car's ŠPZ** — the user
+  doesn't pick a field. Typing surfaces ranked suggestions (client name + phone +
+  matched ŠPZ) and selecting one opens `/clients/[id]`.
+- **Fuzzy & partial** via Postgres **`pg_trgm`** (typo-tolerant: `novak`→`Novák`,
+  `BV12`→`BV123AB`), ranked by similarity (see §2.3). Server-side — client PII never
+  ships to the browser (consistent with the deny-by-default RLS posture).
 - "Pridať auto" dialog: ŠPZ, model, category select. On ŠPZ collision → link prompt.
-- shadcn/ui: `Input`, `Table`/list, `Dialog`, `Select`, `Badge` (category). Mobile-first
-  ≥360px — the search + add-car flow must work one-handed on a phone.
+- shadcn/ui: `Command`/combobox (autocomplete), `Input`, `Dialog`, `Select`, `Badge`
+  (category). Mobile-first ≥360px — search + add-car must work one-handed on a phone.
 - Slovak copy throughout.
 
 ### 2.2 Phone & ŠPZ normalization
@@ -86,8 +93,8 @@ All validate with zod; all that mutate write `audit_log`.
 
 | Action | Input (zod) | Authz | Audit action |
 | --- | --- | --- | --- |
-| `findClientByPhone` | `{ phone }` | both | — (read) |
-| `searchClients` | `{ query }` | both | — (read) |
+| `findClientByPhone` | `{ phone }` | both | — (read; exact, used by the booking flow) |
+| `searchClients` | `{ query, limit? }` | both | — (read; unified fuzzy autocomplete) |
 | `createClient` | `{ phone, name?, note? }` | both | `client.create` |
 | `updateClient` | `{ id, phone?, name?, note? }` | **manager** | `client.update` (or `client.phone_change`) |
 | `addCarToClient` | `{ clientId, spz, model?, pricingCategory }` | both | `car.create` or `car.link` |
@@ -108,13 +115,22 @@ All validate with zod; all that mutate write `audit_log`.
   `{from, to}` in `details`, so the key change is traceable (PRD §11). The client's
   cars and history are unaffected (history hangs off cars/orders, not the phone string).
 - Changing owner↔car associations is link-only, never destructive.
+- `searchClients({ query })`: returns up to `limit` (default ~10) **client** suggestions
+  where the query trigram-matches the client's `name`, `phone`, **or any linked car's
+  `spz`** (join `client_cars`→`cars`). Implemented with `pg_trgm`: the `%` similarity
+  operator (backed by the GIN indexes, data-model §2.2–§2.3) plus `similarity()` for
+  ranking; phone also matched on the normalized digits so `0905…` finds `+421905…`.
+  Results carry `{ clientId, name, phone, matchedSpz? }` ordered by greatest similarity.
+  A short query (< 2 chars) returns nothing (avoids scanning everything).
 
 ### 2.4 Data & migrations
 
 Migration `0002_clients_cars.sql`:
+- `create extension if not exists pg_trgm;`
 - `clients`, `cars`, `client_cars` per data-model §2.2–§2.4, with indexes
   (`clients.phone` unique, `cars.spz` unique, `client_cars(client_id)`,
-  `client_cars(car_id)`).
+  `client_cars(car_id)`), plus **trigram GIN** indexes: `clients(name gin_trgm_ops)`,
+  `clients(phone gin_trgm_ops)`, `cars(spz gin_trgm_ops)`.
 - Enable RLS, deny-by-default (no anon policies) — per the supabase-migrations skill.
 
 ### 2.5 Error handling & loading states
@@ -122,21 +138,22 @@ Migration `0002_clients_cars.sql`:
 - Typed action results `{ ok: false, message }` rendered inline; the link-confirm case
   returns `{ ok: true, needsLinkConfirm: true, existingCar }` so the UI can branch.
 - Search and detail use shadcn `Skeleton` while loading; empty-state copy in Slovak
-  ("Žiadny klient s týmto číslom").
+  ("Žiadny výsledok"). Search is debounced (~200 ms) and aborts stale in-flight requests.
 
 ---
 
 ## 3. Tasks
 
-1. **(M)** Migration `0002_clients_cars.sql` (tables, indexes, RLS deny-by-default).
-   (dep: spec 01 migration baseline)
+1. **(M)** Migration `0002_clients_cars.sql` (pg_trgm extension, tables, unique +
+   trigram GIN indexes, RLS deny-by-default). (dep: spec 01 migration baseline)
 2. **(S)** `lib/clients/phone.ts` (E.164 normalize) + `lib/cars/spz.ts` (ŠPZ normalize)
    with unit tests. (dep: 1)
 3. **(M)** zod schemas + `lib/actions/clients.ts` (`findClientByPhone`, `searchClients`,
    `createClient`, `updateClient`) with authz + audit. (dep: 1, 2)
 4. **(M)** `lib/actions/cars.ts` (`addCarToClient` with duplicate detection,
    `linkExistingCar`, `updateCar`) with authz + audit. (dep: 1, 2)
-5. **(M)** `/clients` search page (phone/name, debounced, results, new-client). (dep: 3)
+5. **(M)** `/clients` unified fuzzy search page (one box → phone/name/ŠPZ autocomplete,
+   debounced + abortable, ranked suggestions, new-client entry). (dep: 3)
 6. **(M)** `/clients/[id]` detail: data + linked cars + add-car dialog + link-confirm
    prompt. (history section is a placeholder slot for spec 08). (dep: 3, 4)
 7. **(S)** Worker-vs-manager edit gating in UI (workers can add, not edit fields). (dep: 5,6)
@@ -172,6 +189,11 @@ psql "$LOCAL_DB_URL" -c \
 psql "$LOCAL_DB_URL" -c \
   "select indexdef from pg_indexes \
    where tablename in ('clients','cars') and indexdef ilike '%unique%';"
+# pg_trgm enabled + trigram GIN indexes present (expect 3: name, phone, spz):
+psql "$LOCAL_DB_URL" -c "select 1 from pg_extension where extname='pg_trgm';"
+psql "$LOCAL_DB_URL" -c \
+  "select count(*) from pg_indexes where tablename in ('clients','cars') \
+   and indexdef ilike '%gin_trgm_ops%';"
 ```
 
 ### 4.3 Normalization (unit, must pass)
@@ -209,10 +231,16 @@ pnpm test e2e/shared-spz            # exits 0
 pnpm test e2e/clients-permissions   # exits 0
 ```
 
-### 4.6 Search (e2e, must pass)
+### 4.6 Unified fuzzy search (e2e, must pass — PRD §10)
 
-- Searching the exact phone returns the client; searching a name substring (case-
-  insensitive) returns matching clients; a non-matching phone returns the empty state.
+- Given client "Ján Novák", phone `+421905123456`, car `BV123AB`:
+  - query `novak` (no diacritics) → returns the client (trigram, typo/diacritic
+    tolerant).
+  - query `novk` (transposed/missing letter) → still returns the client (fuzzy).
+  - query `0905` → returns the client (phone match across normalization).
+  - query `BV12` → returns the client via the **ŠPZ** match, with `matchedSpz` set.
+- Results are ranked by similarity; a non-matching query and a <2-char query return
+  empty. A car shared by two clients surfaces **both** when searched by that ŠPZ.
 
 ```bash
 pnpm test e2e/clients-search        # exits 0
