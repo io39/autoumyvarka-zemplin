@@ -63,7 +63,10 @@ both **manager-only**. So editing hours/holidays is **manager-only**; reading is
 
 - `prevadzka` → 403 view (spec 01).
 - Hours: 7 rows (Mon–Sun), each a `Switch` (open/closed) + two time inputs. Save all in
-  one action. shadcn/ui `Switch`, `Input[type=time]`, `Button`.
+  one action. shadcn/ui `Switch`, `Input[type=time]`, `Button`. **Time inputs use a
+  15-minute step** (`step=900`) and `saveOpeningHours` validates that `openTime` and
+  `closeTime` fall on a 15-minute boundary — so the calendar's 15-minute slot grid
+  (spec 05) starts and ends cleanly with no partial slot at the edges.
 - Holidays: date picker + optional label, list with remove. shadcn `Calendar`/`Input`,
   `Table`. Mobile-first ≥360px; Slovak copy.
 
@@ -98,9 +101,10 @@ All validate with zod, call `requireManager()`, write `audit_log`.
 | `addHoliday` | `{ day (date), label? }` | `settings.holiday_add` |
 | `removeHoliday` | `{ day (date) }` | `settings.holiday_remove` |
 
-- `saveOpeningHours` validates: when `isClosed=false`, both times present and
-  `openTime < closeTime`; when `isClosed=true`, times ignored/cleared. Upserts all 7
-  rows in one transaction.
+- `saveOpeningHours` validates: when `isClosed=false`, both times present,
+  `openTime < closeTime`, and **both on a 15-minute boundary** (minutes ∈ {00,15,30,45},
+  seconds 0); when `isClosed=true`, times ignored/cleared. Upserts all 7 rows in one
+  transaction.
 - `addHoliday`: `day` unique (pk); duplicate → friendly Slovak notice (idempotent).
 
 ### 2.4 Data & migrations
@@ -194,6 +198,7 @@ pnpm test e2e/settings-permissions   # exits 0
 
 - `saveOpeningHours` with `openTime >= closeTime` on an open day → rejected (Slovak
   message), no partial write.
+- `saveOpeningHours` with a non-15-minute time (e.g. `08:07`) → rejected, no write.
 - Adding a duplicate holiday date → idempotent notice, single row.
 - `saveOpeningHours` → `audit_log` `settings.hours_update`; `addHoliday` →
   `settings.holiday_add`; `removeHoliday` → `settings.holiday_remove`.
