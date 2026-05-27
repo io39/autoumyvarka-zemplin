@@ -17,3 +17,11 @@ export type StaffUpdate = Database["public"]["Tables"]["staff"]["Update"];
 
 export type AuditLogRow = Database["public"]["Tables"]["audit_log"]["Row"];
 export type AuditLogInsert = Database["public"]["Tables"]["audit_log"]["Insert"];
+
+export type ClientRow = Database["public"]["Tables"]["clients"]["Row"];
+export type ClientInsert = Database["public"]["Tables"]["clients"]["Insert"];
+
+export type CarRow = Database["public"]["Tables"]["cars"]["Row"];
+export type CarInsert = Database["public"]["Tables"]["cars"]["Insert"];
+
+export type ClientCarRow = Database["public"]["Tables"]["client_cars"]["Row"];

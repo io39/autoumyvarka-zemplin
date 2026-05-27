@@ -18,17 +18,25 @@ pnpm test:e2e  staff-permissions    # spec 01 §4.4
 pnpm test:e2e  staff-audit          # spec 01 §4.5
 ```
 
-## Spec 01 §4.4 coverage note (deliberate)
+## Action-level authorization — project-wide coverage convention (deliberate)
 
-§4.4 asks that the `createStaff` action be rejected for a worker and that a manager
-self-deactivation return a Slovak error. These are covered by **unit tests of the exact
-guards the actions call first** — `requireManager` (`tests/unit/auth/require.test.ts`)
-and `isSelfDeactivation` (`tests/unit/actions/staff-guards.test.ts`) — plus the
-page-level worker-403 e2e and the disabled self-deactivate control. Invoking a Server
-Action directly from a test would require mocking `next/headers` + `next/cache` and
-coupling the (pure) unit suite to the live DB; that infra cost isn't justified while the
-guard logic and call-order are otherwise verified. Revisit if an action's guard grows
-more complex than a single function call.
+Several specs phrase acceptance criteria as "action X rejected for a worker with
+`ForbiddenError`" (spec 01 §4.4 self-deactivation/worker-create; spec 02 §4.5
+`updateClient`/`updateCar`; and similar in later specs). We do **not** invoke Server
+Actions directly from tests — that would require mocking `next/headers` + `next/cache`
+and coupling the (pure, DB-free) unit suite to the live database.
+
+Instead, action-level authorization is covered by:
+1. **Unit tests of the exact guard each action calls first** — `requireManager`
+   (`tests/unit/auth/require.test.ts`), `isSelfDeactivation`
+   (`tests/unit/actions/staff-guards.test.ts`), etc.
+2. **Static guarantee** that every mutating action calls the guard before any DB write
+   (enforced by review + the edge-auth skill).
+3. **UI/page e2e** that workers don't see manager-only affordances (edit buttons hidden,
+   `/staff` 403 view).
+
+Revisit (add a real integration harness) if an action's guard ever grows more complex
+than a single guard call, or if a regression slips past 1–3.
 
 ## Prerequisites
 

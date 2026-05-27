@@ -1,7 +1,7 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Planning is **complete**. Next phase is **implementation**, spec-driven.
+**Phase:** Implementation, spec-driven. **Spec 01 is done; spec 02 is in progress.**
 **Last updated:** 2026-05-27.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
@@ -20,15 +20,32 @@ Planning artifacts are all written and committed locally on `main`:
 - `.claude/` — `spec-writer` + `code-reviewer` subagents, hooks, and 3 skills
   (`supabase-migrations`, `edge-auth-authz`, `order-duration-conflict`).
 
-**No application code exists yet.** Nothing in `app/`, `lib/`, `supabase/` has been
-scaffolded. The repo is docs + `.claude/` only.
+### Implementation status
+- **Spec 01 — DONE** (commit `feat: scaffold app and implement spec 01`). The app is
+  scaffolded: Next 16 (App Router, TS strict), React 19, Tailwind 4, shadcn/ui, pnpm,
+  Vitest + Playwright. Migration `0001_foundation.sql` (all enums + `staff` +
+  `audit_log` + deny-by-default RLS), `seed.sql` (manager + a worker), generated
+  `lib/supabase/database.types.ts`. Auth lib (`lib/auth/*`), service-role client,
+  audit writer, Realtime JWT mint, staff Server Actions + `/staff` UI + `/` home +
+  Slovak 401/403 views. 21 unit + 5 e2e tests pass.
+- **Spec 02 — IN PROGRESS** (clients & cars). See `docs/specs/02-clients-and-cars.md`.
+
+### Local environment notes (real, learned this session)
+- **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
+  (`pnpm supabase …`). Node 22 (`.nvmrc`).
+- `.env.local` is generated from `pnpm supabase status -o env` (gitignored).
+- **E2e runs against a production build** (`pnpm build && pnpm start`), not `pnpm dev`:
+  Turbopack's HMR websocket fails under the sandbox and blocks hydration, so dialogs/
+  forms never become interactive under `pnpm dev` *in the agent sandbox*. Local `pnpm
+  dev` in a real terminal is fine. See `tests/README.md`.
+- Targeted tests: `pnpm test:unit <path>` / `pnpm test:e2e <path>` (the chained `pnpm
+  test <arg>` would send the arg to Playwright only).
 
 ### Git state — important
 - Commits are **local and unpushed.** The hook `.claude/hooks/block-dangerous-bash.sh`
   blocks `git push … main` and force-push **from inside Claude Code sessions** (the
   user pushes from their own terminal). Don't try to push to `main`; ask the user to.
-- `CLAUDE.md` and `docs/Autoumyvaren-Projektove-Poziadavky-v2.docx` are **untracked**
-  (pre-existing). Ask before committing `CLAUDE.md`.
+- `docs/Autoumyvaren-Projektove-Poziadavky-v2.docx` is untracked (pre-existing).
 
 ---
 
@@ -36,18 +53,20 @@ scaffolded. The repo is docs + `.claude/` only.
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Scaffold the project** (part of spec 01, task 1): Next 16 App Router + TS strict,
-   Tailwind 4, shadcn/ui, pnpm, `.nvmrc` (Node 22), `.env.example`, scripts
-   (`dev/build/typecheck/lint/test`), local Supabase (`supabase start`).
-2. **Spec 01 — foundation** (`docs/specs/01-foundation-auth-and-staff.md`): the walking
-   skeleton — edge-identity→role helpers, dev-auth shim (with production hard-guard),
-   migration `0001` (enums + `staff` + `audit_log` + deny-by-default RLS), seed a manager
-   row, Realtime JWT mint helper, staff CRUD. This proves the whole vertical path; deploy
-   the thin end-to-end skeleton once it works (architecture §8 step 2).
-3. **Then 02 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough order:
-   02 clients & cars → 03 catalog → 04 hours/overrides → 05 reservations & calendar (the
-   big one) → 06 order lifecycle → 07 SMS → 08 client history → 09 audit view → 10 unpaid
-   alerts.
+1. **Spec 01 — DONE.**
+2. **Spec 02 — clients & cars** (in progress): migration `0002` (pg_trgm + clients/cars/
+   client_cars + trigram GIN indexes + RLS), phone/ŠPZ normalizers, client+car Server
+   Actions (shared-ŠPZ link detection, manager-only edits), `/clients` fuzzy search and
+   `/clients/[id]` detail. Reuse the spec-01 patterns: `lib/actions/result.ts`
+   (`ActionResult`/`toActionError`), `getCurrentStaff` + `requireManager`, `writeAudit`
+   with before/after `details`, generated types via `pnpm supabase gen types`.
+3. **Then 03 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough order:
+   03 catalog → 04 hours/overrides → 05 reservations & calendar (the big one) → 06 order
+   lifecycle → 07 SMS → 08 client history → 09 audit view → 10 unpaid alerts.
+
+**Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
+VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when
+convenient now that spec 01 proves the vertical path.
 
 Use the **`spec-writer`** subagent only if a *new* spec is needed; use **`code-reviewer`**
 after meaningful changes. The skills in `.claude/skills/` auto-load for migrations, auth,

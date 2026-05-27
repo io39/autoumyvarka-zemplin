@@ -53,6 +53,87 @@ export type Database = {
           },
         ]
       }
+      cars: {
+        Row: {
+          created_at: string
+          id: string
+          model: string | null
+          pricing_category: Database["public"]["Enums"]["pricing_category"]
+          spz: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          model?: string | null
+          pricing_category: Database["public"]["Enums"]["pricing_category"]
+          spz: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          model?: string | null
+          pricing_category?: Database["public"]["Enums"]["pricing_category"]
+          spz?: string
+        }
+        Relationships: []
+      }
+      client_cars: {
+        Row: {
+          car_id: string
+          client_id: string
+          created_at: string
+        }
+        Insert: {
+          car_id: string
+          client_id: string
+          created_at?: string
+        }
+        Update: {
+          car_id?: string
+          client_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_cars_car_id_fkey"
+            columns: ["car_id"]
+            isOneToOne: false
+            referencedRelation: "cars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_cars_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          note: string | null
+          phone: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          note?: string | null
+          phone: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          note?: string | null
+          phone?: string
+        }
+        Relationships: []
+      }
       staff: {
         Row: {
           active: boolean
@@ -85,7 +166,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_clients: {
+        Args: { lim?: number; q: string }
+        Returns: {
+          client_id: string
+          matched_spz: string
+          name: string
+          phone: string
+          score: number
+        }[]
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       order_status: "vytvorena" | "hotova" | "zaplatena" | "nedostavil_sa"
