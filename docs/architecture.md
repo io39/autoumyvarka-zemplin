@@ -135,6 +135,7 @@ in the image).
 | `NEXT_PUBLIC_SUPABASE_URL` | local stack URL | Supabase Cloud URL | Browser + server client |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | local anon key | Cloud anon key | Browser client (RLS-scoped) |
 | `SUPABASE_SERVICE_ROLE_KEY` | local service key | Cloud service key | Server-side privileged ops |
+| `SUPABASE_JWT_SECRET` | local JWT secret | Cloud JWT secret | Mint short-lived browser tokens for Realtime (see data-model §3.1) |
 | `SMS_PROVIDER_API_KEY` | sandbox/empty | provider key | SMS send (PRD §8) |
 | `SMS_WEBHOOK_SECRET` | dev secret | shared secret w/ provider | Verify inbound webhook |
 | `REMINDER_TRIGGER_SECRET` | dev secret | shared secret w/ pg_cron | Authenticate the scheduled trigger (§6) |

@@ -298,27 +298,29 @@ for the `anon` role → anon can read/write nothing). This makes the public
 directly at Supabase (bypassing Cloudflare). `service_role` (used only server-side)
 bypasses RLS, so app reads/writes are unaffected.
 
-### 3.1 OPEN DECISION — how the browser authenticates Realtime
+### 3.1 How the browser authenticates Realtime (decided)
 
 The live-calendar requirement (PRD §5) needs the **browser** to hold a Realtime
-subscription. But auth is at the Cloudflare edge — there is **no Supabase user JWT**.
-Two ways to let the browser subscribe without exposing all client PII to anyone
-holding the (public) anon key:
+subscription. Auth is at the Cloudflare edge, so there is **no Supabase user JWT**.
 
-- **(A) Recommended — server-minted Supabase JWT.** On page load, the Server
-  Component mints a short-lived JWT signed with `SUPABASE_JWT_SECRET`, embedding the
-  Cloudflare identity + role as claims. The browser uses it for Realtime only. RLS
-  read policies require an `authenticated` claim, so the bare anon key grants
-  nothing. Most secure; a little plumbing.
-- **(B) Simpler — anon read policies + accept the exposure.** Grant `anon` SELECT on
-  calendar tables and rely on the fact that the app is only *reachable* behind
-  Cloudflare Access. Weakness: the anon key + Supabase URL are directly reachable,
-  so a leaked key exposes client PII (names, phones). Mitigation = key rotation.
+**Critical fact:** Cloudflare Access gates only the Next.js app on the VPS — it does
+**not** sit in front of Supabase Cloud. The Supabase URL + anon key are shipped to
+the browser (`NEXT_PUBLIC_*`) and are reachable **directly** over the internet,
+bypassing Cloudflare. So "the app is only reachable behind Cloudflare" does **not**
+protect the database. Anon read policies would expose every client's name/phone to
+anyone holding the public anon key — rotation is only a band-aid. That approach is
+rejected.
 
-I recommend **(A)**. **This is the one data-model decision I need you to confirm**
-before the first spec, because it shapes how Realtime and RLS policies are written.
-(Initial calendar load is server-rendered either way; only the live subscription is
-affected.)
+**Decision — server-minted Supabase JWT.** On page load, the Server Component mints
+a short-lived JWT signed with `SUPABASE_JWT_SECRET`, embedding the Cloudflare
+identity + role as claims. The browser uses it for the Realtime subscription only.
+RLS keeps **deny-by-default for `anon`** and grants reads only on an `authenticated`
+claim, so the bare anon key grants nothing. Initial calendar load is server-rendered
+via `service_role` regardless; only the live subscription uses the minted JWT.
+
+This requires `SUPABASE_JWT_SECRET` in the env map (architecture §3.2) and a
+token-minting helper in `lib/`. The first spec wires it as part of the walking
+skeleton's Realtime slice.
 
 ---
 
