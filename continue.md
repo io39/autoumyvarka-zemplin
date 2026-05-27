@@ -1,11 +1,33 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **Spec 01 is done; spec 02 is in progress.**
+**Phase:** Implementation, spec-driven. **Specs 01 and 02 are done; spec 03 is next.**
 **Last updated:** 2026-05-27.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`.
+
+---
+
+## First-run setup (do this before any code work)
+
+The local stack must be up and `.env.local` must exist (it's gitignored, so a fresh
+checkout has none). From the repo root:
+
+```bash
+corepack pnpm install                 # pnpm runs via corepack (no global install)
+# start Docker Desktop first (supabase needs it), then:
+pnpm supabase start                   # boots the local Postgres/Realtime stack
+pnpm supabase status -o env           # copy ANON_KEY/SERVICE_ROLE_KEY/JWT_SECRET into .env.local
+pnpm supabase db reset                # applies all migrations + seed (manager + worker)
+pnpm typecheck && pnpm test           # sanity: should all pass
+```
+
+`.env.local` keys (see `.env.example` for the full set): `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`,
+plus the dev shim `DEV_AUTH_EMAIL`/`DEV_AUTH_ROLE`. After any new migration, rerun
+`pnpm supabase db reset` and `pnpm supabase gen types typescript --local --schema public
+> lib/supabase/database.types.ts`.
 
 ---
 
@@ -28,7 +50,15 @@ Planning artifacts are all written and committed locally on `main`:
   `lib/supabase/database.types.ts`. Auth lib (`lib/auth/*`), service-role client,
   audit writer, Realtime JWT mint, staff Server Actions + `/staff` UI + `/` home +
   Slovak 401/403 views. 21 unit + 5 e2e tests pass.
-- **Spec 02 — IN PROGRESS** (clients & cars). See `docs/specs/02-clients-and-cars.md`.
+- **Spec 02 — DONE** (commit `feat: implement spec 02 (clients & cars)`). Migration
+  `0002_clients_cars.sql` (pg_trgm + unaccent; `clients`/`cars`/`client_cars` + trigram
+  GIN indexes + RLS; `search_clients(q,lim)` RPC, execute revoked from anon/authenticated).
+  Normalizers `lib/clients/phone.ts` + `lib/cars/spz.ts`. Actions in
+  `lib/actions/clients.ts` + `lib/actions/cars.ts` (shared-ŠPZ link detection,
+  manager-only edits, phone_change audit). UI `/clients` (fuzzy search) + `/clients/[id]`
+  (detail, add-car/link-confirm, history placeholder for spec 08). 26 unit + 11 e2e pass.
+- **Spec 03 — NOT STARTED** (service catalog & durations). See
+  `docs/specs/03-service-catalog.md`; seed source is `docs/services.md`.
 
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
@@ -53,16 +83,16 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Spec 01 — DONE.**
-2. **Spec 02 — clients & cars** (in progress): migration `0002` (pg_trgm + clients/cars/
-   client_cars + trigram GIN indexes + RLS), phone/ŠPZ normalizers, client+car Server
-   Actions (shared-ŠPZ link detection, manager-only edits), `/clients` fuzzy search and
-   `/clients/[id]` detail. Reuse the spec-01 patterns: `lib/actions/result.ts`
-   (`ActionResult`/`toActionError`), `getCurrentStaff` + `requireManager`, `writeAudit`
-   with before/after `details`, generated types via `pnpm supabase gen types`.
-3. **Then 03 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough order:
-   03 catalog → 04 hours/overrides → 05 reservations & calendar (the big one) → 06 order
-   lifecycle → 07 SMS → 08 client history → 09 audit view → 10 unpaid alerts.
+1. **Specs 01 & 02 — DONE.**
+2. **Spec 03 — service catalog & durations** (next): `docs/specs/03-service-catalog.md`,
+   seeded from `docs/services.md`. Reuse the established patterns: checked-in migration +
+   `supabase db reset` + `pnpm supabase gen types` → alias in `lib/supabase/types.ts`;
+   `lib/actions/result.ts` (`ActionResult`/`toActionError`); `getCurrentStaff` +
+   `requireManager` before mutations; `writeAudit` with before/after `details`; zod at
+   every boundary; e2e against the production build (see `tests/README.md`).
+3. **Then 04 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough order:
+   04 hours/overrides → 05 reservations & calendar (the big one) → 06 order lifecycle →
+   07 SMS → 08 client history → 09 audit view → 10 unpaid alerts.
 
 **Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
 VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when
