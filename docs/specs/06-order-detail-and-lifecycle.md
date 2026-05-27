@@ -18,17 +18,20 @@ live in open calendars.
 ### 1.1 What this feature does
 
 1. **Order detail** (PRD §5): opened from a calendar block — client (name, phone), car
-   (ŠPZ, model, type), services + durations, assigned worker, note, status, action
+   (ŠPZ, model, type), services + durations, assigned worker(s), note, status, action
    buttons by role; the client's history is linked (rendered in spec 08).
 2. **Status transitions** with role + sequence rules (PRD §6):
    `vytvorena → hotova` (any role), `hotova → zaplatena` (manager), `vytvorena →
-   nedostavil_sa` (manager). No return to `vytvorena`; delete only before `zaplatena`.
+   nedostavil_sa` (manager), and the approved exception `nedostavil_sa → vytvorena`
+   (manager — late-arriving client). No *other* return to `vytvorena`; delete only
+   before `zaplatena`.
 3. **Move time / box** of an existing order (manager only, PRD §3) — re-checked against
    conflicts + opening hours.
 4. **Delete / cancel** an order (manager only, before `zaplatena`) — soft-delete.
 5. **Manager note** (PRD §7): add/edit, visible to workers but not editable by them,
    shown prominently.
-6. **Worker assignment** (PRD §3): either role may assign self or another worker.
+6. **Worker assignment** (PRD §3): either role may assign self or other workers; an
+   order can have **multiple** assigned workers (M:N via `order_staff`).
 7. **Services on an existing order** (PRD §9.3): add in any state; per-line `paid`;
    remove only if not performed.
 8. Every change writes `audit_log` (PRD §11) and reflects via Realtime.
@@ -59,10 +62,10 @@ live in open calendars.
 | --- | --- | --- |
 | View order detail & history | ✅ | ✅ |
 | Mark `hotová` / `zaplatená` | ✅ | ✅ |
-| Assign worker (self/other) | ✅ | ✅ |
+| Assign / unassign worker(s) (self/other) | ✅ | ✅ |
 | Edit order/car data, **move time/box** | ✅ | ❌ |
 | **Delete / cancel** order | ✅ | ❌ |
-| Mark **`nedostavil sa`** | ✅ | ❌ |
+| Mark **`nedostavil sa`** / revert it to `vytvorená` | ✅ | ❌ |
 | Add/edit **note** | ✅ | ❌ |
 | Add/remove/pay **services** on order | ✅ | ❌ |
 
@@ -84,22 +87,29 @@ live in open calendars.
   over the calendar; either way deep-linkable at `/orders/[id]`.
 - Layout: status badge (color per §5.1), client + car (**ŠPZ + model/type**),
   service list with per-line `paid` toggles, duration + **finish time**, assigned
-  worker, **note shown prominently** (PRD §7), and role-gated action buttons.
+  **worker(s)** (add/remove), **note shown prominently** (PRD §7), and role-gated
+  action buttons.
 - Worker-hidden/disabled controls (move, delete, no-show, note edit, service edits) are
   not rendered for `prevadzka`; the server still enforces (defense-in-depth).
-- shadcn/ui: `Badge`, `Button`, `Select` (worker), `Switch`/`Checkbox` (paid),
+- shadcn/ui: `Badge`, `Button`, multi-select / combobox (workers), `Switch`/`Checkbox` (paid),
   `Textarea` (note), `Dialog` (move, confirm delete). Mobile-first ≥360px. Slovak copy.
 
 ### 2.2 Status machine (enforced server-side)
 
 ```
 vytvorena ──(any role)──► hotova ──(manager)──► zaplatena   [terminal]
-    │                       ▲ emits ORDER_READY event (spec 07 SMS)
-    └──(manager)──► nedostavil_sa   [terminal, frees slot]
+    │  ▲                    ▲ emits ORDER_READY event (spec 07 SMS)
+    │  └──(manager)─────────┐
+    └──(manager)──► nedostavil_sa   (frees slot; reversible)
 ```
 
-- Allowed transitions only; any other (incl. back to `vytvorena`) → rejected.
+- Allowed transitions only; any other (incl. `hotova/zaplatena → vytvorena`) → rejected.
 - `setStatus` validates the current→next edge against the matrix **and** the role.
+- **Approved exception** `nedostavil_sa → vytvorena` (manager only): a client who was
+  marked no-show actually arrives late. Because `nedostavil_sa` freed the slot, the
+  revert **re-checks conflict + opening hours** (`isRangeOpen` + the DB constraint) — if
+  the slot was rebooked meanwhile, the revert is rejected with a Slovak message
+  ("Termín už bol medzitým obsadený"). This overrides PRD §6 for this one edge only.
 - `nedostavil_sa` and delete free the box slot (the conflict constraint excludes them —
   data-model §2.7), so the time becomes bookable again immediately (live).
 - The `vytvorena → hotova` transition emits an internal **ORDER_READY** signal that
@@ -115,7 +125,8 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
 | `setStatus` | `{ id, next }` | matrix (see §2.2) | `order.status_change` `{from,to}` |
 | `moveOrder` | `{ id, box, startsAt }` | manager | `order.move` `{from,to}` |
 | `deleteOrder` | `{ id }` | manager (pre-`zaplatena`) | `order.delete` |
-| `assignWorker` | `{ id, staffId\|null }` | both | `order.assign` `{from,to}` |
+| `addOrderWorker` | `{ id, staffId }` | both | `order.assign` `{staffId}` |
+| `removeOrderWorker` | `{ id, staffId }` | both | `order.unassign` `{staffId}` |
 | `setNote` | `{ id, note }` | manager | `order.note_edit` |
 | `addOrderService` | `{ id, serviceId, quantity? }` | manager | `order_service.add` |
 | `removeOrderService` | `{ orderServiceId }` | manager (if not performed) | `order_service.remove` |
@@ -130,12 +141,20 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
   override) — and since duration changed, re-checks conflict for the new `ends_at`.
 - `removeOrderService`: allowed only while the line is not performed (soft `removed_at`).
 - `setStatus(next='hotova')` from `vytvorena` emits ORDER_READY after the commit.
+- `setStatus(next='vytvorena')` is **only** valid from `nedostavil_sa` (manager): it
+  re-checks `isRangeOpen` + the DB conflict constraint before reverting, and is rejected
+  if the slot was rebooked. It does **not** re-send the reminder SMS retroactively (spec
+  07 handles reminder timing on its own).
+- `addOrderWorker` / `removeOrderWorker`: upsert/delete an `order_staff` row
+  (data-model §2.14); idempotent (re-adding the same worker is a no-op). Both roles may
+  assign or unassign any worker (PRD §3).
 
 ### 2.4 Realtime
 
-All mutations write to `orders` / `order_services`; open calendars (spec 05) and any
-open detail view update live via the existing subscription (data-model §3.1). No new
-realtime plumbing.
+All mutations write to `orders` / `order_services` / `order_staff`; open calendars
+(spec 05) and any open detail view update live via the existing subscription
+(data-model §3.1). The `order_staff` table is added to the Realtime publication so
+assignment changes propagate too.
 
 ### 2.5 Error handling & loading states
 
@@ -146,19 +165,24 @@ realtime plumbing.
 
 ### 2.6 Data & migrations
 
-No schema changes — `orders` and `order_services` already exist (spec 05). New audit
-`action` strings are values, not schema. If a "performed" flag is needed to gate
-service removal beyond status, define it here; Phase-1 default: a line is "performed"
+Migration `0006_order_staff.sql`: the `order_staff` M:N table (data-model §2.14) with
+its PK + indexes + RLS deny-by-default, and added to the Realtime publication. `orders`
+and `order_services` already exist (spec 05); new audit `action` strings are values,
+not schema. Phase-1 "performed" rule (gating service removal): a line is "performed"
 once the order is `hotova` or later, so removal is allowed only while `vytvorena`.
 
 ---
 
 ## 3. Tasks
 
+0. **(S)** Migration `0006_order_staff.sql` (M:N table, RLS, Realtime publication).
+   (dep: spec 05 migration)
 1. **(M)** `lib/orders/transitions.ts`: the allowed-edge + role matrix as a pure
-   function `canTransition(from, next, role)` + unit tests. (dep: spec 05)
-2. **(M)** Extend `lib/actions/orders.ts`: `setStatus`, `moveOrder`, `deleteOrder`,
-   `assignWorker`, `setNote` with authz + audit + conflict/hours re-checks. (dep: 1)
+   function `canTransition(from, next, role)` (incl. the `nedostavil_sa → vytvorena`
+   manager edge) + unit tests. (dep: spec 05)
+2. **(M)** Extend `lib/actions/orders.ts`: `setStatus` (incl. no-show revert with
+   conflict/hours re-check), `moveOrder`, `deleteOrder`, `addOrderWorker`,
+   `removeOrderWorker`, `setNote` with authz + audit. (dep: 0, 1)
 3. **(M)** Service-line actions: `addOrderService`, `removeOrderService`,
    `setOrderServicePaid` with snapshotting + duration recompute + audit. (dep: 2)
 4. **(S)** ORDER_READY event emission on `vytvorena → hotova` (internal hook surface for
@@ -187,7 +211,10 @@ pnpm build       # exits 0
 - `canTransition('vytvorena','hotova','prevadzka')` → true.
 - `canTransition('hotova','zaplatena','prevadzka')` → true (matrix: both roles).
 - `canTransition('vytvorena','nedostavil_sa','prevadzka')` → false; `…,'manazer'` → true.
-- Any transition **to** `vytvorena` → false; `zaplatena`/`nedostavil_sa` are terminal.
+- `canTransition('nedostavil_sa','vytvorena','manazer')` → true (late-arrival
+  exception); `…,'prevadzka')` → false.
+- Any **other** transition to `vytvorena` (from `hotova`/`zaplatena`) → false;
+  `zaplatena` is terminal.
 
 ```bash
 pnpm test orders/transitions   # exits 0
@@ -195,10 +222,13 @@ pnpm test orders/transitions   # exits 0
 
 ### 4.3 Role enforcement (e2e, must pass — maps PRD §15#4)
 
-- As **prevádzka**: `setStatus(hotova)` and `assignWorker` succeed; `moveOrder`,
-  `deleteOrder`, `setStatus(nedostavil_sa)`, `setNote`, `addOrderService` all rejected
-  with `ForbiddenError`.
+- As **prevádzka**: `setStatus(hotova)`, `addOrderWorker`, `removeOrderWorker` succeed;
+  `moveOrder`, `deleteOrder`, `setStatus(nedostavil_sa)`, `setStatus(vytvorena)`,
+  `setNote`, `addOrderService` all rejected with `ForbiddenError`.
 - As **manažér**: all of the above succeed.
+- **Multiple workers:** `addOrderWorker` twice with two different staff → both appear on
+  the order (`order_staff` has 2 rows); re-adding the same worker is a no-op (still 2);
+  `removeOrderWorker` drops one (1 remains). Audit has `order.assign` ×2 + `order.unassign`.
 
 ```bash
 pnpm test e2e/order-role-permissions   # exits 0
@@ -211,9 +241,13 @@ pnpm test e2e/order-role-permissions   # exits 0
 - `deleteOrder` on a `zaplatena` order → rejected; on a pre-paid order → soft-deleted
   (`deleted_at` set), slot freed.
 - `setStatus(nedostavil_sa)` (manager) → status set, slot freed (re-bookable).
+- **No-show revert:** after `nedostavil_sa`, `setStatus(vytvorena)` (manager) → restored
+  to `vytvorena` **iff** the slot is still free; if another order took the slot, the
+  revert is rejected (Slovak conflict message). As **prevádzka** the revert is rejected
+  (`ForbiddenError`).
 
 ```bash
-pnpm test e2e/order-move-delete   # exits 0
+pnpm test e2e/order-move-delete e2e/order-noshow-revert   # exits 0
 ```
 
 ### 4.5 Services on an existing order (e2e, must pass — PRD §9.3)

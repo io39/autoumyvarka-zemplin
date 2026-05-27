@@ -155,7 +155,6 @@ The central entity (PRD §6). One car, one box, one time slot, a status lifecycl
 | `ends_at` | timestamptz **generated** | `starts_at + duration_min` (stored generated, for the overlap constraint) |
 | `status` | `order_status` not null default `'vytvorena'` | |
 | `note` | text null | manager-only edit (PRD §7) |
-| `assigned_staff_id` | uuid fk → staff null | (PRD §3: either role may assign) |
 | `created_by` | uuid fk → staff not null | audit (PRD §11) |
 | `reminded_at` | timestamptz null | idempotency marker for the 30-min SMS (architecture §6) |
 | `deleted_at` | timestamptz null | soft-cancel; allowed only before `zaplatena` (PRD §6) |
@@ -178,13 +177,19 @@ Deleted and *nedostavil sa* orders free their slot (PRD §6); all other states
 occupy it. This makes a conflicting reservation impossible at the DB level, not
 just in app code.
 
+**Assigned workers:** an order may have **multiple** assigned workers — modeled M:N
+via `order_staff` (§2.14), not a column here.
+
 **Status transition rules** (enforced in Server Actions, audited):
 `vytvorena → hotova` (any role; fires the "ready" SMS), `hotova → zaplatena`
 (manager only, Phase 1 manual), `vytvorena → nedostavil_sa` (manager only, frees
-slot). No transition returns to `vytvorena` (PRD §6).
+slot), and the **approved exception** `nedostavil_sa → vytvorena` (manager only — a
+late-arriving client; re-checks conflict + hours because the slot may have been
+rebooked). No *other* transition returns to `vytvorena` (overrides PRD §6 for this one
+case only).
 
 **Indexes:** `(box, starts_at)` and `(starts_at)` for calendar range queries;
-`(client_id)`, `(car_id)`, `(status)`, `(assigned_staff_id)`.
+`(client_id)`, `(car_id)`, `(status)`.
 
 ### 2.8 `order_services`
 
@@ -289,6 +294,24 @@ When a `day_overrides` row exists for a date, it **wins** over that weekday's
 `opening_hours`. The availability helper (spec 04) resolves: override → else weekday
 hours.
 
+### 2.14 `order_staff` (M:N)
+
+Workers assigned to an order. An order may have several workers; a worker is on many
+orders (PRD §3: either role may assign self or others). Replaces the former single
+`orders.assigned_staff_id`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `order_id` | uuid fk → orders not null | |
+| `staff_id` | uuid fk → staff not null | the assigned worker |
+| `assigned_by` | uuid fk → staff not null | who made the assignment (audit) |
+| `assigned_at` | timestamptz not null default now() | |
+| **pk** | (`order_id`, `staff_id`) | a worker is assigned at most once per order |
+
+**Indexes:** `(order_id)`, `(staff_id)` (the latter for "orders for worker X" and
+history-by-worker views). Assignments are added/removed directly (no soft-delete); each
+add/remove writes `audit_log` (`order.assign` / `order.unassign`).
+
 ---
 
 ## 3. Authorization / RLS strategy
@@ -343,6 +366,7 @@ skeleton's Realtime slice.
 | `services` | `active` flag | catalog integrity (PRD §9.1) |
 | `orders` | `deleted_at` (only before `zaplatena`) | cancel ≠ erase; stays in client history (PRD §6, §10) |
 | `order_services` | `removed_at` (only if not performed) | history integrity (PRD §9.3) |
+| `order_staff` | hard add/remove (audited) | a current-assignment association; the audit log preserves the history |
 | `clients`, `cars` | hard-delete avoided in Phase 1 | personal data; no delete flow in PRD. GDPR erasure handled ad-hoc by manager if ever needed (out of Phase 1 scope) |
 | `audit_log` | append-only, retain ≥3 months | PRD §11.2 |
 | `sms_messages` | append-only | delivery record |
