@@ -4,6 +4,7 @@ import {
   bratislavaHHMM,
   getOpenInterval,
 } from "@/lib/settings/availability";
+import { bratislavaLocalToUTC } from "@/lib/time/bratislava";
 
 /** A 15-minute slot proposal. */
 export interface SlotProposal {
@@ -108,7 +109,9 @@ function enumerateLocalSlotStarts(
   const closeMin = toMinutes(close);
   const latestStart = closeMin - durationMin;
   for (let m = openMin; m <= latestStart; m += 15) {
-    out.push(localBratislavaToUTC(dateKey, m));
+    const hh = String(Math.floor(m / 60)).padStart(2, "0");
+    const mm = String(m % 60).padStart(2, "0");
+    out.push(bratislavaLocalToUTC(dateKey, `${hh}:${mm}`));
   }
   return out;
 }
@@ -116,32 +119,4 @@ function enumerateLocalSlotStarts(
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
-}
-
-/**
- * Convert a (Bratislava-local) `YYYY-MM-DD` + minutes-past-midnight into the
- * corresponding UTC `Date`. Probes ±2h around the naïve UTC instant and
- * picks the one whose local rendering matches — robust across DST.
- */
-function localBratislavaToUTC(dateKey: string, minutes: number): Date {
-  const [y, mo, d] = dateKey.split("-").map(Number);
-  const hh = Math.floor(minutes / 60);
-  const mm = minutes % 60;
-  const target = `${pad(hh)}:${pad(mm)}`;
-
-  // Try a small window of offsets (CET=+01, CEST=+02). The correct one renders
-  // back to `target` in Europe/Bratislava.
-  for (const offsetMin of [-60, -120, 0, 60, 120]) {
-    const utcMs = Date.UTC(y, mo - 1, d, hh, mm) - offsetMin * 60 * 1000;
-    const cand = new Date(utcMs);
-    if (bratislavaHHMM(cand) === target && bratislavaDateKey(cand) === dateKey) {
-      return cand;
-    }
-  }
-  // Fallback (should be unreachable for valid SK dates).
-  return new Date(Date.UTC(y, mo - 1, d, hh, mm));
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
 }

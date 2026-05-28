@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentStaff } from "@/lib/auth/session";
+import { requireManager } from "@/lib/auth/require";
 import { writeAudit } from "@/lib/audit";
 import { getServiceClient } from "@/lib/supabase/server";
 import type {
@@ -23,6 +24,7 @@ import { isRangeOpen } from "@/lib/settings/availability";
 import {
   bratislavaDateKey,
 } from "@/lib/settings/availability";
+import { bratislavaLocalDayRange } from "@/lib/time/bratislava";
 
 const CONFLICT_MESSAGE = "Termín v tomto boxe je obsadený.";
 const CLOSED_MESSAGE = "Termín je mimo otváracích hodín.";
@@ -73,14 +75,15 @@ export async function suggestSlots(input: unknown): Promise<SlotProposal[]> {
   await getCurrentStaff();
   const db = getServiceClient();
 
+  const { start, end } = rangeForView("day", date);
   const [hoursRes, overridesRes, busyRes] = await Promise.all([
     db.from("opening_hours").select("*"),
     db.from("day_overrides").select("*").eq("day", date),
     db
       .from("orders")
       .select("box, starts_at, ends_at, status, deleted_at")
-      .gte("starts_at", `${date}T00:00:00.000+00:00`)
-      .lt("starts_at", `${date}T23:59:59.999+02:00`)
+      .gte("starts_at", start.toISOString())
+      .lt("starts_at", end.toISOString())
       .is("deleted_at", null)
       .neq("status", "nedostavil_sa"),
   ]);
@@ -167,6 +170,12 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       return { ok: false, message: "Niektorá služba nie je dostupná pre tento typ vozidla." };
     }
 
+    // Spec §2.3 / PRD §3: workers may book at the computed duration but
+    // cannot override it (order-data editing is manager-only). Gate before
+    // we accept the override value.
+    if (data.durationOverrideMin !== undefined) {
+      requireManager(actor);
+    }
     const durationMin = data.durationOverrideMin ?? totalDurationMin(lines);
     if (durationMin <= 0) {
       return { ok: false, message: "Trvanie objednávky musí byť kladné." };
@@ -279,38 +288,23 @@ function stripJoined(r: JoinedOrderRow): OrderRow {
 
 /** UTC [start, end) for the day or week containing `dateKey` (Bratislava local). */
 function rangeForView(view: "day" | "week", dateKey: string): { start: Date; end: Date } {
-  // Treat the date as a Bratislava local calendar day. For "day" we want
-  // [00:00 local, 24:00 local); for "week" the 7-day window starting Monday.
-  if (view === "day") {
-    return { start: localDayStart(dateKey, 0), end: localDayStart(dateKey, 1) };
-  }
-  // Week: anchor to the Monday of the week containing `dateKey`.
+  if (view === "day") return bratislavaLocalDayRange(dateKey);
+
+  // Week: anchor to the Monday of the week containing `dateKey`, then take
+  // the 7-day range starting there.
   const [y, m, d] = dateKey.split("-").map(Number);
   const probe = new Date(Date.UTC(y, m - 1, d, 12)); // midday avoids DST edge
-  const jsDay = probe.getUTCDay(); // 0=Sun..6=Sat
-  const offsetToMonday = (jsDay + 6) % 7; // 0=Mon..6=Sun
+  const offsetToMonday = (probe.getUTCDay() + 6) % 7; // 0=Mon..6=Sun
   const monday = new Date(probe);
   monday.setUTCDate(monday.getUTCDate() - offsetToMonday);
   const mondayKey = `${monday.getUTCFullYear()}-${pad(monday.getUTCMonth() + 1)}-${pad(monday.getUTCDate())}`;
-  return { start: localDayStart(mondayKey, 0), end: localDayStart(mondayKey, 7) };
-}
-
-/** UTC instant for Bratislava-local `dateKey + dayOffset` at 00:00. */
-function localDayStart(dateKey: string, dayOffset: number): Date {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const base = new Date(Date.UTC(y, m - 1, d + dayOffset));
-  // Adjust by the Bratislava UTC offset for that calendar date (probe at noon).
-  const probeUTC = Date.UTC(y, m - 1, d + dayOffset, 12);
-  const local = new Date(probeUTC);
-  const localHourStr = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Bratislava",
-    hour: "2-digit",
-    hour12: false,
-  }).format(local);
-  const localHour = Number(localHourStr.replace("24", "00"));
-  // Offset in hours: e.g. CET → local hour at noon UTC is 13, offset = 1.
-  const offsetH = localHour - 12;
-  return new Date(base.getTime() - offsetH * 60 * 60 * 1000);
+  const sundayPlusOne = new Date(monday);
+  sundayPlusOne.setUTCDate(monday.getUTCDate() + 7);
+  const endKey = `${sundayPlusOne.getUTCFullYear()}-${pad(sundayPlusOne.getUTCMonth() + 1)}-${pad(sundayPlusOne.getUTCDate())}`;
+  return {
+    start: bratislavaLocalDayRange(mondayKey).start,
+    end: bratislavaLocalDayRange(endKey).start,
+  };
 }
 
 function pad(n: number): string {

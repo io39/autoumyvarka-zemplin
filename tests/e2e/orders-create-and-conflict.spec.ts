@@ -7,6 +7,7 @@ import {
   uniquePhone,
   uniqueSpz,
 } from "./support";
+import { bratislavaLocalToISO } from "@/lib/time/bratislava";
 
 /** Pick a Bratislava-local date and 09:00 / 09:30 slot. Use a near-future
  * weekday so the seeded opening hours (Mon–Fri 08:00–17:00) apply. */
@@ -18,25 +19,6 @@ function nextWeekdayDate(): string {
   if (dow === 6) d.setDate(d.getDate() + 2);
   // Format as Bratislava local YYYY-MM-DD.
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(d);
-}
-
-function localToISO(dateKey: string, hhmm: string): string {
-  // Probe the few possible Bratislava offsets so this works year-round.
-  const [y, mo, d] = dateKey.split("-").map(Number);
-  const [h, m] = hhmm.split(":").map(Number);
-  for (const off of [-60, -120, 0, 60, 120]) {
-    const utcMs = Date.UTC(y, mo - 1, d, h, m) - off * 60 * 1000;
-    const cand = new Date(utcMs);
-    const lk = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(cand);
-    const lt = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Bratislava",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(cand);
-    if (lk === dateKey && lt === hhmm) return cand.toISOString();
-  }
-  return new Date(Date.UTC(y, mo - 1, d, h, m)).toISOString();
 }
 
 async function setupClientAndCar(spzPrefix = "TT") {
@@ -126,9 +108,9 @@ test.describe("manager — booking flow", () => {
       client_id: clientId,
       car_id: (await db.from("client_cars").select("car_id").eq("client_id", clientId).single()).data!.car_id,
       box: 1,
-      starts_at: localToISO(date, "09:30"),
+      starts_at: bratislavaLocalToISO(date, "09:30"),
       duration_min: 30,
-      ends_at: localToISO(date, "10:00"),
+      ends_at: bratislavaLocalToISO(date, "10:00"),
       created_by: staff!.id,
     });
     expect(ins).toBeNull();

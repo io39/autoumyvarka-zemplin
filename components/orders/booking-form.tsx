@@ -12,6 +12,7 @@ import type { ServiceWithPrices } from "@/lib/actions/services";
 import type { CarRow, ClientRow, PricingCategory } from "@/lib/supabase/types";
 import { resolveServicePrice } from "@/lib/services/price-lookup";
 import { formatPriceCents } from "@/lib/services/format";
+import { bratislavaLocalToISO } from "@/lib/time/bratislava";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -153,7 +154,7 @@ export function BookingForm({ client, cars, services, preselectedCarId, date }: 
       toast.error("Vyberte aspoň jednu službu.");
       return;
     }
-    const startsAtUtc = localToISO(selDate, selTime);
+    const startsAtUtc = bratislavaLocalToISO(selDate, selTime);
     startTransition(async () => {
       const override = Number(overrideMin);
       const result = await createOrder({
@@ -387,28 +388,3 @@ function ServiceGroup({
   );
 }
 
-/**
- * Convert a Bratislava-local (date, time) into the corresponding UTC ISO
- * string. Probes the few possible offsets so DST is handled correctly
- * without pulling in a timezone library.
- */
-function localToISO(dateKey: string, hhmm: string): string {
-  const [y, mo, d] = dateKey.split("-").map(Number);
-  const [h, m] = hhmm.split(":").map(Number);
-  for (const offsetMin of [-60, -120, 0, 60, 120]) {
-    const utcMs = Date.UTC(y, mo - 1, d, h, m) - offsetMin * 60 * 1000;
-    const cand = new Date(utcMs);
-    const localKey = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Europe/Bratislava",
-    }).format(cand);
-    const localTime = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Bratislava",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(cand);
-    if (localKey === dateKey && localTime === hhmm) return cand.toISOString();
-  }
-  // Fallback (should be unreachable for valid SK dates).
-  return new Date(Date.UTC(y, mo - 1, d, h, m)).toISOString();
-}
