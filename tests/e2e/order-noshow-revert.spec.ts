@@ -19,7 +19,11 @@ test.describe("no-show + late-arrival revert (manager only)", () => {
     await page
       .getByRole("button", { name: "Označiť ako nedostavil sa" })
       .click();
-    await expect(page.getByText("Stav: Nedostavil sa.")).toBeVisible();
+    // Assert on the persistent status badge, not the Sonner toast — the toast
+    // races with `router.refresh()` and disappears in full-suite runs.
+    await expect(
+      page.getByText("Nedostavil sa", { exact: true }),
+    ).toBeVisible();
     const { data: row } = await db
       .from("orders")
       .select("status")
@@ -31,7 +35,7 @@ test.describe("no-show + late-arrival revert (manager only)", () => {
     await page
       .getByRole("button", { name: "Označiť ako vytvorenú" })
       .click();
-    await expect(page.getByText("Stav: Vytvorená.")).toBeVisible();
+    await expect(page.getByText("Vytvorená", { exact: true })).toBeVisible();
     const { data: row2 } = await db
       .from("orders")
       .select("status")

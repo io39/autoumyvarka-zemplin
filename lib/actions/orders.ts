@@ -620,6 +620,18 @@ export async function removeOrderWorker(input: unknown): Promise<ActionResult> {
     const actor = await getCurrentStaff();
     const db = getServiceClient();
 
+    // Match the rest of the mutating actions: refuse to operate on a
+    // soft-deleted (cancelled) order.
+    const { data: order, error: oErr } = await db
+      .from("orders")
+      .select("id, deleted_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (oErr) throw oErr;
+    if (!order || order.deleted_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+
     const { error: delErr, count } = await db
       .from("order_staff")
       .delete({ count: "exact" })
