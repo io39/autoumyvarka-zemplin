@@ -117,6 +117,7 @@ export function OpeningHoursEditor({
                 id={`open-${r.dayOfWeek}`}
                 type="time"
                 step={900}
+                lang="sk-SK"
                 value={r.openTime}
                 disabled={r.isClosed}
                 onChange={(e) => update(r.dayOfWeek, { openTime: e.target.value })}
@@ -130,6 +131,7 @@ export function OpeningHoursEditor({
                 id={`close-${r.dayOfWeek}`}
                 type="time"
                 step={900}
+                lang="sk-SK"
                 value={r.closeTime}
                 disabled={r.isClosed}
                 onChange={(e) => update(r.dayOfWeek, { closeTime: e.target.value })}

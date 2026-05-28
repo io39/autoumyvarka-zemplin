@@ -134,6 +134,7 @@ export function DayOverridesEditor({
                 id="open"
                 type="time"
                 step={900}
+                lang="sk-SK"
                 value={openTime}
                 onChange={(e) => setOpenTime(e.target.value)}
               />
@@ -144,6 +145,7 @@ export function DayOverridesEditor({
                 id="close"
                 type="time"
                 step={900}
+                lang="sk-SK"
                 value={closeTime}
                 onChange={(e) => setCloseTime(e.target.value)}
               />
