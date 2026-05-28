@@ -3,6 +3,7 @@ import { getCurrentStaff } from "@/lib/auth/session";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { getOrder } from "@/lib/actions/orders";
+import { getOrderSms } from "@/lib/actions/sms";
 import { listServices } from "@/lib/actions/services";
 import { getServiceClient } from "@/lib/supabase/server";
 import { OrderDetailView } from "@/components/orders/order-detail";
@@ -25,9 +26,10 @@ export default async function OrderPage({
   if (!detail) notFound();
 
   const db = getServiceClient();
-  const [{ data: staffList, error: staffErr }, services] = await Promise.all([
+  const [{ data: staffList, error: staffErr }, services, sms] = await Promise.all([
     db.from("staff").select("id, display_name, role, active").eq("active", true).order("display_name"),
     listServices({ includeInactive: false }),
+    getOrderSms({ orderId: id }),
   ]);
   if (staffErr) throw staffErr;
 
@@ -38,6 +40,7 @@ export default async function OrderPage({
         detail={detail}
         allStaff={staffList ?? []}
         services={services}
+        sms={sms}
       />
     </main>
   );

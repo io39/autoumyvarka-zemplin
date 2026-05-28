@@ -22,9 +22,12 @@ import { bratislavaHHMM, bratislavaDateKey } from "@/lib/settings/availability";
 import { bratislavaLocalToISO } from "@/lib/time/bratislava";
 import type {
   OrderStatus,
+  SmsMessageRow,
   StaffRole,
   StaffRow,
 } from "@/lib/supabase/types";
+import { resendSms } from "@/lib/actions/sms";
+import { SMS_TYPE_LABEL } from "@/lib/sms/render";
 import type { ServiceWithPrices } from "@/lib/actions/services";
 import { formatPriceCents } from "@/lib/services/format";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +58,7 @@ interface Props {
   detail: OrderDetail;
   allStaff: StaffLite[];
   services: ServiceWithPrices[];
+  sms: SmsMessageRow[];
 }
 
 const STATUS_LABEL_BUTTON: Record<OrderStatus, string> = {
@@ -64,7 +68,7 @@ const STATUS_LABEL_BUTTON: Record<OrderStatus, string> = {
   nedostavil_sa: "Označiť ako nedostavil sa",
 };
 
-export function OrderDetailView({ role, detail, allStaff, services }: Props) {
+export function OrderDetailView({ role, detail, allStaff, services, sms }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { order, client, car } = detail;
@@ -226,6 +230,15 @@ export function OrderDetailView({ role, detail, allStaff, services }: Props) {
           )
         }
         totalCents={totalCents}
+      />
+
+      <SmsSection
+        sms={sms}
+        canResend={isManager}
+        pending={pending}
+        onResend={(smsId) =>
+          call("SMS znovu odoslaná.", () => resendSms({ smsId }))
+        }
       />
 
       {isManager && (
@@ -669,6 +682,77 @@ function DeleteDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SmsSection({
+  sms,
+  canResend,
+  pending,
+  onResend,
+}: {
+  sms: SmsMessageRow[];
+  canResend: boolean;
+  pending: boolean;
+  onResend: (smsId: string) => void;
+}) {
+  const STATUS_LABEL: Record<SmsMessageRow["status"], string> = {
+    pending: "Odosiela sa",
+    sent: "Odoslané",
+    delivered: "Doručené",
+    failed: "Zlyhalo",
+  };
+  return (
+    <section data-section="sms" className="space-y-2 rounded-lg border p-3">
+      <h2 className="text-sm font-medium">SMS</h2>
+      <ul className="space-y-1 text-sm">
+        {sms.length === 0 && (
+          <li className="text-muted-foreground">Žiadne SMS pre túto objednávku.</li>
+        )}
+        {sms.map((m) => (
+          <li
+            key={m.id}
+            data-sms-id={m.id}
+            data-sms-status={m.status}
+            className="flex flex-wrap items-center justify-between gap-2 rounded border p-2"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{SMS_TYPE_LABEL[m.type]}</span>
+                <Badge
+                  variant={
+                    m.status === "failed"
+                      ? "destructive"
+                      : m.status === "delivered" || m.status === "sent"
+                        ? "default"
+                        : "secondary"
+                  }
+                >
+                  {STATUS_LABEL[m.status]}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(m.created_at).toLocaleString("sk-SK")}
+                </span>
+              </div>
+              <div className="truncate text-xs text-muted-foreground">{m.body}</div>
+              {m.error && (
+                <div className="text-xs text-red-600">{m.error}</div>
+              )}
+            </div>
+            {canResend && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() => onResend(m.id)}
+              >
+                Poslať znova
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -129,7 +129,7 @@ the order detail but don't manage it.
 
 ### 2.8 Data & migrations
 
-Migration `0007_sms.sql`:
+Migration `0008_sms.sql`:
 - `sms_messages` + `sms_templates` per data-model §2.9–§2.10, indexes
   (`sms_messages(order_id)`, `(status)`, `(provider_message_id)`).
 - Seed the two `sms_templates` rows (placeholder Slovak text above).

@@ -49,3 +49,12 @@ export type OrderServiceInsert = Database["public"]["Tables"]["order_services"][
 
 export type OrderStaffRow = Database["public"]["Tables"]["order_staff"]["Row"];
 export type OrderStaffInsert = Database["public"]["Tables"]["order_staff"]["Insert"];
+
+export type SmsType = Database["public"]["Enums"]["sms_type"];
+export type SmsStatus = Database["public"]["Enums"]["sms_status"];
+
+export type SmsMessageRow = Database["public"]["Tables"]["sms_messages"]["Row"];
+export type SmsMessageInsert = Database["public"]["Tables"]["sms_messages"]["Insert"];
+
+export type SmsTemplateRow = Database["public"]["Tables"]["sms_templates"]["Row"];
+export type SmsTemplateInsert = Database["public"]["Tables"]["sms_templates"]["Insert"];

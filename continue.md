@@ -1,7 +1,7 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **Specs 01–06 are done; spec 07 is next.**
+**Phase:** Implementation, spec-driven. **Specs 01–07 are done; spec 08 is next.**
 **Last updated:** 2026-05-28.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
@@ -176,6 +176,72 @@ Planning artifacts are all written and committed locally on `main`:
   should-fix (all applied: deleted_at filter on getOrder, override-aware
   duration math on add/remove, audit trim) + 3 nits (migration filename
   fixed in spec 06 doc).
+- **Spec 07 — DONE** (commits `feat: implement spec 07 (sms notifications)`
+  + the code-review follow-ups applied in the same commit per session
+  workflow). Migration `0008_sms.sql`: `sms_templates` (pk `type`) seeded
+  with placeholder Slovak text (PRD §13#4 final wording TBD);
+  `sms_messages` (append-only outbound log) with three indexes
+  (`order_id`, `status`, `provider_message_id`); RLS deny-by-default on
+  both; the `pg_cron` + `pg_net` job `sms-reminders` (every minute) that
+  POSTs to `/api/reminders` with `x-reminder-secret`. URL/secret are read
+  from per-database GUCs (`app.reminder_url`, `app.reminder_secret`); the
+  cron command exits with a NOTICE when either GUC is unset (avoiding
+  minute-by-minute 401 noise in local dev where the GUCs are never set).
+  Provider adapter `lib/sms/provider.ts` with a `fake` impl (default,
+  `.env.example`); the real Slovak provider is still TBD per PRD §13#4 /
+  architecture §1; `getSmsProvider()` throws on any unknown `SMS_PROVIDER`
+  rather than silently falling back. The fake adapter's magic-phone
+  failure (used by e2e to exercise the dispatch error path) is gated
+  behind `SMS_FAKE_ALLOW_FAILURE=1`, set only in dev/CI `.env.local` —
+  production never trips it on a real customer number.
+  Rendering: `lib/sms/render.ts` substitutes `{cas}` / `{spz}` / `{nazov}`,
+  leaves unknown tokens in place (typo doesn't ship raw), `smsSegmentCount`
+  reports 70/67 GSM-with-diacritics segments. Dispatch: `lib/sms/dispatch.ts`
+  logs a `pending` row first (so a crash mid-send still leaves a visible
+  trace), then updates to `sent`/`failed`; if the failure-update itself
+  fails, logs via `console.error` instead of silently returning a misleading
+  `pending` row. `lib/sms/wire.ts` subscribes the ready SMS to ORDER_READY
+  (spec 06) — imported at the top of `lib/actions/orders.ts` so the
+  listener is registered before `setStatus` emits; the same `readyListener`
+  constant is module-scoped + an explicit `registered` flag guards against
+  future multi-bundle splits.
+  Server actions in `lib/actions/sms.ts`: `getOrderSms` (both roles),
+  `getSmsTemplates` (read; both roles), `saveSmsTemplate` (manager,
+  `sms.template_save` audit), `resendSms` (manager; creates a NEW attempt
+  row and audits `sms.resend` — old failure row retained per spec §2.6).
+  Route Handlers: `POST /api/reminders` (auths `x-reminder-secret`; selects
+  orders whose start is in `reminderWindow(now)` = ±2 min around now+30,
+  status `vytvorena`, `deleted_at IS NULL`, `reminded_at IS NULL`; stamps
+  `reminded_at` via `UPDATE … WHERE reminded_at IS NULL … SELECT id` and
+  gates on row count, so two interleaved cron fires don't both dispatch;
+  per-order SMS failure doesn't abort the batch) and `POST /api/sms/webhook`
+  (header-only `x-sms-webhook-secret`; query-string secret fallback removed
+  to avoid log leakage; zod-validates body; unknown `provider_message_id`
+  → 200 + log; malformed → 400).
+  UI: `/settings/sms-templates` (manager-only) with per-template live
+  char counter (70/segment); SMS section on `/orders/[id]` showing every
+  attempt with status badge + resend button (manager only). Menu link
+  added.
+  Tests: unit `tests/unit/sms/{render,reminder-window}.test.ts`; e2e
+  `sms-ready` (success + forced failure; status transition succeeds
+  either way), `sms-reminder` (401, idempotency via `reminded_at`,
+  exclusion of deleted/non-`vytvorena`/out-of-window), `sms-webhook`
+  (401/400/200 unknown id/delivered/failed), `sms-permissions` (worker
+  → 403 on templates page, no resend button on order; manager →
+  template save with audit, resend creates new attempt). **109 unit +
+  55 e2e pass on a clean `pnpm supabase db reset`.**
+  Code-reviewer pass returned 0 must-fix, 5 should-fix (all applied:
+  magic-phone gated by `SMS_FAKE_ALLOW_FAILURE`, `?secret=` query
+  fallback removed, dispatch update error logged, cron skips when GUCs
+  unset, `wire.ts` `registered` flag) + 2 nits (both applied: empty-body
+  counter shows "0 SMS", `0007_sms.sql` → `0008_sms.sql` typo in spec).
+  Deliberate carry-overs: the real Slovak SMS provider adapter is NOT
+  pinned (PRD §13#4 open — final wording AND provider both TBD); local
+  dev currently sends nothing because the fake adapter is the default;
+  production deploy needs to (a) `alter database … set app.reminder_url
+  = …` and `app.reminder_secret = …` on the Supabase DB and
+  (b) configure the Cloudflare Access bypass policy for `/api/sms/webhook`
+  (the one path the provider can't authenticate to).
 
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
@@ -200,16 +266,13 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Specs 01–06 — DONE.**
-2. **Spec 07 — SMS** (next): `docs/specs/07-sms.md`. Subscribe to the
-   ORDER_READY event emitted by spec 06's `setStatus(vytvorena → hotova)`
-   (see `lib/orders/ready-event.ts`) to send the "ready" SMS via the Slovak
-   provider. Add the 30-minute reminder pg_cron → Route Handler, idempotent
-   on `orders.reminded_at`. Provider webhook is the one Route Handler that
-   bypasses Cloudflare Access — it verifies `SMS_WEBHOOK_SECRET` in-handler.
-   Open question (PRD §13#4): final SMS wording + signature.
-3. **Then 08 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough
-   order: 08 client history → 09 audit view → 10 unpaid alerts.
+1. **Specs 01–07 — DONE.**
+2. **Spec 08 — Client detail & history** (next):
+   `docs/specs/08-client-detail-and-history.md`. The history placeholder on
+   `/clients/[id]` (left there in spec 02) gets filled in: read past orders
+   + their `order_services` snapshots per car. Open question (spec 08 §2.2):
+   whether soft-deleted (cancelled) orders show in client history.
+3. **Then 09 → 10 in order.** 09 audit view → 10 unpaid alerts.
 
 **Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
 VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when
@@ -268,6 +331,10 @@ and order-domain work — follow them.
 
 - Don't build a login page — auth is edge (Cloudflare Access). Local dev uses the
   env-gated dev-auth shim; it must be inert when `NODE_ENV=production`.
+- The `sms-reminders` pg_cron job is registered on `supabase db reset`. Its body
+  checks the `app.reminder_url` / `app.reminder_secret` GUCs and exits with a
+  NOTICE when either is unset — so local dev (where the GUCs are unset) stays
+  quiet instead of hammering `/api/reminders` with 401s every minute.
 - The SMS delivery webhook is the one route that bypasses Cloudflare Access; it verifies
   `SMS_WEBHOOK_SECRET` in-handler (spec 07 §2.8).
 - Calendar/scheduling UI component and the Slovak SMS provider SDK are **TBD** — pick and

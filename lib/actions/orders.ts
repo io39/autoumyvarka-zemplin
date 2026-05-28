@@ -1,5 +1,10 @@
 "use server";
 
+// Registers the ORDER_READY → "ready" SMS listener (spec 07). Imported here
+// because `setStatus` (below) emits that event after a successful transition,
+// and the listener must already be subscribed when emit fires.
+import "@/lib/sms/wire";
+
 import { revalidatePath } from "next/cache";
 import { getCurrentStaff } from "@/lib/auth/session";
 import { requireManager } from "@/lib/auth/require";

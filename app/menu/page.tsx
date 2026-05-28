@@ -36,6 +36,9 @@ export default async function MenuPage() {
             <Link href="/settings/exceptions" className="underline underline-offset-4">
               Výnimky (sviatky) →
             </Link>
+            <Link href="/settings/sms-templates" className="underline underline-offset-4">
+              SMS šablóny →
+            </Link>
           </>
         )}
       </nav>

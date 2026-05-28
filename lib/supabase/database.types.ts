@@ -439,6 +439,74 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_messages: {
+        Row: {
+          body: string
+          created_at: string
+          delivered_at: string | null
+          error: string | null
+          id: string
+          order_id: string
+          phone: string
+          provider_message_id: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["sms_status"]
+          type: Database["public"]["Enums"]["sms_type"]
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          id?: string
+          order_id: string
+          phone: string
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["sms_status"]
+          type: Database["public"]["Enums"]["sms_type"]
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          id?: string
+          order_id?: string
+          phone?: string
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["sms_status"]
+          type?: Database["public"]["Enums"]["sms_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_templates: {
+        Row: {
+          body: string
+          type: Database["public"]["Enums"]["sms_type"]
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          type: Database["public"]["Enums"]["sms_type"]
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          type?: Database["public"]["Enums"]["sms_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       staff: {
         Row: {
           active: boolean
