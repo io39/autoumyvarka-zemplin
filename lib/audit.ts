@@ -11,7 +11,9 @@ export async function writeAudit(
   actor: CurrentStaff,
   action: string,
   entityType: string,
-  entityId: string,
+  // NULL for config tables whose PK isn't a uuid (e.g. opening_hours,
+  // day_overrides). The meaningful key for those goes in `details`.
+  entityId: string | null,
   details?: Json,
   orderId?: string,
 ): Promise<void> {

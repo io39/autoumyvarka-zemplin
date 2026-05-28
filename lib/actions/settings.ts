@@ -69,7 +69,11 @@ export async function saveOpeningHours(input: unknown): Promise<ActionResult> {
       .upsert(payload, { onConflict: "day_of_week" });
     if (error) throw error;
 
-    await writeAudit(actor, "settings.hours_update", "opening_hours", "00000000-0000-0000-0000-000000000000", {
+    // Settings audit rows: entity_type = "settings", entity_id = null
+    // (config tables have non-uuid PKs; the meaningful key, if any, is
+    // in `details`).
+    await writeAudit(actor, "settings.hours_update", "settings", null, {
+      table: "opening_hours",
       from: before ?? [],
       to: payload,
     });
@@ -107,7 +111,8 @@ export async function upsertDayOverride(input: unknown): Promise<ActionResult> {
       .upsert(payload, { onConflict: "day" });
     if (error) throw error;
 
-    await writeAudit(actor, "settings.override_set", "day_override", "00000000-0000-0000-0000-000000000000", {
+    await writeAudit(actor, "settings.override_set", "settings", null, {
+      table: "day_overrides",
       day: data.day,
       from: before ?? null,
       to: payload,
@@ -127,6 +132,9 @@ export async function removeDayOverride(input: unknown): Promise<ActionResult> {
     requireManager(actor);
     const db = getServiceClient();
 
+    // Hard-delete is intentional here: a day override is an ad-hoc
+    // exception, not domain history. CLAUDE.md's soft-delete rule
+    // targets orders/services/clients (history integrity).
     const { data: removed, error } = await db
       .from("day_overrides")
       .delete()
@@ -135,7 +143,8 @@ export async function removeDayOverride(input: unknown): Promise<ActionResult> {
     if (error) throw error;
     if (!removed || removed.length === 0) return { ok: false, message: NOT_FOUND_MESSAGE };
 
-    await writeAudit(actor, "settings.override_remove", "day_override", "00000000-0000-0000-0000-000000000000", {
+    await writeAudit(actor, "settings.override_remove", "settings", null, {
+      table: "day_overrides",
       day: data.day,
       removed: removed[0],
     });

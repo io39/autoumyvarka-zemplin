@@ -258,8 +258,8 @@ Basic audit trail (PRD §11). Manager-only read; retained ≥3 months.
 | `actor_email` | text not null | edge identity at action time |
 | `actor_staff_id` | uuid fk → staff null | resolved role-bearer (null if not yet in staff) |
 | `action` | text not null | e.g. `order.create`, `order.status_change`, `order.delete`, `order.note_edit`, `order.assign`, `order_service.add/remove/paid` |
-| `entity_type` | text not null | `order`, `order_service`, … |
-| `entity_id` | uuid not null | |
+| `entity_type` | text not null | `order`, `order_service`, `settings`, … |
+| `entity_id` | uuid null | PK of the audited row; **null** when the audited entity has a non-uuid PK (e.g. the `settings` config tables — the meaningful key, if any, lives in `details`) |
 | `order_id` | uuid null | convenience FK for filtering by order |
 | `details` | jsonb null | before/after, e.g. `{"from":"vytvorena","to":"hotova"}` |
 | `created_at` | timestamptz not null default now() | |

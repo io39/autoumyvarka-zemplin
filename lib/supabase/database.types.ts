@@ -16,7 +16,7 @@ export type Database = {
           actor_staff_id: string | null
           created_at: string
           details: Json | null
-          entity_id: string
+          entity_id: string | null
           entity_type: string
           id: string
           order_id: string | null
@@ -27,7 +27,7 @@ export type Database = {
           actor_staff_id?: string | null
           created_at?: string
           details?: Json | null
-          entity_id: string
+          entity_id?: string | null
           entity_type: string
           id?: string
           order_id?: string | null
@@ -38,7 +38,7 @@ export type Database = {
           actor_staff_id?: string | null
           created_at?: string
           details?: Json | null
-          entity_id?: string
+          entity_id?: string | null
           entity_type?: string
           id?: string
           order_id?: string | null
