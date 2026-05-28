@@ -85,39 +85,54 @@ Planning artifacts are all written and committed locally on `main`:
   so config tables with non-uuid PKs can audit cleanly; settings audits
   use `entity_type='settings'` + `entity_id=null` + `details.table`.
   `writeAudit(entityId: string | null)`.
-- **Spec 05 — DONE** (commit `feat: implement spec 05 (reservations &
-  calendar)`). Migration `0006_orders.sql` (`orders` with status enum,
+- **Spec 05 — DONE** (commits: `feat: implement spec 05 (reservations &
+  calendar)`, plus follow-ups `feat(calendar): week view (7 days × 2
+  boxes, shared time axis)` and `fix(orders): apply spec 05 code-review
+  findings`). Migration `0006_orders.sql` (`orders` with status enum,
   `box smallint check(1,2)`, `ends_at` synced by a `BEFORE INSERT/UPDATE`
   trigger because generated columns can't use non-IMMUTABLE
   `timestamptz + interval`, the **btree_gist exclusion constraint**
   `orders_no_box_overlap` excluding soft-deleted + `nedostavil_sa`,
   indexes on `(box, starts_at)` etc., RLS deny-by-default + `authenticated`
   SELECT policies for the live calendar, and `alter publication
-  supabase_realtime add table` for both tables). Pure helpers:
-  `lib/orders/duration.ts` (Σ × category, NULL-duration add-ons → 0,
-  flags unavailable), `lib/orders/slots.ts` (15-min grid + DST-aware
-  Bratislava local↔UTC + `suggestFreeSlots` / `overlapsAny`),
-  `lib/orders/colors.ts` (4 status palettes). Actions `lib/actions/orders.ts`
-  (`getCalendar`, `suggestSlots`, `createOrder` with 15-min boundary check,
-  `isRangeOpen`, snapshot order_services, friendly Slovak mapping of
-  exclusion violation SQLSTATE 23P01, audit `order.create`, best-effort
-  parent cleanup on line failure). UI `/` is now the calendar (day view,
-  2-box grid, 15-min rows, status colors, ŠPZ+model+service+start–finish
-  blocks, date nav prev/next/dnes/picker, mobile single-box switcher,
-  Realtime subscription via the server-minted JWT — `lib/realtime/
-  browser.ts`); `/orders/new` is the booking form (client preselected via
-  `/clients` deep link, car select, service checkboxes mains+addons with
-  per-unit qty, `Navrhnúť termín` calls `suggestSlots`, live duration +
-  finish + total). Home now has a `Menu` link → `/menu` for admin pages.
-  Client detail got a "Nová objednávka" button.
-  **84 unit + 28 e2e tests pass.**
-  **Deliberately NOT in this slice (carry-over):** week view (only day
-  view is wired; date picker still works as the entry into other dates);
-  optimistic insert (Realtime echo refreshes the grid, good enough);
-  multi-context Realtime e2e (subscription wired, no two-browser test
-  yet); suggested-slots list UI (booking form just auto-picks the best
-  one). Pick these up either at the start of spec 06 polish or after
-  whichever spec naturally pulls them in.
+  supabase_realtime add table` for both `orders` and `order_services`).
+  Pure helpers: `lib/orders/duration.ts` (Σ × category, NULL-duration
+  add-ons → 0, flags unavailable), `lib/orders/slots.ts` (15-min grid +
+  `suggestFreeSlots` / `overlapsAny`), `lib/orders/colors.ts` (4 status
+  palettes), `lib/time/bratislava.ts` (shared DST-aware local↔UTC —
+  `bratislavaLocalToUTC` / `bratislavaLocalToISO` /
+  `bratislavaLocalDayRange`). Actions `lib/actions/orders.ts`
+  (`getCalendar`, `suggestSlots`, `createOrder` with 15-min boundary
+  check, `isRangeOpen`, snapshot order_services, friendly Slovak mapping
+  of exclusion violation SQLSTATE 23P01, audit `order.create`,
+  best-effort parent cleanup on line failure, **`durationOverrideMin`
+  gated behind `requireManager`** per spec §2.3 / PRD §3). UI `/` is now
+  the calendar with both **day and week views** (`?view=day|week`):
+  - **Day view**: 2-box grid, 15-min rows, status colors,
+    ŠPZ+model+service+start–finish blocks, date nav prev/next/dnes/picker,
+    mobile single-box switcher.
+  - **Week view**: 7 days × 2 boxes in a horizontally-scrollable grid,
+    shared time axis (union of per-day open intervals), greyed closed
+    zones, compact blocks (ŠPZ + start–finish), day headers link into the
+    day view, navigation steps by 7 days.
+  - Realtime subscription via the server-minted JWT (`lib/realtime/
+    browser.ts`); channel name carries `view+date` so switching tears
+    down and re-creates cleanly.
+  `/orders/new` is the booking form (client preselected via `/clients`
+  deep link, car select, service checkboxes mains+addons with per-unit
+  qty, `Navrhnúť termín` calls `suggestSlots`, live duration + finish +
+  total). Home now has a `Menu` link → `/menu` for admin pages. Client
+  detail got a "Nová objednávka" button.
+  **84 unit + 30 e2e tests pass.**
+  **Deliberately NOT in this slice (carry-over to spec 06 / later):**
+  optimistic insert in the calendar (Realtime echo refreshes the grid,
+  good enough for phase 1); multi-context Realtime e2e (subscription
+  wired, no two-browser test yet); suggested-slots list UI in the
+  booking form (currently auto-picks the best slot); `/orders/[id]`
+  detail route (spec 06's territory — calendar block links will 404
+  until 06 lands; per-day clipping on the week-view time axis (reviewer
+  rated low priority); a soft note that `order_services` is in the
+  Realtime publication with no subscriber yet (spec 06 will subscribe).
 
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
