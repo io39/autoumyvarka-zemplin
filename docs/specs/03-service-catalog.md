@@ -112,6 +112,7 @@ All validate with zod, call `requireManager()`, write `audit_log`.
 | `createService` | `{ name, kind, isPerUnit, prices[] }` | `service.create` |
 | `updateService` | `{ id, name, isPerUnit, sortOrder? }` | `service.update` |
 | `upsertServicePrice` | `{ serviceId, category|null, durationMin|null, priceCents, priceFrom }` | `service.price_update` |
+| `deleteServicePrice` | `{ serviceId, category|null }` | `service.price_delete` |
 | `setServiceActive` | `{ id, active }` | `service.activate` / `service.deactivate` |
 
 - `getServicePrice(serviceId, category)`: returns the row matching the category, else

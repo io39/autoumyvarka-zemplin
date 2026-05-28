@@ -357,6 +357,7 @@ export async function setServiceActive(input: unknown): Promise<ActionResult> {
     );
 
     revalidatePath("/services");
+    revalidatePath(`/services/${data.id}`);
     return { ok: true };
   } catch (error) {
     return toActionError(error);
