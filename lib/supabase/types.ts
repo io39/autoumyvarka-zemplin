@@ -33,3 +33,9 @@ export type ServiceInsert = Database["public"]["Tables"]["services"]["Insert"];
 
 export type ServicePriceRow = Database["public"]["Tables"]["service_prices"]["Row"];
 export type ServicePriceInsert = Database["public"]["Tables"]["service_prices"]["Insert"];
+
+export type OpeningHoursRow = Database["public"]["Tables"]["opening_hours"]["Row"];
+export type OpeningHoursInsert = Database["public"]["Tables"]["opening_hours"]["Insert"];
+
+export type DayOverrideRow = Database["public"]["Tables"]["day_overrides"]["Row"];
+export type DayOverrideInsert = Database["public"]["Tables"]["day_overrides"]["Insert"];

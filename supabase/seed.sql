@@ -238,3 +238,18 @@ with s as (
 )
 insert into service_prices (service_id, pricing_category, duration_min, price_cents)
 select s.id, null, null, 1000 from s;
+
+-- ---------------------------------------------------------------------------
+-- Opening hours (spec 04). 0=Mon … 6=Sun. Defaults: Mon–Fri 08:00–17:00,
+-- Sat 08:00–12:00, Sun closed. Confirm real defaults with the client; this
+-- is just a starting point and fully editable in /settings/hours.
+-- ---------------------------------------------------------------------------
+insert into opening_hours (day_of_week, open_time, close_time, is_closed) values
+  (0, '08:00', '17:00', false), -- Pondelok
+  (1, '08:00', '17:00', false), -- Utorok
+  (2, '08:00', '17:00', false), -- Streda
+  (3, '08:00', '17:00', false), -- Štvrtok
+  (4, '08:00', '17:00', false), -- Piatok
+  (5, '08:00', '12:00', false), -- Sobota
+  (6, null,    null,    true)   -- Nedeľa (closed)
+on conflict (day_of_week) do nothing;

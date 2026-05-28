@@ -134,6 +134,51 @@ export type Database = {
         }
         Relationships: []
       }
+      day_overrides: {
+        Row: {
+          close_time: string | null
+          day: string
+          is_closed: boolean
+          label: string | null
+          open_time: string | null
+        }
+        Insert: {
+          close_time?: string | null
+          day: string
+          is_closed?: boolean
+          label?: string | null
+          open_time?: string | null
+        }
+        Update: {
+          close_time?: string | null
+          day?: string
+          is_closed?: boolean
+          label?: string | null
+          open_time?: string | null
+        }
+        Relationships: []
+      }
+      opening_hours: {
+        Row: {
+          close_time: string | null
+          day_of_week: number
+          is_closed: boolean
+          open_time: string | null
+        }
+        Insert: {
+          close_time?: string | null
+          day_of_week: number
+          is_closed?: boolean
+          open_time?: string | null
+        }
+        Update: {
+          close_time?: string | null
+          day_of_week?: number
+          is_closed?: boolean
+          open_time?: string | null
+        }
+        Relationships: []
+      }
       service_prices: {
         Row: {
           duration_min: number | null

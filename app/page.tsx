@@ -47,6 +47,12 @@ export default async function HomePage() {
           <Link href="/services" className="underline underline-offset-4">
             Katalóg služieb →
           </Link>
+          <Link href="/settings/hours" className="underline underline-offset-4">
+            Otváracie hodiny →
+          </Link>
+          <Link href="/settings/exceptions" className="underline underline-offset-4">
+            Výnimky (sviatky) →
+          </Link>
         </nav>
       )}
     </main>
