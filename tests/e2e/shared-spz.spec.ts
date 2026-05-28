@@ -23,7 +23,7 @@ test.describe("shared ŠPZ", () => {
     // Client A + new car.
     await createClientViaUI(page, { phone: phoneA, name: "Owner A" });
     await addCarViaUI(page, spz);
-    await expect(page.getByText(spz, { exact: true })).toBeVisible();
+    await expect(page.getByText(spz, { exact: true }).first()).toBeVisible();
 
     const { data: car } = await db.from("cars").select("id").eq("spz", spz).single();
     expect(car?.id).toBeTruthy();
@@ -38,7 +38,7 @@ test.describe("shared ŠPZ", () => {
     await addCarViaUI(page, spaced);
     await expect(page.getByText("ŠPZ už existuje")).toBeVisible();
     await page.getByRole("button", { name: "Prepojiť" }).click();
-    await expect(page.getByText(spz, { exact: true })).toBeVisible();
+    await expect(page.getByText(spz, { exact: true }).first()).toBeVisible();
 
     // Still one car row; now two links; an audit car.link entry exists.
     const { count: carCount } = await db

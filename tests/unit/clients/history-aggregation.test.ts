@@ -1,0 +1,109 @@
+import { describe, it, expect } from "vitest";
+import {
+  buildCarHistories,
+  type HistoryOrderInput,
+} from "@/lib/clients/history";
+import type { CarRow } from "@/lib/supabase/types";
+
+function car(id: string): CarRow {
+  return {
+    id,
+    spz: `SPZ${id}`,
+    model: null,
+    pricing_category: "os",
+    created_at: "2026-01-01T00:00:00Z",
+  } as CarRow;
+}
+
+function order(o: Partial<HistoryOrderInput> & { id: string; car_id: string }): HistoryOrderInput {
+  return {
+    starts_at: "2026-01-01T08:00:00Z",
+    status: "zaplatena",
+    note: null,
+    deleted_at: null,
+    services: [],
+    workers: [],
+    ...o,
+  };
+}
+
+describe("buildCarHistories", () => {
+  it("aggregates every order on a shared car, regardless of who booked it (PRD §13#1)", () => {
+    // One car, 5 orders 'booked under A' + 1 'under B' — the loader passes all
+    // 6 because it keys off car_id, not client_id. The helper must keep all 6.
+    const shared = car("X");
+    const orders: HistoryOrderInput[] = [
+      ...Array.from({ length: 5 }, (_, i) =>
+        order({ id: `a${i}`, car_id: "X", starts_at: `2026-01-0${i + 1}T08:00:00Z` }),
+      ),
+      order({ id: "b0", car_id: "X", starts_at: "2026-01-09T08:00:00Z" }),
+    ];
+
+    const [history] = buildCarHistories([shared], orders, new Set(["X"]));
+    expect(history.entries).toHaveLength(6);
+    expect(history.shared).toBe(true);
+  });
+
+  it("excludes cancelled (deleted_at) orders but keeps no-shows", () => {
+    const orders: HistoryOrderInput[] = [
+      order({ id: "ok", car_id: "X" }),
+      order({ id: "noshow", car_id: "X", status: "nedostavil_sa" }),
+      order({ id: "cancelled", car_id: "X", deleted_at: "2026-02-01T00:00:00Z" }),
+    ];
+
+    const [history] = buildCarHistories([car("X")], orders, new Set());
+    const ids = history.entries.map((e) => e.orderId);
+    expect(ids).toContain("ok");
+    expect(ids).toContain("noshow");
+    expect(ids).not.toContain("cancelled");
+  });
+
+  it("orders entries newest-first by starts_at", () => {
+    const orders: HistoryOrderInput[] = [
+      order({ id: "old", car_id: "X", starts_at: "2026-01-01T08:00:00Z" }),
+      order({ id: "new", car_id: "X", starts_at: "2026-03-01T08:00:00Z" }),
+      order({ id: "mid", car_id: "X", starts_at: "2026-02-01T08:00:00Z" }),
+    ];
+
+    const [history] = buildCarHistories([car("X")], orders, new Set());
+    expect(history.entries.map((e) => e.orderId)).toEqual(["new", "mid", "old"]);
+  });
+
+  it("carries snapshotted service names (removed marked), worker names, status, note", () => {
+    const orders: HistoryOrderInput[] = [
+      order({
+        id: "o1",
+        car_id: "X",
+        status: "hotova",
+        note: "Voľať pred príchodom",
+        services: [
+          { name_snapshot: "Interiér Classic", quantity: 1, removed_at: null },
+          { name_snapshot: "Vosk", quantity: 2, removed_at: "2026-01-02T00:00:00Z" },
+        ],
+        workers: [{ staff: { display_name: "Jano" } }, { staff: null }],
+      }),
+    ];
+
+    const [history] = buildCarHistories([car("X")], orders, new Set());
+    const [entry] = history.entries;
+    expect(entry.status).toBe("hotova");
+    expect(entry.note).toBe("Voľať pred príchodom");
+    expect(entry.services).toEqual([
+      { name: "Interiér Classic", quantity: 1, removed: false },
+      { name: "Vosk", quantity: 2, removed: true },
+    ]);
+    // null staff embeds are dropped; only resolved names remain.
+    expect(entry.workers).toEqual(["Jano"]);
+  });
+
+  it("groups by car and gives an empty list for a car with no orders", () => {
+    const orders: HistoryOrderInput[] = [
+      order({ id: "o1", car_id: "A" }),
+      order({ id: "o2", car_id: "A" }),
+    ];
+
+    const histories = buildCarHistories([car("A"), car("B")], orders, new Set());
+    expect(histories.find((h) => h.car.id === "A")!.entries).toHaveLength(2);
+    expect(histories.find((h) => h.car.id === "B")!.entries).toHaveLength(0);
+  });
+});

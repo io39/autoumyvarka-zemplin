@@ -1,8 +1,8 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **Specs 01–07 are done; spec 08 is next.**
-**Last updated:** 2026-05-28.
+**Phase:** Implementation, spec-driven. **Specs 01–08 are done; spec 09 is next.**
+**Last updated:** 2026-05-29.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`.
@@ -255,6 +255,54 @@ Planning artifacts are all written and committed locally on `main`:
   (b) configure the Cloudflare Access bypass policy for `/api/sms/webhook`
   (the one path the provider can't authenticate to).
 
+- **Spec 08 — DONE.** Client detail & service history. Pure shaping helper
+  `lib/clients/history.ts` (`buildCarHistories`): groups orders by `car_id`,
+  **filters `deleted_at`** (cancelled bookings hidden) and **keeps
+  `nedostavil_sa`** (no-shows visible — PRD §10), sorts newest-first, maps
+  service lines (incl. **removed lines, marked** — unlike the live order total),
+  worker display names, and a per-car `shared` flag. The filtering lives in the
+  helper (not the query) so the unit test is the honest gate. New action
+  `getClientWithHistory` in `lib/actions/clients.ts` (added **alongside**
+  `getClientWithCars`, which `/orders/new` still uses): loads client + linked
+  cars, then **all** orders for those `car_id`s with **no `client_id` filter**
+  (PRD §13#1 shared-car aggregation — dad's 5 + son's 1 = both see 6), nested
+  `order_services` + `order_staff(staff)`, and computes `sharedCarIds` from
+  `client_cars` (car linked to >1 client). The `order_staff→staff` embed has two
+  FKs (staff_id, assigned_by) so the typed client can't resolve it — cast
+  `as unknown as HistoryOrderInput[]`; runtime shape verified by e2e. UI: the
+  spec-02 dashed placeholder in `components/clients/client-detail.tsx` is
+  replaced by a per-car history section (`data-section="history"`,
+  `data-car-id`): ŠPZ + model header, "zdieľané auto" `Badge` when shared,
+  newest-first entry list where each entry is a **`Link` to `/orders/[id]`**
+  (read-only — edits happen on the order) showing date·time, `STATUS_STYLE`
+  badge (incl. grey `nedostavil_sa`), services (removed ones `line-through`),
+  workers, note; empty-state "Zatiaľ žiadna história". `/clients/[id]/page.tsx`
+  now calls `getClientWithHistory`. Order detail already linked back to client
+  history (spec 06) and the calendar block → order detail (spec 05), so task 3
+  was verification-only. Tests: unit `tests/unit/clients/history-aggregation.test.ts`
+  (5 tests: shared 5+1=6, deleted-excluded/no-show-kept, newest-first, snapshot
+  names+removed-marked+workers+note, grouping/empty); e2e `client-history.spec.ts`
+  (search phone → cars + history incl no-show, click → order; shared ŠPZ shows
+  both clients' orders + hint, count=2 on both pages) + `client-history-permissions.spec.ts`
+  (both roles view; history section has no mutating controls). New e2e helper
+  `seedOrderFor({clientId, carId, status, workerEmail})` in `support.ts`.
+  Adding the ŠPZ to the history header made it appear twice on `/clients/[id]`,
+  so four existing specs' `getByText(spz, exact)` detail-page assertions were
+  scoped with `.first()` (clients-audit, clients-permissions, clients-search,
+  shared-spz). **114 unit + 59 e2e pass on a clean `pnpm supabase db reset`.**
+  Code-reviewer pass returned 0 must-fix, 1 should-fix + 2 nits. Applied:
+  zod uuid validation at the `getClientWithHistory` boundary (invalid id →
+  null → 404); the history status badge no longer reuses
+  `STATUS_STYLE[*].bg` (its calendar-block `line-through`/`opacity` struck
+  through the `nedostavil_sa` label) — replaced by a clean per-status
+  `HISTORY_STATUS_BADGE` map in `client-detail.tsx`. Accepted as-is: the
+  `as unknown as` cast on the orders query (documented two-FK embed issue,
+  e2e-covered); `getClientWithCars` shares the same pre-zod pattern but is
+  out of spec-08 scope. Deliberate default: the
+  **cancelled-orders-in-history** question (spec 08 §2.2 / open question #5)
+  is left at the spec default (hide cancelled, show no-shows) and commented in
+  `lib/clients/history.ts` — still open with the client, non-blocking.
+
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
   (`pnpm supabase …`). Node 22 (`.nvmrc`).
@@ -278,13 +326,11 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Specs 01–07 — DONE.**
-2. **Spec 08 — Client detail & history** (next):
-   `docs/specs/08-client-detail-and-history.md`. The history placeholder on
-   `/clients/[id]` (left there in spec 02) gets filled in: read past orders
-   + their `order_services` snapshots per car. Open question (spec 08 §2.2):
-   whether soft-deleted (cancelled) orders show in client history.
-3. **Then 09 → 10 in order.** 09 audit view → 10 unpaid alerts.
+1. **Specs 01–08 — DONE.**
+2. **Spec 09 — Audit log view** (next): `docs/specs/09-audit-log-view.md`.
+   Manager-only read view over the `audit_log` that every spec has been
+   writing to.
+3. **Then 10 — unpaid-order alerts.**
 
 **Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
 VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when

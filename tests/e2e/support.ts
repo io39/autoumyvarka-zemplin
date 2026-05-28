@@ -89,6 +89,97 @@ function seedDate(): string {
   return nextWeekdayDate(800, 1500);
 }
 
+type OrderStatusLite = "vytvorena" | "hotova" | "zaplatena" | "nedostavil_sa";
+
+/**
+ * Insert one order (+ a single service line, optional assigned worker) for an
+ * *existing* client+car. Retries on the box-overlap exclusion constraint with a
+ * fresh far-future date. For the spec 08 history tests, where we need several
+ * orders on the same (possibly shared) car.
+ */
+export async function seedOrderFor(opts: {
+  clientId: string;
+  carId: string;
+  status?: OrderStatusLite;
+  workerEmail?: string;
+}): Promise<{ orderId: string }> {
+  const db = serviceClient();
+
+  const { data: manager } = await db
+    .from("staff")
+    .select("id")
+    .eq("email", MANAGER_EMAIL)
+    .single();
+
+  const { data: service } = await db
+    .from("services")
+    .select("id, name")
+    .eq("name", "Interiér Classic")
+    .single();
+  const { data: price } = await db
+    .from("service_prices")
+    .select("duration_min, price_cents")
+    .eq("service_id", service!.id)
+    .eq("pricing_category", "os")
+    .single();
+  const duration = price!.duration_min ?? 60;
+
+  const SAFE_TIMES = ["11:00", "11:30", "12:00", "12:30"];
+  let order: { id: string } | null = null;
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const date = seedDate();
+    const time = SAFE_TIMES[Math.floor(Math.random() * SAFE_TIMES.length)];
+    const startsAt = bratislavaLocalToISO(date, time);
+    const res = await db
+      .from("orders")
+      .insert({
+        client_id: opts.clientId,
+        car_id: opts.carId,
+        box: Math.random() < 0.5 ? 1 : 2,
+        starts_at: startsAt,
+        duration_min: duration,
+        ends_at: new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString(),
+        status: opts.status ?? "vytvorena",
+        created_by: manager!.id,
+      })
+      .select("id")
+      .single();
+    if (res.data) {
+      order = res.data;
+      break;
+    }
+    if (res.error && (res.error as { code?: string }).code === "23P01") continue;
+    throw new Error(`seedOrderFor failed: ${res.error?.message ?? "no row returned"}`);
+  }
+  if (!order) throw new Error("seedOrderFor: exhausted retries finding a free slot");
+
+  await db.from("order_services").insert({
+    order_id: order.id,
+    service_id: service!.id,
+    name_snapshot: service!.name,
+    category_snapshot: "os",
+    quantity: 1,
+    duration_min_snapshot: duration,
+    price_cents_snapshot: price!.price_cents,
+    added_by: manager!.id,
+  });
+
+  if (opts.workerEmail) {
+    const { data: worker } = await db
+      .from("staff")
+      .select("id")
+      .eq("email", opts.workerEmail)
+      .single();
+    await db.from("order_staff").insert({
+      order_id: order.id,
+      staff_id: worker!.id,
+      assigned_by: manager!.id,
+    });
+  }
+
+  return { orderId: order.id };
+}
+
 interface SeededOrder {
   orderId: string;
   clientId: string;

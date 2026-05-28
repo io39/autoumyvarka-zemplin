@@ -18,7 +18,7 @@ test.describe("unified fuzzy search", () => {
 
     await createClientViaUI(page, { phone, name: "Ján Novák" });
     await addCarViaUI(page, spz);
-    await expect(page.getByText(spz, { exact: true })).toBeVisible();
+    await expect(page.getByText(spz, { exact: true }).first()).toBeVisible();
 
     const search = page.getByLabel("Hľadať klienta");
 

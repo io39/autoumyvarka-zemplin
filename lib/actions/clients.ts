@@ -1,11 +1,17 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getCurrentStaff } from "@/lib/auth/session";
 import { requireManager } from "@/lib/auth/require";
 import { writeAudit } from "@/lib/audit";
 import { getServiceClient } from "@/lib/supabase/server";
 import type { ClientRow, CarRow } from "@/lib/supabase/types";
+import {
+  buildCarHistories,
+  type CarHistory,
+  type HistoryOrderInput,
+} from "@/lib/clients/history";
 import { type ActionResult, toActionError } from "./result";
 import {
   findClientByPhoneSchema,
@@ -71,6 +77,95 @@ export async function getClientWithCars(clientId: string): Promise<ClientWithCar
     .filter((c): c is CarRow => c !== null);
 
   return { client, cars };
+}
+
+export interface ClientWithHistory {
+  client: ClientRow;
+  cars: CarHistory[];
+}
+
+/**
+ * Client detail + per-car service history (spec 08). Both roles.
+ *
+ * Shared-car aggregation (PRD §13#1): orders are loaded by `car_id` with **no**
+ * `client_id` filter, so a car linked to several clients shows every order on
+ * it. Soft-deleted (cancelled) orders are fetched too and filtered in
+ * `buildCarHistories` (keeps that the honest gate); no-shows are kept.
+ */
+export async function getClientWithHistory(
+  clientId: string,
+): Promise<ClientWithHistory | null> {
+  // zod at the boundary (CLAUDE.md); a non-uuid id is treated as not-found so
+  // the page renders its 404 view rather than throwing.
+  const parsed = z.string().uuid().safeParse(clientId);
+  if (!parsed.success) return null;
+  clientId = parsed.data;
+
+  await getCurrentStaff();
+  const db = getServiceClient();
+
+  const { data: client, error } = await db
+    .from("clients")
+    .select("*")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!client) return null;
+
+  const { data: links, error: linksError } = await db
+    .from("client_cars")
+    .select("cars(*)")
+    .eq("client_id", clientId);
+  if (linksError) throw linksError;
+
+  const cars = (links ?? [])
+    .map((l) => l.cars as CarRow | null)
+    .filter((c): c is CarRow => c !== null);
+  const carIds = cars.map((c) => c.id);
+
+  if (carIds.length === 0) {
+    return { client, cars: [] };
+  }
+
+  // A car shared with other clients (linked to >1 client) gets the
+  // "zdieľané auto" hint; count distinct clients per car_id.
+  const { data: allLinks, error: allLinksError } = await db
+    .from("client_cars")
+    .select("car_id, client_id")
+    .in("car_id", carIds);
+  if (allLinksError) throw allLinksError;
+
+  const clientsPerCar = new Map<string, Set<string>>();
+  for (const l of allLinks ?? []) {
+    const set = clientsPerCar.get(l.car_id) ?? new Set<string>();
+    set.add(l.client_id);
+    clientsPerCar.set(l.car_id, set);
+  }
+  const sharedCarIds = new Set(
+    [...clientsPerCar.entries()]
+      .filter(([, set]) => set.size > 1)
+      .map(([id]) => id),
+  );
+
+  // Every order on these cars, regardless of which linked client booked it.
+  // deleted_at is NOT filtered here — buildCarHistories owns that.
+  const { data: orders, error: ordersError } = await db
+    .from("orders")
+    .select(
+      "id, car_id, starts_at, status, note, deleted_at, services:order_services(name_snapshot, quantity, removed_at), workers:order_staff(staff:staff_id(display_name))",
+    )
+    .in("car_id", carIds);
+  if (ordersError) throw ordersError;
+
+  // order_staff has two FKs to staff (staff_id, assigned_by), so the typed
+  // client can't resolve the `staff:staff_id` embed; the runtime shape is a
+  // single staff object per row, matching HistoryOrderInput.
+  const histories = buildCarHistories(
+    cars,
+    (orders ?? []) as unknown as HistoryOrderInput[],
+    sharedCarIds,
+  );
+  return { client, cars: histories };
 }
 
 /** Unified fuzzy search (phone / name / ŠPZ) via the search_clients RPC. Both roles. */

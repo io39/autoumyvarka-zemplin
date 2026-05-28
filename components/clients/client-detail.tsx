@@ -6,7 +6,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateClient } from "@/lib/actions/clients";
 import { addCarToClient, linkExistingCar, updateCar } from "@/lib/actions/cars";
-import type { CarRow, ClientRow, PricingCategory, StaffRole } from "@/lib/supabase/types";
+import type {
+  CarRow,
+  ClientRow,
+  OrderStatus,
+  PricingCategory,
+  StaffRole,
+} from "@/lib/supabase/types";
+import type { CarHistory } from "@/lib/clients/history";
+import { STATUS_STYLE } from "@/lib/orders/colors";
+import { bratislavaHHMM, bratislavaDateKey } from "@/lib/settings/availability";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -38,13 +47,27 @@ const CATEGORY_LABEL: Record<PricingCategory, string> = {
 
 const CATEGORIES = Object.keys(CATEGORY_LABEL) as PricingCategory[];
 
+// Status badge styling for the read-only history. STATUS_STYLE[*].bg can't be
+// reused here: those classes were authored for the calendar block container and
+// carry hover/opacity/line-through (esp. nedostavil_sa), which would strike
+// through and fade the badge label. Clean bg/text/border per PRD §5.1 — grey
+// no-show, no strike-through. (STATUS_STYLE still supplies the Slovak label.)
+const HISTORY_STATUS_BADGE: Record<OrderStatus, string> = {
+  vytvorena: "bg-amber-100 text-amber-900 border-amber-300",
+  hotova: "bg-sky-100 text-sky-900 border-sky-300",
+  zaplatena: "bg-emerald-100 text-emerald-900 border-emerald-300",
+  nedostavil_sa: "bg-zinc-200 text-zinc-700 border-zinc-400",
+};
+
 export function ClientDetail({
   client,
   cars,
+  histories,
   role,
 }: {
   client: ClientRow;
   cars: CarRow[];
+  histories: CarHistory[];
   role: StaffRole;
 }) {
   const router = useRouter();
@@ -114,9 +137,15 @@ export function ClientDetail({
         </div>
       </section>
 
-      {/* História návštev — doplnené v spec 08 (potrebuje objednávky). */}
-      <section className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-        História návštev sa zobrazí po zavedení objednávok.
+      <section className="space-y-3" data-section="history">
+        <h2 className="text-lg font-medium">História návštev</h2>
+        {histories.length === 0 ? (
+          <p className="rounded-lg border p-4 text-center text-sm text-muted-foreground">
+            Žiadne autá
+          </p>
+        ) : (
+          histories.map((h) => <CarHistorySection key={h.car.id} history={h} />)
+        )}
       </section>
 
       {isManager && (
@@ -150,6 +179,73 @@ export function ClientDetail({
             router.refresh();
           }}
         />
+      )}
+    </div>
+  );
+}
+
+function CarHistorySection({ history }: { history: CarHistory }) {
+  const { car, shared, entries } = history;
+  return (
+    <div className="rounded-lg border" data-car-id={car.id}>
+      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+        <span className="font-medium">{car.spz}</span>
+        {car.model && (
+          <span className="text-sm text-muted-foreground">{car.model}</span>
+        )}
+        {shared && (
+          <Badge variant="outline" title="Auto je zdieľané s iným klientom">
+            zdieľané auto
+          </Badge>
+        )}
+      </div>
+      {entries.length === 0 ? (
+        <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+          Zatiaľ žiadna história
+        </p>
+      ) : (
+        <ul className="divide-y">
+          {entries.map((e) => {
+            const date = new Date(e.startsAt);
+            const style = STATUS_STYLE[e.status];
+            return (
+              <li key={e.orderId}>
+                <Link
+                  href={`/orders/${e.orderId}`}
+                  className="block px-4 py-3 hover:bg-muted/50"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-medium">
+                      {bratislavaDateKey(date)} · {bratislavaHHMM(date)}
+                    </span>
+                    <Badge className={`${HISTORY_STATUS_BADGE[e.status]} border`}>
+                      {style.label}
+                    </Badge>
+                  </div>
+                  {e.services.length > 0 && (
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {e.services.map((s, i) => (
+                        <span key={i}>
+                          {i > 0 && ", "}
+                          <span className={s.removed ? "line-through" : ""}>
+                            {s.name}
+                            {s.quantity > 1 && ` ×${s.quantity}`}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {e.workers.length > 0 && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Pracovníci: {e.workers.join(", ")}
+                    </div>
+                  )}
+                  {e.note && <div className="mt-1 text-sm">{e.note}</div>}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

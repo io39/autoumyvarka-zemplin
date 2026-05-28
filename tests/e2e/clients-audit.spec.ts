@@ -31,7 +31,7 @@ test.describe("clients audit", () => {
     });
 
     await addCarViaUI(page, spz);
-    await expect(page.getByText(spz, { exact: true })).toBeVisible();
+    await expect(page.getByText(spz, { exact: true }).first()).toBeVisible();
 
     const { data: car } = await db.from("cars").select("id").eq("spz", spz).single();
     const { data: carAudit } = await db

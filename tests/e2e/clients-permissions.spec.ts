@@ -83,7 +83,7 @@ test.describe("worker (prevadzka)", () => {
     const spz = uniqueSpz();
     await createClientViaUI(page, { phone: uniquePhone(), name: "Worker Made" });
     await addCarViaUI(page, spz);
-    await expect(page.getByText(spz, { exact: true })).toBeVisible();
+    await expect(page.getByText(spz, { exact: true }).first()).toBeVisible();
 
     // Manager-only edit affordances are absent for workers.
     await expect(page.getByRole("button", { name: "Upraviť" })).toHaveCount(0);

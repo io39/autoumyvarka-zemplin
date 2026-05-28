@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCurrentStaff } from "@/lib/auth/session";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
-import { getClientWithCars } from "@/lib/actions/clients";
+import { getClientWithHistory } from "@/lib/actions/clients";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { ClientDetail } from "@/components/clients/client-detail";
 
@@ -21,12 +21,17 @@ export default async function ClientDetailPage({
     throw error;
   }
 
-  const detail = await getClientWithCars(id);
+  const detail = await getClientWithHistory(id);
   if (!detail) notFound();
 
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-6">
-      <ClientDetail client={detail.client} cars={detail.cars} role={role} />
+      <ClientDetail
+        client={detail.client}
+        cars={detail.cars.map((c) => c.car)}
+        histories={detail.cars}
+        role={role}
+      />
     </main>
   );
 }
