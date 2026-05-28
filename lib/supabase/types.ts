@@ -39,3 +39,10 @@ export type OpeningHoursInsert = Database["public"]["Tables"]["opening_hours"]["
 
 export type DayOverrideRow = Database["public"]["Tables"]["day_overrides"]["Row"];
 export type DayOverrideInsert = Database["public"]["Tables"]["day_overrides"]["Insert"];
+
+export type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
+export type OrderInsert = Database["public"]["Tables"]["orders"]["Insert"];
+export type OrderUpdate = Database["public"]["Tables"]["orders"]["Update"];
+
+export type OrderServiceRow = Database["public"]["Tables"]["order_services"]["Row"];
+export type OrderServiceInsert = Database["public"]["Tables"]["order_services"]["Insert"];

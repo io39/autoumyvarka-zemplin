@@ -179,6 +179,152 @@ export type Database = {
         }
         Relationships: []
       }
+      order_services: {
+        Row: {
+          added_at: string
+          added_by: string
+          category_snapshot:
+            | Database["public"]["Enums"]["pricing_category"]
+            | null
+          duration_min_snapshot: number | null
+          id: string
+          name_snapshot: string
+          order_id: string
+          paid: boolean
+          price_cents_snapshot: number
+          quantity: number
+          removed_at: string | null
+          service_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by: string
+          category_snapshot?:
+            | Database["public"]["Enums"]["pricing_category"]
+            | null
+          duration_min_snapshot?: number | null
+          id?: string
+          name_snapshot: string
+          order_id: string
+          paid?: boolean
+          price_cents_snapshot: number
+          quantity?: number
+          removed_at?: string | null
+          service_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string
+          category_snapshot?:
+            | Database["public"]["Enums"]["pricing_category"]
+            | null
+          duration_min_snapshot?: number | null
+          id?: string
+          name_snapshot?: string
+          order_id?: string
+          paid?: boolean
+          price_cents_snapshot?: number
+          quantity?: number
+          removed_at?: string | null
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_services_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_services_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          box: number
+          car_id: string
+          client_id: string
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          duration_min: number
+          ends_at: string
+          id: string
+          note: string | null
+          reminded_at: string | null
+          starts_at: string
+          status: Database["public"]["Enums"]["order_status"]
+          updated_at: string
+        }
+        Insert: {
+          box: number
+          car_id: string
+          client_id: string
+          created_at?: string
+          created_by: string
+          deleted_at?: string | null
+          duration_min: number
+          ends_at: string
+          id?: string
+          note?: string | null
+          reminded_at?: string | null
+          starts_at: string
+          status?: Database["public"]["Enums"]["order_status"]
+          updated_at?: string
+        }
+        Update: {
+          box?: number
+          car_id?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          duration_min?: number
+          ends_at?: string
+          id?: string
+          note?: string | null
+          reminded_at?: string | null
+          starts_at?: string
+          status?: Database["public"]["Enums"]["order_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_car_id_fkey"
+            columns: ["car_id"]
+            isOneToOne: false
+            referencedRelation: "cars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_prices: {
         Row: {
           duration_min: number | null

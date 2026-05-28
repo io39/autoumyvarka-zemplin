@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateClient } from "@/lib/actions/clients";
@@ -60,11 +61,20 @@ export function ClientDetail({
             <h1 className="text-xl font-semibold">{client.name ?? "(bez mena)"}</h1>
             <p className="text-sm text-muted-foreground">{client.phone}</p>
           </div>
-          {isManager && (
-            <Button variant="ghost" size="sm" onClick={() => setEditClientOpen(true)}>
-              Upraviť
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {cars.length > 0 && (
+              <Button size="sm" asChild>
+                <Link href={`/orders/new?clientId=${client.id}`}>
+                  Nová objednávka
+                </Link>
+              </Button>
+            )}
+            {isManager && (
+              <Button variant="ghost" size="sm" onClick={() => setEditClientOpen(true)}>
+                Upraviť
+              </Button>
+            )}
+          </div>
         </div>
         {client.note && <p className="mt-3 text-sm">{client.note}</p>}
       </section>
