@@ -5,7 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getCalendar, type CalendarBlock } from "@/lib/actions/orders";
 import type { DayOverrideRow, OpeningHoursRow } from "@/lib/supabase/types";
-import { getOpenInterval, bratislavaHHMM } from "@/lib/settings/availability";
+import {
+  bratislavaDateKey,
+  bratislavaHHMM,
+  getOpenInterval,
+} from "@/lib/settings/availability";
 import { STATUS_STYLE } from "@/lib/orders/colors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,19 +19,25 @@ import { createBrowserRealtimeClient } from "@/lib/realtime/browser";
 const SLOT_MIN = 15;
 const ROW_PX = 24; // height of one 15-min row
 
+export type CalendarView = "day" | "week";
+
 interface CalendarProps {
   initialBlocks: CalendarBlock[];
   hours: OpeningHoursRow[];
   overrides: DayOverrideRow[];
   date: string; // "YYYY-MM-DD"
+  view: CalendarView;
   realtimeJwt: string;
 }
+
+const WEEKDAY_SHORT = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"];
 
 export function Calendar({
   initialBlocks,
   hours,
   overrides,
   date,
+  view,
   realtimeJwt,
 }: CalendarProps) {
   const router = useRouter();
@@ -35,26 +45,53 @@ export function Calendar({
   const [activeBox, setActiveBox] = useState<1 | 2>(1);
   const [pending, startTransition] = useTransition();
 
-  // Derive the day's open window (else default 08:00–17:00 so the grid renders).
+  // 7 day-keys for the week containing `date` (Monday first).
+  const weekDays = useMemo(() => weekDateKeys(date), [date]);
+
+  // Each day's resolved open interval (override-wins). For grid rendering
+  // we'll union the union-of-opens to determine the visible time range.
+  const dayIntervals = useMemo(() => {
+    const map = new Map<string, { open: string; close: string } | null>();
+    for (const dk of weekDays) {
+      const probe = new Date(`${dk}T12:00:00Z`);
+      map.set(dk, getOpenInterval(probe, hours, overrides));
+    }
+    return map;
+  }, [weekDays, hours, overrides]);
+
+  // The grid range. Day view: just that day's interval (else default). Week
+  // view: the union over the week (else default), so every block's slot is
+  // visible somewhere on the axis.
   const interval = useMemo(() => {
-    const probe = new Date(`${date}T12:00:00Z`);
-    return getOpenInterval(probe, hours, overrides) ?? { open: "08:00", close: "17:00" };
-  }, [date, hours, overrides]);
+    if (view === "day") {
+      return dayIntervals.get(date) ?? { open: "08:00", close: "17:00" };
+    }
+    let minOpen: string | null = null;
+    let maxClose: string | null = null;
+    for (const v of dayIntervals.values()) {
+      if (!v) continue;
+      if (minOpen === null || v.open < minOpen) minOpen = v.open;
+      if (maxClose === null || v.close > maxClose) maxClose = v.close;
+    }
+    return { open: minOpen ?? "08:00", close: maxClose ?? "17:00" };
+  }, [view, date, dayIntervals]);
 
   const rows = useMemo(() => buildRows(interval.open, interval.close), [interval]);
 
   const refresh = useCallback(() => {
     startTransition(async () => {
-      const next = await getCalendar({ view: "day", date });
+      const next = await getCalendar({ view, date });
       setBlocks(next);
     });
-  }, [date]);
+  }, [view, date]);
 
-  // Live updates (data-model §3.1): subscribe to orders changes for this day.
+  // Live updates: subscribe to any orders change; the action returns the
+  // current view's blocks. The channel name carries the date so navigating
+  // tears down and re-creates.
   useEffect(() => {
     const client = createBrowserRealtimeClient(realtimeJwt);
     const channel = client
-      .channel(`orders-${date}`)
+      .channel(`orders-${view}-${date}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
@@ -65,19 +102,24 @@ export function Calendar({
       channel.unsubscribe();
       client.removeAllChannels();
     };
-  }, [realtimeJwt, date, refresh]);
+  }, [realtimeJwt, view, date, refresh]);
 
-  function gotoOffset(days: number) {
+  function setView(next: CalendarView) {
+    router.push(`/?view=${next}&date=${date}`);
+  }
+
+  function gotoOffset(units: number) {
     const d = new Date(`${date}T12:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + days);
+    d.setUTCDate(d.getUTCDate() + units * (view === "week" ? 7 : 1));
     const next = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-    router.push(`/?date=${next}`);
+    router.push(`/?view=${view}&date=${next}`);
   }
 
   function gotoToday() {
-    const t = new Date();
-    const tz = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(t);
-    router.push(`/?date=${tz}`);
+    const tz = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(
+      new Date(),
+    );
+    router.push(`/?view=${view}&date=${tz}`);
   }
 
   return (
@@ -90,26 +132,87 @@ export function Calendar({
       </div>
 
       <nav className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-md border">
+          <Button
+            size="sm"
+            variant={view === "day" ? "default" : "ghost"}
+            onClick={() => setView("day")}
+            className="rounded-r-none"
+          >
+            Deň
+          </Button>
+          <Button
+            size="sm"
+            variant={view === "week" ? "default" : "ghost"}
+            onClick={() => setView("week")}
+            className="rounded-l-none"
+          >
+            Týždeň
+          </Button>
+        </div>
         <Button size="sm" variant="ghost" onClick={() => gotoOffset(-1)}>
-          ‹ Predošlý
+          ‹ {view === "week" ? "Predošlý týždeň" : "Predošlý deň"}
         </Button>
         <Button size="sm" variant="ghost" onClick={gotoToday}>
           Dnes
         </Button>
         <Button size="sm" variant="ghost" onClick={() => gotoOffset(1)}>
-          Nasledujúci ›
+          {view === "week" ? "Nasledujúci týždeň" : "Nasledujúci deň"} ›
         </Button>
         <Input
           type="date"
           value={date}
           lang="sk-SK"
-          onChange={(e) => router.push(`/?date=${e.target.value}`)}
+          onChange={(e) => router.push(`/?view=${view}&date=${e.target.value}`)}
           className="w-auto"
         />
         {pending && <span className="text-xs text-muted-foreground">Načítavam…</span>}
       </nav>
 
-      {/* Mobile box switcher — desktop shows both columns. */}
+      {view === "day" ? (
+        <DayGrid
+          activeBox={activeBox}
+          setActiveBox={setActiveBox}
+          rows={rows}
+          interval={interval}
+          blocks={blocks.filter((b) => bratislavaDateKey(new Date(b.order.starts_at)) === date)}
+        />
+      ) : (
+        <WeekGrid
+          weekDays={weekDays}
+          rows={rows}
+          interval={interval}
+          dayIntervals={dayIntervals}
+          blocks={blocks}
+        />
+      )}
+
+      {blocks.length === 0 && (
+        <p className="text-sm text-muted-foreground">Žiadne objednávky.</p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Day view
+// ---------------------------------------------------------------------------
+
+function DayGrid({
+  activeBox,
+  setActiveBox,
+  rows,
+  interval,
+  blocks,
+}: {
+  activeBox: 1 | 2;
+  setActiveBox: (n: 1 | 2) => void;
+  rows: string[];
+  interval: { open: string; close: string };
+  blocks: CalendarBlock[];
+}) {
+  return (
+    <>
       <div className="flex sm:hidden gap-2">
         <Button
           size="sm"
@@ -128,7 +231,7 @@ export function Calendar({
       </div>
 
       <div className="grid grid-cols-[60px_1fr] sm:grid-cols-[60px_1fr_1fr] gap-1 rounded-lg border p-2">
-        <div /> {/* time-axis spacer */}
+        <div />
         <BoxHeader index={1} className={activeBox === 1 ? "" : "hidden sm:block"} />
         <BoxHeader index={2} className={activeBox === 2 ? "" : "hidden sm:block"} />
 
@@ -148,13 +251,147 @@ export function Calendar({
           className={activeBox === 2 ? "" : "hidden sm:block"}
         />
       </div>
+    </>
+  );
+}
 
-      {blocks.length === 0 && (
-        <p className="text-sm text-muted-foreground">Žiadne objednávky.</p>
-      )}
+// ---------------------------------------------------------------------------
+// Week view — 7 days × 2 boxes, shared time axis, horizontally scrollable.
+// ---------------------------------------------------------------------------
+
+function WeekGrid({
+  weekDays,
+  rows,
+  interval,
+  dayIntervals,
+  blocks,
+}: {
+  weekDays: string[];
+  rows: string[];
+  interval: { open: string; close: string };
+  dayIntervals: Map<string, { open: string; close: string } | null>;
+  blocks: CalendarBlock[];
+}) {
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <div
+        className="grid gap-1 p-2 min-w-[800px]"
+        style={{
+          gridTemplateColumns: `60px repeat(${weekDays.length}, minmax(120px, 1fr))`,
+        }}
+      >
+        <div />
+        {weekDays.map((dk) => (
+          <DayHeader key={`h-${dk}`} dateKey={dk} closed={dayIntervals.get(dk) === null} />
+        ))}
+
+        <TimeAxis rows={rows} />
+        {weekDays.map((dk) => (
+          <DayCell
+            key={`c-${dk}`}
+            dateKey={dk}
+            rows={rows}
+            gridInterval={interval}
+            dayInterval={dayIntervals.get(dk) ?? null}
+            blocks={blocks.filter(
+              (b) => bratislavaDateKey(new Date(b.order.starts_at)) === dk,
+            )}
+          />
+        ))}
+      </div>
     </div>
   );
 }
+
+function DayHeader({ dateKey, closed }: { dateKey: string; closed: boolean }) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const probe = new Date(Date.UTC(y, m - 1, d, 12));
+  const dow = (probe.getUTCDay() + 6) % 7;
+  const label = `${WEEKDAY_SHORT[dow]} ${pad(d)}.${pad(m)}.`;
+  return (
+    <Link
+      href={`/?view=day&date=${dateKey}`}
+      className="text-center text-xs font-medium hover:underline"
+    >
+      <div>{label}</div>
+      <div className="text-[10px] text-muted-foreground">Box 1 · Box 2</div>
+      {closed && <div className="text-[10px] text-muted-foreground">zatvorené</div>}
+    </Link>
+  );
+}
+
+function DayCell({
+  dateKey,
+  rows,
+  gridInterval,
+  dayInterval,
+  blocks,
+}: {
+  dateKey: string;
+  rows: string[];
+  gridInterval: { open: string; close: string };
+  dayInterval: { open: string; close: string } | null;
+  blocks: CalendarBlock[];
+}) {
+  const heightPx = rows.length * ROW_PX;
+  // Mask the portion of the cell that lies outside this day's open interval.
+  const closedTop = dayInterval
+    ? Math.max(0, (diffMinutes(gridInterval.open, dayInterval.open) / SLOT_MIN) * ROW_PX)
+    : heightPx;
+  const closedBottomStart = dayInterval
+    ? (diffMinutes(gridInterval.open, dayInterval.close) / SLOT_MIN) * ROW_PX
+    : 0;
+
+  return (
+    <div className="grid grid-cols-2 gap-0.5" data-day={dateKey} style={{ height: heightPx }}>
+      {[1, 2].map((box) => (
+        <div key={box} className="relative rounded border bg-muted/30" data-box={box}>
+          {rows.map((t, i) => (
+            <div
+              key={t}
+              className="absolute left-0 right-0 border-t border-dashed"
+              style={{ top: i * ROW_PX, height: ROW_PX }}
+            />
+          ))}
+          {/* Greyed-out closed zones (top + bottom). */}
+          {closedTop > 0 && (
+            <div
+              className="absolute left-0 right-0 bg-zinc-200/70"
+              style={{ top: 0, height: closedTop }}
+            />
+          )}
+          {dayInterval && closedBottomStart < heightPx && (
+            <div
+              className="absolute left-0 right-0 bg-zinc-200/70"
+              style={{ top: closedBottomStart, bottom: 0 }}
+            />
+          )}
+          {!dayInterval && (
+            <div
+              className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground"
+            >
+              zatvorené
+            </div>
+          )}
+          {blocks
+            .filter((b) => b.order.box === box)
+            .map((b) => (
+              <Block
+                key={b.order.id}
+                block={b}
+                intervalOpen={gridInterval.open}
+                compact
+              />
+            ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared sub-components
+// ---------------------------------------------------------------------------
 
 function BoxHeader({ index, className }: { index: number; className?: string }) {
   return (
@@ -216,9 +453,11 @@ function BoxColumn({
 function Block({
   block,
   intervalOpen,
+  compact,
 }: {
   block: CalendarBlock;
   intervalOpen: string;
+  compact?: boolean;
 }) {
   const start = new Date(block.order.starts_at);
   const end = new Date(block.order.ends_at);
@@ -235,7 +474,7 @@ function Block({
     <Link
       href={`/orders/${block.order.id}`}
       data-order-id={block.order.id}
-      className={`absolute left-1 right-1 rounded border px-2 py-1 text-xs ${style.bg} ${style.text}`}
+      className={`absolute left-1 right-1 rounded border px-1 py-0.5 text-xs ${style.bg} ${style.text}`}
       style={{
         top: (offsetMin / SLOT_MIN) * ROW_PX,
         height: (heightMin / SLOT_MIN) * ROW_PX - 2,
@@ -243,14 +482,24 @@ function Block({
     >
       <div className="flex items-center justify-between gap-1">
         <span className="font-medium truncate">{block.car.spz}</span>
-        <Badge variant="secondary" className="text-[10px]">
-          {startHHMM}–{endHHMM}
-        </Badge>
+        {!compact && (
+          <Badge variant="secondary" className="text-[10px]">
+            {startHHMM}–{endHHMM}
+          </Badge>
+        )}
       </div>
-      {block.car.model && (
-        <div className="truncate text-[11px] opacity-80">{block.car.model}</div>
+      {compact ? (
+        <div className="truncate text-[10px] opacity-80">
+          {startHHMM}–{endHHMM}
+        </div>
+      ) : (
+        <>
+          {block.car.model && (
+            <div className="truncate text-[11px] opacity-80">{block.car.model}</div>
+          )}
+          <div className="truncate text-[11px]">{mainService}</div>
+        </>
       )}
-      <div className="truncate text-[11px]">{mainService}</div>
     </Link>
   );
 }
@@ -280,4 +529,22 @@ function diffMinutes(a: string, b: string): number {
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+/** 7 Bratislava-local date keys for the week containing `dateKey`, Monday first. */
+function weekDateKeys(dateKey: string): string[] {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const probe = new Date(Date.UTC(y, m - 1, d, 12));
+  const dow = (probe.getUTCDay() + 6) % 7; // 0=Mon..6=Sun
+  const monday = new Date(probe);
+  monday.setUTCDate(monday.getUTCDate() - dow);
+  const out: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d2 = new Date(monday);
+    d2.setUTCDate(monday.getUTCDate() + i);
+    out.push(
+      `${d2.getUTCFullYear()}-${pad(d2.getUTCMonth() + 1)}-${pad(d2.getUTCDate())}`,
+    );
+  }
+  return out;
 }

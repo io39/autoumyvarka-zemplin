@@ -26,6 +26,25 @@ function normalizeDate(input: string | string[] | undefined): string {
   return todayBratislava();
 }
 
+function normalizeView(input: string | string[] | undefined): "day" | "week" {
+  const v = Array.isArray(input) ? input[0] : input;
+  return v === "week" ? "week" : "day";
+}
+
+/** Monday-anchored 7-day key range for the week containing `dateKey`. */
+function weekRange(dateKey: string): { from: string; to: string } {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const probe = new Date(Date.UTC(y, m - 1, d, 12));
+  const dow = (probe.getUTCDay() + 6) % 7; // 0=Mon..6=Sun
+  const monday = new Date(probe);
+  monday.setUTCDate(monday.getUTCDate() - dow);
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  const fmt = (d: Date) =>
+    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  return { from: fmt(monday), to: fmt(sunday) };
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -41,11 +60,13 @@ export default async function HomePage({
 
   const params = await searchParams;
   const date = normalizeDate(params.date);
+  const view = normalizeView(params.view);
+  const range = view === "week" ? weekRange(date) : { from: date, to: date };
 
   const [blocks, hours, overrides, identity] = await Promise.all([
-    getCalendar({ view: "day", date }),
+    getCalendar({ view, date }),
     getOpeningHours(),
-    getDayOverrides({ from: date, to: date }),
+    getDayOverrides(range),
     getIdentity(),
   ]);
   const realtimeJwt = await mintRealtimeToken(identity);
@@ -72,6 +93,7 @@ export default async function HomePage({
         hours={hours}
         overrides={overrides}
         date={date}
+        view={view}
         realtimeJwt={realtimeJwt}
       />
     </main>
