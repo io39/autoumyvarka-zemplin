@@ -1,8 +1,8 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **Specs 01 and 02 are done; spec 03 is next.**
-**Last updated:** 2026-05-27.
+**Phase:** Implementation, spec-driven. **Specs 01–03 are done; spec 04 is next.**
+**Last updated:** 2026-05-28.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`.
@@ -57,8 +57,17 @@ Planning artifacts are all written and committed locally on `main`:
   `lib/actions/clients.ts` + `lib/actions/cars.ts` (shared-ŠPZ link detection,
   manager-only edits, phone_change audit). UI `/clients` (fuzzy search) + `/clients/[id]`
   (detail, add-car/link-confirm, history placeholder for spec 08). 26 unit + 11 e2e pass.
-- **Spec 03 — NOT STARTED** (service catalog & durations). See
-  `docs/specs/03-service-catalog.md`; seed source is `docs/services.md`.
+- **Spec 03 — DONE** (commit `feat: implement spec 03 (service catalog)`). Migration
+  `0003_service_catalog.sql` (`services` + `service_prices`, `unique nulls not
+  distinct (service_id, pricing_category)`, deny-by-default RLS). `supabase/seed.sql`
+  extended with 24 services / 47 prices translated from `docs/services.md` (cents,
+  `price_from` for "od" rows, `is_per_unit` for `/ks` add-ons, NULL durations for
+  time-less items). Pure resolver `lib/services/price-lookup.ts` (category → NULL
+  fallback → "not available"); Slovak formatters `lib/services/format.ts`. Actions
+  in `lib/actions/services.ts` (`listServices`, `getServicePrice`, `createService`,
+  `updateService`, `upsertServicePrice`, `deleteServicePrice`, `setServiceActive`).
+  UI `/services` (list + add) and `/services/[id]` (per-category grid edit) —
+  manager-only, 403 for workers. 44 unit + 19 e2e tests pass.
 
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
@@ -83,16 +92,17 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Specs 01 & 02 — DONE.**
-2. **Spec 03 — service catalog & durations** (next): `docs/specs/03-service-catalog.md`,
-   seeded from `docs/services.md`. Reuse the established patterns: checked-in migration +
-   `supabase db reset` + `pnpm supabase gen types` → alias in `lib/supabase/types.ts`;
-   `lib/actions/result.ts` (`ActionResult`/`toActionError`); `getCurrentStaff` +
-   `requireManager` before mutations; `writeAudit` with before/after `details`; zod at
-   every boundary; e2e against the production build (see `tests/README.md`).
-3. **Then 04 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough order:
-   04 hours/overrides → 05 reservations & calendar (the big one) → 06 order lifecycle →
-   07 SMS → 08 client history → 09 audit view → 10 unpaid alerts.
+1. **Specs 01, 02 & 03 — DONE.**
+2. **Spec 04 — settings: opening hours & day overrides** (next):
+   `docs/specs/04-settings-opening-hours-holidays.md`. Reuse the established patterns:
+   checked-in migration + `supabase db reset` + `pnpm supabase gen types` → alias in
+   `lib/supabase/types.ts`; `lib/actions/result.ts` (`ActionResult`/`toActionError`);
+   `getCurrentStaff` + `requireManager` before mutations; `writeAudit` with before/after
+   `details`; zod at every boundary; e2e against the production build
+   (see `tests/README.md`).
+3. **Then 05 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough order:
+   05 reservations & calendar (the big one) → 06 order lifecycle → 07 SMS → 08 client
+   history → 09 audit view → 10 unpaid alerts.
 
 **Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
 VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when
