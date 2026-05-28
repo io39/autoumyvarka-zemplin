@@ -1,7 +1,7 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **Specs 01–04 are done; spec 05 is next.**
+**Phase:** Implementation, spec-driven. **Specs 01–05 are done; spec 06 is next.**
 **Last updated:** 2026-05-28.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
@@ -71,18 +71,53 @@ Planning artifacts are all written and committed locally on `main`:
   UI `/services` (list + add) and `/services/[id]` (per-category grid edit) —
   manager-only, 403 for workers.
 - **Spec 04 — DONE** (commit `feat: implement spec 04 (opening hours & day
-  overrides)`). Migration `0004_settings.sql` (`opening_hours` pk `day_of_week`,
-  `day_overrides` pk `day`, both with check constraints `closed ⇒ NULL times` /
-  `open ⇒ open<close`, deny-by-default RLS). Seed: 7 weekday rows (Mon–Fri
-  08:00–17:00, Sat 08:00–12:00, Sun closed). Pure helper
-  `lib/settings/availability.ts` (`getOpenInterval`, `isOpenAt`, `isRangeOpen`)
-  with **override-wins** resolution and **Europe/Bratislava** timezone handling
-  via `Intl.DateTimeFormat`. Actions `lib/actions/settings.ts`
-  (`getOpeningHours`, `getDayOverrides`, `saveOpeningHours`,
-  `upsertDayOverride`, `removeDayOverride`); 15-minute grid enforced in zod.
-  UI `/settings/hours` (7-row editor) + `/settings/exceptions` (closed-vs-
-  custom toggle, idempotent upsert, edit/remove). Slovak weekday labels.
-  72 unit + 25 e2e tests pass.
+  overrides)`, plus code-review follow-ups `fix(audit): apply spec 04
+  code-review must-fix + should-fix` and `fix(settings): force 24h time
+  picker via lang=sk-SK on time inputs`). Migration `0004_settings.sql`
+  (`opening_hours` pk `day_of_week`, `day_overrides` pk `day`, both with
+  check constraints `closed ⇒ NULL times` / `open ⇒ open<close`, deny-by-
+  default RLS). Seed: 7 weekday rows (Mon–Fri 08:00–17:00, Sat 08:00–12:00,
+  Sun closed). Pure helper `lib/settings/availability.ts`
+  (`getOpenInterval`, `isOpenAt`, `isRangeOpen`) with **override-wins**
+  resolution and **Europe/Bratislava** timezone handling via
+  `Intl.DateTimeFormat`. Actions `lib/actions/settings.ts`. Migration
+  `0005_audit_entity_nullable.sql` drops NOT NULL on `audit_log.entity_id`
+  so config tables with non-uuid PKs can audit cleanly; settings audits
+  use `entity_type='settings'` + `entity_id=null` + `details.table`.
+  `writeAudit(entityId: string | null)`.
+- **Spec 05 — DONE** (commit `feat: implement spec 05 (reservations &
+  calendar)`). Migration `0006_orders.sql` (`orders` with status enum,
+  `box smallint check(1,2)`, `ends_at` synced by a `BEFORE INSERT/UPDATE`
+  trigger because generated columns can't use non-IMMUTABLE
+  `timestamptz + interval`, the **btree_gist exclusion constraint**
+  `orders_no_box_overlap` excluding soft-deleted + `nedostavil_sa`,
+  indexes on `(box, starts_at)` etc., RLS deny-by-default + `authenticated`
+  SELECT policies for the live calendar, and `alter publication
+  supabase_realtime add table` for both tables). Pure helpers:
+  `lib/orders/duration.ts` (Σ × category, NULL-duration add-ons → 0,
+  flags unavailable), `lib/orders/slots.ts` (15-min grid + DST-aware
+  Bratislava local↔UTC + `suggestFreeSlots` / `overlapsAny`),
+  `lib/orders/colors.ts` (4 status palettes). Actions `lib/actions/orders.ts`
+  (`getCalendar`, `suggestSlots`, `createOrder` with 15-min boundary check,
+  `isRangeOpen`, snapshot order_services, friendly Slovak mapping of
+  exclusion violation SQLSTATE 23P01, audit `order.create`, best-effort
+  parent cleanup on line failure). UI `/` is now the calendar (day view,
+  2-box grid, 15-min rows, status colors, ŠPZ+model+service+start–finish
+  blocks, date nav prev/next/dnes/picker, mobile single-box switcher,
+  Realtime subscription via the server-minted JWT — `lib/realtime/
+  browser.ts`); `/orders/new` is the booking form (client preselected via
+  `/clients` deep link, car select, service checkboxes mains+addons with
+  per-unit qty, `Navrhnúť termín` calls `suggestSlots`, live duration +
+  finish + total). Home now has a `Menu` link → `/menu` for admin pages.
+  Client detail got a "Nová objednávka" button.
+  **84 unit + 28 e2e tests pass.**
+  **Deliberately NOT in this slice (carry-over):** week view (only day
+  view is wired; date picker still works as the entry into other dates);
+  optimistic insert (Realtime echo refreshes the grid, good enough);
+  multi-context Realtime e2e (subscription wired, no two-browser test
+  yet); suggested-slots list UI (booking form just auto-picks the best
+  one). Pick these up either at the start of spec 06 polish or after
+  whichever spec naturally pulls them in.
 
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
@@ -107,23 +142,21 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Specs 01–04 — DONE.**
-2. **Spec 05 — reservations & two-box calendar** (next, the big one):
-   `docs/specs/05-reservations-and-calendar.md`. Pulls together 02 (clients/cars),
-   03 (services/durations via `getServicePrice` and the spec-03 resolver), and 04
-   (`isRangeOpen` from `lib/settings/availability.ts`). Introduces the DB-level
-   box-overlap exclusion constraint (btree_gist), 15-min slot grid, automatic
-   duration calculation (Σ line durations, manually editable), the two-box calendar
-   with the four status colors, **Realtime live updates** (consumes the minted JWT
-   + RLS read policies from spec 01 / data-model §3.1), and mobile single-box
-   switching. Reuse the established patterns: checked-in migration + `supabase db
-   reset` + `pnpm supabase gen types` → alias in `lib/supabase/types.ts`;
-   `lib/actions/result.ts`; `getCurrentStaff` + `requireManager` (or role-specific
-   guard) before mutations; `writeAudit` with before/after `details`; zod at every
-   boundary; e2e against the production build (see `tests/README.md`).
-3. **Then 06 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough
-   order: 06 order lifecycle → 07 SMS → 08 client history → 09 audit view → 10
-   unpaid alerts.
+1. **Specs 01–05 — DONE.**
+2. **Spec 06 — order detail & lifecycle** (next):
+   `docs/specs/06-order-detail-and-lifecycle.md`. Pairs naturally with the spec-05
+   carry-over (week view, optimistic insert, multi-context Realtime e2e,
+   suggested-slots list). 06 introduces: status transitions with role rules
+   (`vytvorena→hotova` any role; `→zaplatena` manager; `→nedostavil_sa` manager;
+   the exception `nedostavil_sa→vytvorena` manager + re-check conflict/hours),
+   manager-only notes, M:N worker assignment via `order_staff`, post-hoc service
+   add/remove/pay with per-line `paid`. The `hotova` transition is the hook
+   spec 07 attaches the "ready" SMS to. Reuse: `lib/actions/result.ts`,
+   role guards + `writeAudit` before/after, zod at every boundary, the same
+   pattern of pure helpers separated from `"use server"` modules
+   (see `lib/services/price-lookup.ts`, `lib/orders/duration.ts`).
+3. **Then 07 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough
+   order: 07 SMS → 08 client history → 09 audit view → 10 unpaid alerts.
 
 **Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
 VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when
