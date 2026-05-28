@@ -29,5 +29,12 @@ export const smsWebhookSchema = z.object({
   error: z.string().optional(),
 });
 
+/**
+ * Reminder trigger body. Currently empty — pg_cron sends `{}` — but spec §2.4
+ * requires zod-validation at the boundary, so we parse and reject anything
+ * that isn't a plain object. Future provider-style extensions land here.
+ */
+export const reminderTriggerSchema = z.object({}).passthrough();
+
 export type SaveSmsTemplateInput = z.infer<typeof saveSmsTemplateSchema>;
 export type SmsWebhookInput = z.infer<typeof smsWebhookSchema>;

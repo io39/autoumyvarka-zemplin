@@ -54,6 +54,11 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
   if (!row) {
     // Unknown id — accept and drop (provider would otherwise retry forever).
+    // Log so monitoring can spot a provider/db mismatch (spec §2.5: "200 + log").
+    console.warn("sms.webhook: unknown provider_message_id", {
+      providerMessageId: parsed.providerMessageId,
+      status: parsed.status,
+    });
     return NextResponse.json({ ok: true, matched: false });
   }
 

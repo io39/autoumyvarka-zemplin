@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { getServiceClient } from "@/lib/supabase/server";
 import { dispatchOrderSms } from "@/lib/sms/dispatch";
 import { reminderWindow } from "@/lib/sms/reminder-window";
+import { reminderTriggerSchema } from "@/lib/validation/sms";
 
 /**
  * Scheduled 30-minute reminder trigger (architecture §6, spec 07 §2.4).
@@ -26,6 +28,19 @@ export async function POST(req: Request): Promise<NextResponse> {
   if (!secret) return unauthorized();
   const presented = req.headers.get("x-reminder-secret");
   if (presented !== secret) return unauthorized();
+
+  // zod-parse the body at the boundary (spec §2.4). pg_cron sends `{}`; the
+  // schema is permissive on shape but rejects non-objects / non-JSON.
+  try {
+    const payload = (await req.json().catch(() => ({}))) as unknown;
+    reminderTriggerSchema.parse(payload);
+  } catch (err) {
+    const message =
+      err instanceof ZodError
+        ? err.issues[0]?.message ?? "invalid payload"
+        : "invalid payload";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   const db = getServiceClient();
   const { from, to } = reminderWindow(new Date());
