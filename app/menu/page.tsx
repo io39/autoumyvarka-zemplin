@@ -39,6 +39,9 @@ export default async function MenuPage() {
             <Link href="/settings/sms-templates" className="underline underline-offset-4">
               SMS šablóny →
             </Link>
+            <Link href="/audit" className="underline underline-offset-4">
+              Záznam zmien →
+            </Link>
           </>
         )}
       </nav>

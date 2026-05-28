@@ -1,7 +1,7 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **Specs 01–08 are done; spec 09 is next.**
+**Phase:** Implementation, spec-driven. **Specs 01–09 are done; spec 10 is next (last).**
 **Last updated:** 2026-05-29.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
@@ -303,6 +303,56 @@ Planning artifacts are all written and committed locally on `main`:
   is left at the spec default (hide cancelled, show no-shows) and commented in
   `lib/clients/history.ts` — still open with the client, non-blocking.
 
+- **Spec 09 — DONE.** Manager-only audit-log read view. **No migration** —
+  read-only over `audit_log`, whose indexes (`created_at`,
+  `(entity_type,entity_id)`, `order_id`) already exist from spec 01. Pure
+  `lib/audit/labels.ts`: `ACTION_LABEL` (all ~29 action codes → Slovak) +
+  `ENTITY_LABEL` + `summarizeDetails(action, details)` (status from→to via the
+  shared `STATUS_STYLE` labels, note/move/assign/paid/…; defensive on
+  null/unknown `details`, never throws; unknown action → "" so the UI shows the
+  label alone). Pure `lib/audit/cursor.ts`: base64 keyset cursor over
+  `(created_at, id)`, split on the LAST "|" (uuid id is unambiguous). Action
+  `lib/actions/audit.ts` `getAuditLog` (zod `lib/validation/audit.ts`,
+  `requireManager`, filters from/to/actions[]/entityType/orderId, **keyset
+  pagination** fetching limit+1; `from`/`to` are Bratislava-local days →
+  `bratislavaLocalDayRange` UTC bounds; cursor uses PostgREST row-value
+  `or(created_at.lt."ts",and(created_at.eq."ts",id.lt.uuid))` — timestamp
+  double-quoted so the tz `+` survives the filter parser, verified the `lt`
+  works on a uuid column). UI: `/audit` page (manager-only 403 flow, reads
+  `?orderId=`) + `components/audit/audit-view.tsx` (Table: Bratislava time,
+  actor_email, Slovak action label, entity **linked via `order_id`** →
+  `/orders/[id]` (simpler+correct: order_service/sms rows carry the order in
+  `order_id` while `entity_id` is the line/message), details summary; filters =
+  native `<input type=date>` + single-select action/entity dropdowns (the
+  action accepts arrays for future multiselect — no multiselect/date-picker
+  component installed, avoided pulling one in); "Načítať ďalšie" keyset
+  pagination; Slovak empty-state). `/audit` link added to `/menu` (manager
+  block) and a manager-only "História zmien →" link on `/orders/[id]` →
+  `/audit?orderId=`. Tests: unit `tests/unit/audit/{labels,cursor}.test.ts`
+  (13: label maps + every written action code covered, summary per shape +
+  defensiveness, cursor round-trip/last-pipe-split/malformed). E2e
+  `audit-permissions` (worker 403, manager renders), `audit-coverage`
+  (full UI lifecycle create→assign→note→status→delete, then `/audit?orderId`
+  shows all 5 with actor + "Vytvorená → Hotová"; the test restores
+  `opening_hours` to seed defaults first — other suites clobber day 0 = Mon),
+  `audit-filters` (orderId/action/date filters; keyset no-dup/no-gap with a
+  newer row inserted between page loads). **127 unit + 64 e2e pass on a clean
+  `pnpm supabase db reset`.** Retention check (§4.5): 0 anon policies on
+  `audit_log`, 4 indexes. Code-reviewer pass: 0 must-fix, 3 should-fix + 4
+  nits. Applied: (1) `/audit` guards a malformed `?orderId=` with a uuid
+  regex (ignore → unfiltered) so the action's zod can't throw uncaught;
+  (2) `decodeAuditCursor` now validates the decoded `id` (uuid) + `created_at`
+  (ISO) before they're interpolated into the PostgREST filter — closes an
+  injection surface on the client-controlled cursor; (3) the audit table now
+  has a mobile stacked-card layout (`<sm`) beside the desktop table (`≥sm`,
+  carries `data-section="audit"` for the e2e) per §2.1/§4.6; + nits: auth
+  double-check comment, unified `buildArgs` (was `queryArgs`/`applyFilters`
+  duplication). Declined with reasoning: a `from<=to` zod `.refine` (would
+  reintroduce an uncaught-throw from the client path; empty state is fine);
+  debouncing filter changes (YAGNI nit, action is fast). Carry-over: action
+  filter is single-select (multiselect deferred, user-accepted); no purge job
+  (retain indefinitely per §2.3 — volume tiny); no CSV export (Phase 2).
+
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
   (`pnpm supabase …`). Node 22 (`.nvmrc`).
@@ -326,11 +376,10 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Specs 01–08 — DONE.**
-2. **Spec 09 — Audit log view** (next): `docs/specs/09-audit-log-view.md`.
-   Manager-only read view over the `audit_log` that every spec has been
-   writing to.
-3. **Then 10 — unpaid-order alerts.**
+1. **Specs 01–09 — DONE.**
+2. **Spec 10 — Unpaid-order alerts** (next, last): `docs/specs/10-unpaid-order-alerts.md`.
+   Open questions for the client: the exact "unpaid" definition (§1.2) and
+   whether workers may see the alerts view (§1.4).
 
 **Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
 VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when

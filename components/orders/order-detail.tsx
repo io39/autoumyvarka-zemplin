@@ -115,6 +115,14 @@ export function OrderDetailView({ role, detail, allStaff, services, sms }: Props
             ← Späť na kalendár
           </Link>
           <h1 className="text-xl font-semibold">Objednávka</h1>
+          {isManager && (
+            <Link
+              href={`/audit?orderId=${order.id}`}
+              className="text-xs underline underline-offset-4"
+            >
+              História zmien →
+            </Link>
+          )}
         </div>
         <Badge className={`${statusStyle.bg} ${statusStyle.text}`}>
           {statusStyle.label}
