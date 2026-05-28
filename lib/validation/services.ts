@@ -33,13 +33,24 @@ export const getServicePriceSchema = z.object({
   category: categorySchema,
 });
 
-export const createServiceSchema = z.object({
-  name: nameSchema,
-  kind: kindSchema,
-  isPerUnit: z.boolean().optional().default(false),
-  sortOrder: z.number().int().optional(),
-  prices: z.array(priceRowSchema).min(1, "Pridajte aspoň jednu cenu."),
-});
+export const createServiceSchema = z
+  .object({
+    name: nameSchema,
+    kind: kindSchema,
+    isPerUnit: z.boolean().optional().default(false),
+    sortOrder: z.number().int().optional(),
+    prices: z.array(priceRowSchema).min(1, "Pridajte aspoň jednu cenu."),
+  })
+  .refine(
+    (v) => {
+      // Reject duplicate categories in the input — uniqueness is enforced at
+      // the DB level too (data-model §2.6), but checking here keeps us from
+      // creating an orphaned `services` row when the price batch then fails.
+      const keys = v.prices.map((p) => p.pricingCategory ?? "__null__");
+      return new Set(keys).size === keys.length;
+    },
+    { message: "Pre rovnaký typ vozidla je uvedená cena viackrát.", path: ["prices"] },
+  );
 
 export const updateServiceSchema = z.object({
   id: idSchema,

@@ -14,6 +14,8 @@ import {
   resolveServicePrice,
   type ServicePriceLookup,
 } from "@/lib/services/price-lookup";
+import { ZodError } from "zod";
+import { isForbiddenError, isUnauthenticatedError } from "@/lib/auth/errors";
 import { type ActionResult, toActionError } from "./result";
 import {
   listServicesSchema,
@@ -106,7 +108,16 @@ export async function getServicePrice(input: unknown): Promise<ServicePriceLooku
 
     return resolveServicePrice(data ?? [], category);
   } catch (error) {
-    return toActionError(error);
+    // The return type is ServicePriceLookup, not ActionResult — emit a
+    // lookup-shaped error so the booking flow (spec 05) can branch on
+    // ok/!ok without checking for ActionResult-only extras.
+    if (error instanceof ZodError) {
+      return { ok: false, message: error.issues[0]?.message ?? "Neplatné údaje." };
+    }
+    if (isForbiddenError(error) || isUnauthenticatedError(error)) {
+      return { ok: false, message: error.message };
+    }
+    return { ok: false, message: "Nepodarilo sa načítať cenu služby." };
   }
 }
 
@@ -131,8 +142,13 @@ export async function createService(
       .single();
     if (error) throw error;
 
-    if (data.prices.length > 0) {
-      const { error: pErr } = await db.from("service_prices").insert(
+    // Insert the price rows; if the batch fails, the parent `services` row is
+    // already committed (no cross-statement transaction over the JS client).
+    // Roll forward by deleting the orphan so the catalog doesn't show a
+    // service with no prices.
+    const { data: insertedPrices, error: pErr } = await db
+      .from("service_prices")
+      .insert(
         data.prices.map((p) => ({
           service_id: row.id,
           pricing_category: p.pricingCategory,
@@ -140,18 +156,21 @@ export async function createService(
           price_cents: p.priceCents,
           price_from: p.priceFrom ?? false,
         })),
-      );
+      )
+      .select("pricing_category, duration_min, price_cents, price_from");
+    if (pErr) {
+      await db.from("services").delete().eq("id", row.id);
       if (isUniqueViolation(pErr)) {
         return { ok: false, message: PRICE_EXISTS_MESSAGE };
       }
-      if (pErr) throw pErr;
+      throw pErr;
     }
 
     await writeAudit(actor, "service.create", "service", row.id, {
       name: data.name,
       kind: data.kind,
       is_per_unit: data.isPerUnit ?? false,
-      prices: data.prices,
+      prices: insertedPrices ?? [],
     });
 
     revalidatePath("/services");
@@ -222,6 +241,17 @@ export async function upsertServicePrice(input: unknown): Promise<ActionResult> 
     };
 
     if (existing) {
+      const priceFrom = data.priceFrom ?? false;
+      const unchanged =
+        existing.duration_min === data.durationMin &&
+        existing.price_cents === data.priceCents &&
+        existing.price_from === priceFrom;
+      if (unchanged) {
+        // No-op: skip the update and the audit entry (audit records state
+        // changes; this isn't one).
+        return { ok: true };
+      }
+
       const { error } = await db
         .from("service_prices")
         .update(payload)
@@ -237,7 +267,7 @@ export async function upsertServicePrice(input: unknown): Promise<ActionResult> 
         to: {
           duration_min: data.durationMin,
           price_cents: data.priceCents,
-          price_from: data.priceFrom ?? false,
+          price_from: priceFrom,
         },
       });
     } else {
