@@ -37,9 +37,17 @@ export default async function HomePage() {
       </section>
 
       {staff.role === "manazer" && (
-        <Link href="/staff" className="text-sm font-medium underline underline-offset-4">
-          Správa zamestnancov →
-        </Link>
+        <nav className="flex flex-col gap-2 text-sm font-medium">
+          <Link href="/staff" className="underline underline-offset-4">
+            Správa zamestnancov →
+          </Link>
+          <Link href="/clients" className="underline underline-offset-4">
+            Klienti →
+          </Link>
+          <Link href="/services" className="underline underline-offset-4">
+            Katalóg služieb →
+          </Link>
+        </nav>
       )}
     </main>
   );

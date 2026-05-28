@@ -25,3 +25,11 @@ export type CarRow = Database["public"]["Tables"]["cars"]["Row"];
 export type CarInsert = Database["public"]["Tables"]["cars"]["Insert"];
 
 export type ClientCarRow = Database["public"]["Tables"]["client_cars"]["Row"];
+
+export type ServiceKind = Database["public"]["Enums"]["service_kind"];
+
+export type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
+export type ServiceInsert = Database["public"]["Tables"]["services"]["Insert"];
+
+export type ServicePriceRow = Database["public"]["Tables"]["service_prices"]["Row"];
+export type ServicePriceInsert = Database["public"]["Tables"]["service_prices"]["Insert"];

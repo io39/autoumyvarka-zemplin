@@ -134,6 +134,77 @@ export type Database = {
         }
         Relationships: []
       }
+      service_prices: {
+        Row: {
+          duration_min: number | null
+          id: string
+          price_cents: number
+          price_from: boolean
+          pricing_category:
+            | Database["public"]["Enums"]["pricing_category"]
+            | null
+          service_id: string
+        }
+        Insert: {
+          duration_min?: number | null
+          id?: string
+          price_cents: number
+          price_from?: boolean
+          pricing_category?:
+            | Database["public"]["Enums"]["pricing_category"]
+            | null
+          service_id: string
+        }
+        Update: {
+          duration_min?: number | null
+          id?: string
+          price_cents?: number
+          price_from?: boolean
+          pricing_category?:
+            | Database["public"]["Enums"]["pricing_category"]
+            | null
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_prices_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          is_per_unit: boolean
+          kind: Database["public"]["Enums"]["service_kind"]
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          is_per_unit?: boolean
+          kind: Database["public"]["Enums"]["service_kind"]
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          is_per_unit?: boolean
+          kind?: Database["public"]["Enums"]["service_kind"]
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       staff: {
         Row: {
           active: boolean
