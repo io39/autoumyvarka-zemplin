@@ -134,7 +134,10 @@ Planning artifacts are all written and committed locally on `main`:
   rated low priority); a soft note that `order_services` is in the
   Realtime publication with no subscriber yet (spec 06 will subscribe).
 - **Spec 06 — DONE** (commits `feat: implement spec 06 (order detail &
-  lifecycle)` + `fix(orders): apply spec 06 code-review should-fix items`).
+  lifecycle)` (fa23277) + later code-review follow-up `fix(orders): apply
+  spec 06 code-review findings` (71a5983) covering an over-eager toast
+  assertion in order-noshow-revert.spec.ts, a `deleted_at` guard on
+  `removeOrderWorker`, and a stray `useMemo` import in order-detail.tsx).
   Migration `0007_order_staff.sql` (M:N `order_staff` with PK
   `(order_id, staff_id)`, FK to `staff` for `assigned_by`, deny-by-default
   RLS + authenticated SELECT, added to `supabase_realtime` publication).
@@ -177,8 +180,11 @@ Planning artifacts are all written and committed locally on `main`:
   duration math on add/remove, audit trim) + 3 nits (migration filename
   fixed in spec 06 doc).
 - **Spec 07 — DONE** (commits `feat: implement spec 07 (sms notifications)`
-  + the code-review follow-ups applied in the same commit per session
-  workflow). Migration `0008_sms.sql`: `sms_templates` (pk `type`) seeded
+  (8ca57b4) — first-pass code-review should-fix items were applied in that
+  same commit — plus the later second-pass follow-up `fix(sms): apply spec
+  07 code-review nits` (286d627) which adds a zod-parse on the reminder
+  body and a `console.warn` on unknown `provider_message_id` in the
+  webhook). Migration `0008_sms.sql`: `sms_templates` (pk `type`) seeded
   with placeholder Slovak text (PRD §13#4 final wording TBD);
   `sms_messages` (append-only outbound log) with three indexes
   (`order_id`, `status`, `provider_message_id`); RLS deny-by-default on
@@ -230,11 +236,17 @@ Planning artifacts are all written and committed locally on `main`:
   → 403 on templates page, no resend button on order; manager →
   template save with audit, resend creates new attempt). **109 unit +
   55 e2e pass on a clean `pnpm supabase db reset`.**
-  Code-reviewer pass returned 0 must-fix, 5 should-fix (all applied:
-  magic-phone gated by `SMS_FAKE_ALLOW_FAILURE`, `?secret=` query
-  fallback removed, dispatch update error logged, cron skips when GUCs
-  unset, `wire.ts` `registered` flag) + 2 nits (both applied: empty-body
-  counter shows "0 SMS", `0007_sms.sql` → `0008_sms.sql` typo in spec).
+  First code-reviewer pass returned 0 must-fix, 5 should-fix (all applied
+  in 8ca57b4: magic-phone gated by `SMS_FAKE_ALLOW_FAILURE`, `?secret=`
+  query fallback removed, dispatch update error logged, cron skips when
+  GUCs unset, `wire.ts` `registered` flag) + 2 nits (both applied:
+  empty-body counter shows "0 SMS", `0007_sms.sql` → `0008_sms.sql`
+  typo in spec). A second pass after commits surfaced 1 should-fix on
+  spec 06 (flaky toast assertion in `order-noshow-revert.spec.ts` — see
+  71a5983) and 4 nits split across both specs; the spec 06 nits landed
+  in 71a5983 (`removeOrderWorker` `deleted_at` guard, unused `useMemo`
+  import) and the spec 07 nits in 286d627 (reminder zod-parse, webhook
+  `console.warn` on unknown id).
   Deliberate carry-overs: the real Slovak SMS provider adapter is NOT
   pinned (PRD §13#4 open — final wording AND provider both TBD); local
   dev currently sends nothing because the fake adapter is the default;
