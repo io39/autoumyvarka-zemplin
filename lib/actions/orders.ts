@@ -10,12 +10,23 @@ import type {
   ClientRow,
   OrderRow,
   OrderServiceRow,
+  OrderStaffRow,
   ServicePriceRow,
+  StaffRow,
 } from "@/lib/supabase/types";
 import { type ActionResult, toActionError } from "./result";
 import {
+  addOrderServiceSchema,
   createOrderSchema,
+  deleteOrderSchema,
   getCalendarSchema,
+  getOrderSchema,
+  moveOrderSchema,
+  orderWorkerSchema,
+  removeOrderServiceSchema,
+  setNoteSchema,
+  setOrderServicePaidSchema,
+  setStatusSchema,
   suggestSlotsSchema,
 } from "@/lib/validation/orders";
 import { resolveOrderLines, totalDurationMin } from "@/lib/orders/duration";
@@ -25,11 +36,21 @@ import {
   bratislavaDateKey,
 } from "@/lib/settings/availability";
 import { bratislavaLocalDayRange } from "@/lib/time/bratislava";
+import { canTransition } from "@/lib/orders/transitions";
+import { emitOrderReady } from "@/lib/orders/ready-event";
+import { resolveServicePrice } from "@/lib/services/price-lookup";
 
 const CONFLICT_MESSAGE = "Termín v tomto boxe je obsadený.";
 const CLOSED_MESSAGE = "Termín je mimo otváracích hodín.";
 const NOT_FOUND_MESSAGE = "Záznam sa nenašiel.";
 const NOT_15MIN_MESSAGE = "Termín musí byť na štvrťhodine.";
+const ILLEGAL_TRANSITION_MESSAGE = "Túto zmenu stavu nie je povolené vykonať.";
+const DELETE_AFTER_PAID_MESSAGE = "Zaplatenú objednávku nie je možné zrušiť.";
+const REVERT_RETAKEN_MESSAGE = "Termín už bol medzitým obsadený.";
+const SERVICE_INACTIVE_MESSAGE = "Niektorá zo služieb je neaktívna.";
+const SERVICE_UNAVAILABLE_MESSAGE = "Služba nie je dostupná pre tento typ vozidla.";
+const SERVICE_LINE_PERFORMED_MESSAGE =
+  "Vykonanú službu nie je možné odstrániť.";
 
 export interface CalendarBlock {
   order: OrderRow;
@@ -309,4 +330,638 @@ function rangeForView(view: "day" | "week", dateKey: string): { start: Date; end
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+// ---------------------------------------------------------------------------
+// Spec 06 — order detail & lifecycle
+// ---------------------------------------------------------------------------
+
+export interface OrderDetail {
+  order: OrderRow;
+  client: ClientRow;
+  car: CarRow;
+  services: OrderServiceRow[];
+  workers: Array<OrderStaffRow & { staff: Pick<StaffRow, "id" | "display_name" | "role" | "active"> }>;
+}
+
+/** Read one order with everything the detail page renders. Both roles. */
+export async function getOrder(input: unknown): Promise<OrderDetail | null> {
+  const { id } = getOrderSchema.parse(input);
+  await getCurrentStaff();
+  const db = getServiceClient();
+
+  const { data, error } = await db
+    .from("orders")
+    .select(
+      "*, client:client_id(*), car:car_id(*), services:order_services(*), workers:order_staff(*, staff:staff_id(id, display_name, role, active))",
+    )
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+   
+  const r = data as any;
+  return {
+    order: stripJoined(r),
+    client: r.client,
+    car: r.car,
+    services: r.services ?? [],
+    workers: r.workers ?? [],
+  };
+}
+
+export async function setStatus(input: unknown): Promise<ActionResult> {
+  try {
+    const { id, next } = setStatusSchema.parse(input);
+    const actor = await getCurrentStaff();
+    const db = getServiceClient();
+
+    const { data: before, error: beforeErr } = await db
+      .from("orders")
+      .select("id, status, deleted_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (beforeErr) throw beforeErr;
+    if (!before || before.deleted_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+    if (before.status === next) {
+      return { ok: false, message: ILLEGAL_TRANSITION_MESSAGE };
+    }
+    if (!canTransition(before.status, next, actor.role)) {
+      return { ok: false, message: ILLEGAL_TRANSITION_MESSAGE };
+    }
+
+    // The exception edge: nedostavil_sa → vytvorena re-checks conflict and
+    // hours, because the slot was freed and may have been rebooked.
+    if (before.status === "nedostavil_sa" && next === "vytvorena") {
+      const { data: full, error: fullErr } = await db
+        .from("orders")
+        .select("box, starts_at, ends_at")
+        .eq("id", id)
+        .single();
+      if (fullErr) throw fullErr;
+      if (!(await slotIsFree(db, id, full.box, new Date(full.starts_at), new Date(full.ends_at)))) {
+        return { ok: false, message: REVERT_RETAKEN_MESSAGE };
+      }
+      if (!(await rangeIsOpen(db, new Date(full.starts_at), new Date(full.ends_at)))) {
+        return { ok: false, message: CLOSED_MESSAGE };
+      }
+    }
+
+    const { error: updErr } = await db
+      .from("orders")
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (updErr) {
+      if (isExclusionViolation(updErr)) {
+        return { ok: false, message: REVERT_RETAKEN_MESSAGE };
+      }
+      throw updErr;
+    }
+
+    await writeAudit(
+      actor,
+      "order.status_change",
+      "order",
+      id,
+      { from: before.status, to: next },
+      id,
+    );
+
+    if (before.status === "vytvorena" && next === "hotova") {
+      await emitOrderReady({
+        orderId: id,
+        actorEmail: actor.email,
+        emittedAt: new Date(),
+      });
+    }
+
+    revalidatePath("/");
+    revalidatePath(`/orders/${id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function moveOrder(input: unknown): Promise<ActionResult> {
+  try {
+    const { id, box, startsAt } = moveOrderSchema.parse(input);
+    const actor = await getCurrentStaff();
+    requireManager(actor);
+    const db = getServiceClient();
+
+    const newStart = new Date(startsAt);
+    if (!isOn15MinBoundary(newStart)) {
+      return { ok: false, message: NOT_15MIN_MESSAGE };
+    }
+
+    const { data: before, error: beforeErr } = await db
+      .from("orders")
+      .select("box, starts_at, ends_at, duration_min, status, deleted_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (beforeErr) throw beforeErr;
+    if (!before || before.deleted_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+
+    const newEnd = new Date(newStart.getTime() + before.duration_min * 60_000);
+    if (!(await rangeIsOpen(db, newStart, newEnd))) {
+      return { ok: false, message: CLOSED_MESSAGE };
+    }
+
+    const { error: updErr } = await db
+      .from("orders")
+      .update({
+        box,
+        starts_at: newStart.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (updErr) {
+      if (isExclusionViolation(updErr)) {
+        return { ok: false, message: CONFLICT_MESSAGE };
+      }
+      throw updErr;
+    }
+
+    await writeAudit(
+      actor,
+      "order.move",
+      "order",
+      id,
+      {
+        from: { box: before.box, starts_at: before.starts_at },
+        to: { box, starts_at: newStart.toISOString() },
+      },
+      id,
+    );
+
+    revalidatePath("/");
+    revalidatePath(`/orders/${id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function deleteOrder(input: unknown): Promise<ActionResult> {
+  try {
+    const { id } = deleteOrderSchema.parse(input);
+    const actor = await getCurrentStaff();
+    requireManager(actor);
+    const db = getServiceClient();
+
+    const { data: before, error: beforeErr } = await db
+      .from("orders")
+      .select("status, deleted_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (beforeErr) throw beforeErr;
+    if (!before || before.deleted_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+    if (before.status === "zaplatena") {
+      return { ok: false, message: DELETE_AFTER_PAID_MESSAGE };
+    }
+
+    const { error: updErr } = await db
+      .from("orders")
+      .update({
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (updErr) throw updErr;
+
+    await writeAudit(
+      actor,
+      "order.delete",
+      "order",
+      id,
+      { previous_status: before.status },
+      id,
+    );
+
+    revalidatePath("/");
+    revalidatePath(`/orders/${id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function addOrderWorker(input: unknown): Promise<ActionResult> {
+  try {
+    const { id, staffId } = orderWorkerSchema.parse(input);
+    const actor = await getCurrentStaff();
+    const db = getServiceClient();
+
+    // Ensure the assignee exists and is active (FK alone would allow inactive).
+    const { data: assignee, error: aErr } = await db
+      .from("staff")
+      .select("id, active")
+      .eq("id", staffId)
+      .maybeSingle();
+    if (aErr) throw aErr;
+    if (!assignee || !assignee.active) {
+      return { ok: false, message: "Zamestnanec nie je k dispozícii." };
+    }
+
+    const { data: order, error: oErr } = await db
+      .from("orders")
+      .select("id, deleted_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (oErr) throw oErr;
+    if (!order || order.deleted_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+
+    // Idempotent: re-adding the same worker is a no-op (PK collision swallowed).
+    const { error: insErr } = await db
+      .from("order_staff")
+      .insert({ order_id: id, staff_id: staffId, assigned_by: actor.id });
+    if (insErr) {
+      if ((insErr as { code?: string }).code === "23505") {
+        return { ok: true };
+      }
+      throw insErr;
+    }
+
+    await writeAudit(
+      actor,
+      "order.assign",
+      "order",
+      id,
+      { staff_id: staffId },
+      id,
+    );
+
+    revalidatePath(`/orders/${id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function removeOrderWorker(input: unknown): Promise<ActionResult> {
+  try {
+    const { id, staffId } = orderWorkerSchema.parse(input);
+    const actor = await getCurrentStaff();
+    const db = getServiceClient();
+
+    const { error: delErr, count } = await db
+      .from("order_staff")
+      .delete({ count: "exact" })
+      .eq("order_id", id)
+      .eq("staff_id", staffId);
+    if (delErr) throw delErr;
+    if (!count) {
+      // Nothing to remove; treat as no-op (idempotent) without an audit row.
+      return { ok: true };
+    }
+
+    await writeAudit(
+      actor,
+      "order.unassign",
+      "order",
+      id,
+      { staff_id: staffId },
+      id,
+    );
+
+    revalidatePath(`/orders/${id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function setNote(input: unknown): Promise<ActionResult> {
+  try {
+    const { id, note } = setNoteSchema.parse(input);
+    const actor = await getCurrentStaff();
+    requireManager(actor);
+    const db = getServiceClient();
+
+    const { data: before, error: beforeErr } = await db
+      .from("orders")
+      .select("note, deleted_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (beforeErr) throw beforeErr;
+    if (!before || before.deleted_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+
+    const trimmed = note?.trim() || null;
+    const { error: updErr } = await db
+      .from("orders")
+      .update({ note: trimmed, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (updErr) throw updErr;
+
+    await writeAudit(
+      actor,
+      "order.note_edit",
+      "order",
+      id,
+      { from: before.note?.trim() || null, to: trimmed },
+      id,
+    );
+
+    revalidatePath(`/orders/${id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function addOrderService(input: unknown): Promise<ActionResult> {
+  try {
+    const data = addOrderServiceSchema.parse(input);
+    const actor = await getCurrentStaff();
+    requireManager(actor);
+    const db = getServiceClient();
+
+    const { data: order, error: oErr } = await db
+      .from("orders")
+      .select("id, car_id, duration_min, starts_at, box, deleted_at")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (oErr) throw oErr;
+    if (!order || order.deleted_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+
+    // Active lines drive the "default" duration. If the order's stored
+    // duration matches their sum, no manual override is in effect and we
+    // recompute downstream; otherwise leave the override alone (spec §2.3).
+    const baselineDuration = await sumActiveLineDuration(db, order.id);
+    const hasOverride = order.duration_min !== baselineDuration;
+
+    const { data: car, error: carErr } = await db
+      .from("cars")
+      .select("pricing_category")
+      .eq("id", order.car_id)
+      .single();
+    if (carErr) throw carErr;
+
+    const { data: svc, error: svcErr } = await db
+      .from("services")
+      .select("id, name, active")
+      .eq("id", data.serviceId)
+      .maybeSingle();
+    if (svcErr) throw svcErr;
+    if (!svc || !svc.active) {
+      return { ok: false, message: SERVICE_INACTIVE_MESSAGE };
+    }
+
+    const { data: prices, error: pErr } = await db
+      .from("service_prices")
+      .select("*")
+      .eq("service_id", data.serviceId);
+    if (pErr) throw pErr;
+
+    const resolved = resolveServicePrice(prices ?? [], car.pricing_category);
+    if (!resolved.ok) {
+      return { ok: false, message: SERVICE_UNAVAILABLE_MESSAGE };
+    }
+    const quantity = data.quantity ?? 1;
+    const lineDuration = (resolved.durationMin ?? 0) * quantity;
+    const linePrice = resolved.priceCents * quantity;
+
+    // Respect a prior manual override: if one's in effect (stored
+    // duration_min ≠ Σ active line durations), don't widen the booking when
+    // the manager adds a service. Otherwise track Σ lines as the default.
+    if (!hasOverride && lineDuration > 0) {
+      const newDuration = order.duration_min + lineDuration;
+      const start = new Date(order.starts_at);
+      const newEnd = new Date(start.getTime() + newDuration * 60_000);
+      if (!(await rangeIsOpen(db, start, newEnd))) {
+        return { ok: false, message: CLOSED_MESSAGE };
+      }
+      const { error: durErr } = await db
+        .from("orders")
+        .update({ duration_min: newDuration, updated_at: new Date().toISOString() })
+        .eq("id", order.id);
+      if (durErr) {
+        if (isExclusionViolation(durErr)) {
+          return { ok: false, message: CONFLICT_MESSAGE };
+        }
+        throw durErr;
+      }
+    }
+
+    const { data: line, error: lineErr } = await db
+      .from("order_services")
+      .insert({
+        order_id: order.id,
+        service_id: svc.id,
+        name_snapshot: svc.name,
+        category_snapshot: car.pricing_category,
+        quantity,
+        duration_min_snapshot: resolved.durationMin != null ? resolved.durationMin * quantity : null,
+        price_cents_snapshot: linePrice,
+        added_by: actor.id,
+      })
+      .select("id")
+      .single();
+    if (lineErr) throw lineErr;
+
+    await writeAudit(
+      actor,
+      "order_service.add",
+      "order_service",
+      line.id,
+      {
+        service_id: svc.id,
+        quantity,
+        duration_min: resolved.durationMin != null ? resolved.durationMin * quantity : null,
+        price_cents: linePrice,
+      },
+      order.id,
+    );
+
+    revalidatePath("/");
+    revalidatePath(`/orders/${order.id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function removeOrderService(input: unknown): Promise<ActionResult> {
+  try {
+    const { orderServiceId } = removeOrderServiceSchema.parse(input);
+    const actor = await getCurrentStaff();
+    requireManager(actor);
+    const db = getServiceClient();
+
+    const { data: line, error: lineErr } = await db
+      .from("order_services")
+      .select(
+        "id, order_id, duration_min_snapshot, removed_at, orders:order_id(duration_min, status)",
+      )
+      .eq("id", orderServiceId)
+      .maybeSingle();
+    if (lineErr) throw lineErr;
+    if (!line || line.removed_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+
+    const parent = (line as any).orders as {
+      duration_min: number;
+      status: OrderRow["status"];
+    } | undefined;
+    if (parent && parent.status !== "vytvorena") {
+      // "Performed" once the order is hotova or later (spec 06 §2.6).
+      return { ok: false, message: SERVICE_LINE_PERFORMED_MESSAGE };
+    }
+
+    const { error: updErr } = await db
+      .from("order_services")
+      .update({ removed_at: new Date().toISOString() })
+      .eq("id", orderServiceId);
+    if (updErr) throw updErr;
+
+    // Mirror addOrderService: shrink duration_min only when no manual
+    // override is in effect (parent.duration_min === Σ active line durations
+    // BEFORE the removal). With override active, leave the slot alone.
+    if (parent) {
+      const baseline = await sumActiveLineDuration(db, line.order_id);
+      const removedDuration = line.duration_min_snapshot ?? 0;
+      // baseline already excludes the just-removed line; pre-removal baseline
+      // was baseline + removedDuration. If that matched parent.duration_min,
+      // there was no override.
+      const preRemovalBaseline = baseline + removedDuration;
+      if (preRemovalBaseline === parent.duration_min && removedDuration > 0) {
+        const newDuration = Math.max(1, baseline);
+        const { error: durErr } = await db
+          .from("orders")
+          .update({
+            duration_min: newDuration,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", line.order_id);
+        if (durErr) throw durErr;
+      }
+    }
+
+    await writeAudit(
+      actor,
+      "order_service.remove",
+      "order_service",
+      orderServiceId,
+      null,
+      line.order_id,
+    );
+
+    revalidatePath(`/orders/${line.order_id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function setOrderServicePaid(input: unknown): Promise<ActionResult> {
+  try {
+    const { orderServiceId, paid } = setOrderServicePaidSchema.parse(input);
+    const actor = await getCurrentStaff();
+    requireManager(actor);
+    const db = getServiceClient();
+
+    const { data: line, error: lineErr } = await db
+      .from("order_services")
+      .select("id, order_id, paid, removed_at")
+      .eq("id", orderServiceId)
+      .maybeSingle();
+    if (lineErr) throw lineErr;
+    if (!line || line.removed_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+    if (line.paid === paid) return { ok: true };
+
+    const { error: updErr } = await db
+      .from("order_services")
+      .update({ paid })
+      .eq("id", orderServiceId);
+    if (updErr) throw updErr;
+
+    await writeAudit(
+      actor,
+      "order_service.paid",
+      "order_service",
+      orderServiceId,
+      { from: line.paid, to: paid },
+      line.order_id,
+    );
+
+    revalidatePath(`/orders/${line.order_id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// internal helpers — re-used by spec 06 actions
+// ---------------------------------------------------------------------------
+
+async function rangeIsOpen(
+   
+  db: any,
+  start: Date,
+  end: Date,
+): Promise<boolean> {
+  const [{ data: hours }, { data: overrides }] = await Promise.all([
+    db.from("opening_hours").select("*"),
+    db.from("day_overrides").select("*").eq("day", bratislavaDateKey(start)),
+  ]);
+  return isRangeOpen(start, end, hours ?? [], overrides ?? []);
+}
+
+/** Σ duration_min_snapshot over active (non-removed) lines of an order. */
+async function sumActiveLineDuration(
+
+  db: any,
+  orderId: string,
+): Promise<number> {
+  const { data, error } = await db
+    .from("order_services")
+    .select("duration_min_snapshot")
+    .eq("order_id", orderId)
+    .is("removed_at", null);
+  if (error) throw error;
+  return ((data ?? []) as { duration_min_snapshot: number | null }[]).reduce(
+    (acc, r) => acc + (r.duration_min_snapshot ?? 0),
+    0,
+  );
+}
+
+/** True iff no other live order overlaps [start, end) in `box` (excluding `id`). */
+async function slotIsFree(
+   
+  db: any,
+  excludingOrderId: string,
+  box: number,
+  start: Date,
+  end: Date,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("orders")
+    .select("id, starts_at, ends_at")
+    .eq("box", box)
+    .is("deleted_at", null)
+    .neq("status", "nedostavil_sa")
+    .neq("id", excludingOrderId)
+    .lt("starts_at", end.toISOString())
+    .gt("ends_at", start.toISOString());
+  if (error) throw error;
+  return (data ?? []).length === 0;
 }

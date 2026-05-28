@@ -252,6 +252,49 @@ export type Database = {
           },
         ]
       }
+      order_staff: {
+        Row: {
+          assigned_at: string
+          assigned_by: string
+          order_id: string
+          staff_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by: string
+          order_id: string
+          staff_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string
+          order_id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_staff_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_staff_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_staff_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           box: number

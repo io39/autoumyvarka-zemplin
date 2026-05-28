@@ -3,23 +3,12 @@ import {
   accessHeaders,
   MANAGER_EMAIL,
   WORKER_EMAIL,
+  nextWeekdayDate,
   serviceClient,
   uniquePhone,
   uniqueSpz,
 } from "./support";
 import { bratislavaLocalToISO } from "@/lib/time/bratislava";
-
-/** Pick a Bratislava-local date and 09:00 / 09:30 slot. Use a near-future
- * weekday so the seeded opening hours (Mon–Fri 08:00–17:00) apply. */
-function nextWeekdayDate(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 7);
-  const dow = d.getDay();
-  if (dow === 0) d.setDate(d.getDate() + 1);
-  if (dow === 6) d.setDate(d.getDate() + 2);
-  // Format as Bratislava local YYYY-MM-DD.
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(d);
-}
 
 async function setupClientAndCar(spzPrefix = "TT") {
   const db = serviceClient();

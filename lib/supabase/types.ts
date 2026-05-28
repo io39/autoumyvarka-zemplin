@@ -46,3 +46,6 @@ export type OrderUpdate = Database["public"]["Tables"]["orders"]["Update"];
 
 export type OrderServiceRow = Database["public"]["Tables"]["order_services"]["Row"];
 export type OrderServiceInsert = Database["public"]["Tables"]["order_services"]["Insert"];
+
+export type OrderStaffRow = Database["public"]["Tables"]["order_staff"]["Row"];
+export type OrderStaffInsert = Database["public"]["Tables"]["order_staff"]["Insert"];

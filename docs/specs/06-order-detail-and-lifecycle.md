@@ -165,7 +165,7 @@ assignment changes propagate too.
 
 ### 2.6 Data & migrations
 
-Migration `0006_order_staff.sql`: the `order_staff` M:N table (data-model §2.14) with
+Migration `0007_order_staff.sql`: the `order_staff` M:N table (data-model §2.14) with
 its PK + indexes + RLS deny-by-default, and added to the Realtime publication. `orders`
 and `order_services` already exist (spec 05); new audit `action` strings are values,
 not schema. Phase-1 "performed" rule (gating service removal): a line is "performed"
@@ -175,7 +175,7 @@ once the order is `hotova` or later, so removal is allowed only while `vytvorena
 
 ## 3. Tasks
 
-0. **(S)** Migration `0006_order_staff.sql` (M:N table, RLS, Realtime publication).
+0. **(S)** Migration `0007_order_staff.sql` (M:N table, RLS, Realtime publication).
    (dep: spec 05 migration)
 1. **(M)** `lib/orders/transitions.ts`: the allowed-edge + role matrix as a pure
    function `canTransition(from, next, role)` (incl. the `nedostavil_sa → vytvorena`

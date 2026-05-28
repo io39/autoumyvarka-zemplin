@@ -1,7 +1,7 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **Specs 01–05 are done; spec 06 is next.**
+**Phase:** Implementation, spec-driven. **Specs 01–06 are done; spec 07 is next.**
 **Last updated:** 2026-05-28.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
@@ -124,7 +124,7 @@ Planning artifacts are all written and committed locally on `main`:
   total). Home now has a `Menu` link → `/menu` for admin pages. Client
   detail got a "Nová objednávka" button.
   **84 unit + 30 e2e tests pass.**
-  **Deliberately NOT in this slice (carry-over to spec 06 / later):**
+  **Deliberately NOT in this slice (carry-over to spec 06 / later — most now landed in 06):**
   optimistic insert in the calendar (Realtime echo refreshes the grid,
   good enough for phase 1); multi-context Realtime e2e (subscription
   wired, no two-browser test yet); suggested-slots list UI in the
@@ -133,6 +133,49 @@ Planning artifacts are all written and committed locally on `main`:
   until 06 lands; per-day clipping on the week-view time axis (reviewer
   rated low priority); a soft note that `order_services` is in the
   Realtime publication with no subscriber yet (spec 06 will subscribe).
+- **Spec 06 — DONE** (commits `feat: implement spec 06 (order detail &
+  lifecycle)` + `fix(orders): apply spec 06 code-review should-fix items`).
+  Migration `0007_order_staff.sql` (M:N `order_staff` with PK
+  `(order_id, staff_id)`, FK to `staff` for `assigned_by`, deny-by-default
+  RLS + authenticated SELECT, added to `supabase_realtime` publication).
+  Pure transition matrix `lib/orders/transitions.ts` (`canTransition`,
+  `allowedNextStatuses`) — PRD §3 matrix wins where §2.2 ASCII diagram
+  conflicted, so `hotova → zaplatena` is **both roles**; the
+  `nedostavil_sa → vytvorena` late-arrival exception is manager-only and
+  re-checks conflict + hours in the action layer. In-process
+  `lib/orders/ready-event.ts` emitter — `onOrderReady` / `emitOrderReady`,
+  `server-only`, swallowed listener errors; spec 07 subscribes here.
+  Server actions appended to `lib/actions/orders.ts`: `getOrder`
+  (filters `deleted_at` so cancelled orders 404), `setStatus`
+  (transition matrix + ORDER_READY emission on `vytvorena → hotova` +
+  no-show revert via `slotIsFree` & `rangeIsOpen` helpers, friendly
+  Slovak `"Termín už bol medzitým obsadený."` when slot rebooked),
+  `moveOrder`, `deleteOrder` (rejects on `zaplatena`, soft via
+  `deleted_at`), `addOrderWorker` / `removeOrderWorker` (idempotent on
+  PK collision; both roles), `setNote` (manager-only, audits
+  trimmed-from/to), `addOrderService` / `removeOrderService` /
+  `setOrderServicePaid`. Duration recompute on add/remove **respects a
+  prior manual override**: if `orders.duration_min` ≠ Σ active line
+  `duration_min_snapshot`, the booking width is left alone. UI:
+  `/orders/[id]` server page + `components/orders/order-detail.tsx`
+  client component (status badge, client+car, prominent amber Poznámka
+  block, status action buttons gated by `allowedNextStatuses`, workers
+  add/remove via `Select`+button (`data-section="workers"`,
+  `data-worker-id`), services list with per-line `paid` toggles and
+  Odstrániť buttons disabled on hotova+, total Cena spolu, MoveDialog
+  + DeleteDialog (manager only, role-gated rendering). Calendar block
+  links to `/orders/[id]` (alive since spec 05). E2e helper
+  `seedOrder()` in `tests/e2e/support.ts` (far-future random weekday
+  date 800–2300 days out, retry on exclusion-violation, safe-time
+  window 11:00–12:30 default to avoid collisions with the booking-
+  conflict suite's 09:00/13:00 fixtures). Spec 06 tests:
+  `order-role-permissions`, `order-move-delete`, `order-noshow-revert`,
+  `order-note-audit`, `order-services` (e2e); `transitions`,
+  `ready-event` (unit). **All 95 unit + 41 e2e tests pass on a clean
+  `pnpm supabase db reset`.** Code-reviewer pass returned 0 must-fix, 3
+  should-fix (all applied: deleted_at filter on getOrder, override-aware
+  duration math on add/remove, audit trim) + 3 nits (migration filename
+  fixed in spec 06 doc).
 
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
@@ -157,21 +200,16 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Specs 01–05 — DONE.**
-2. **Spec 06 — order detail & lifecycle** (next):
-   `docs/specs/06-order-detail-and-lifecycle.md`. Pairs naturally with the spec-05
-   carry-over (week view, optimistic insert, multi-context Realtime e2e,
-   suggested-slots list). 06 introduces: status transitions with role rules
-   (`vytvorena→hotova` any role; `→zaplatena` manager; `→nedostavil_sa` manager;
-   the exception `nedostavil_sa→vytvorena` manager + re-check conflict/hours),
-   manager-only notes, M:N worker assignment via `order_staff`, post-hoc service
-   add/remove/pay with per-line `paid`. The `hotova` transition is the hook
-   spec 07 attaches the "ready" SMS to. Reuse: `lib/actions/result.ts`,
-   role guards + `writeAudit` before/after, zod at every boundary, the same
-   pattern of pure helpers separated from `"use server"` modules
-   (see `lib/services/price-lookup.ts`, `lib/orders/duration.ts`).
-3. **Then 07 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough
-   order: 07 SMS → 08 client history → 09 audit view → 10 unpaid alerts.
+1. **Specs 01–06 — DONE.**
+2. **Spec 07 — SMS** (next): `docs/specs/07-sms.md`. Subscribe to the
+   ORDER_READY event emitted by spec 06's `setStatus(vytvorena → hotova)`
+   (see `lib/orders/ready-event.ts`) to send the "ready" SMS via the Slovak
+   provider. Add the 30-minute reminder pg_cron → Route Handler, idempotent
+   on `orders.reminded_at`. Provider webhook is the one Route Handler that
+   bypasses Cloudflare Access — it verifies `SMS_WEBHOOK_SECRET` in-handler.
+   Open question (PRD §13#4): final SMS wording + signature.
+3. **Then 08 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough
+   order: 08 client history → 09 audit view → 10 unpaid alerts.
 
 **Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
 VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when

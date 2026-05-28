@@ -47,3 +47,58 @@ export const createOrderSchema = z.object({
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type GetCalendarInput = z.infer<typeof getCalendarSchema>;
 export type SuggestSlotsInput = z.infer<typeof suggestSlotsSchema>;
+
+// ---------------------------------------------------------------------------
+// Spec 06 — order detail & lifecycle
+// ---------------------------------------------------------------------------
+
+const orderStatusSchema = z.enum(
+  ["vytvorena", "hotova", "zaplatena", "nedostavil_sa"],
+  { message: "Neplatný stav objednávky." },
+);
+
+export const getOrderSchema = z.object({ id: idSchema });
+
+export const setStatusSchema = z.object({
+  id: idSchema,
+  next: orderStatusSchema,
+});
+
+export const moveOrderSchema = z.object({
+  id: idSchema,
+  box: boxSchema,
+  startsAt: isoInstantSchema,
+});
+
+export const deleteOrderSchema = z.object({ id: idSchema });
+
+export const orderWorkerSchema = z.object({
+  id: idSchema,
+  staffId: idSchema,
+});
+
+export const setNoteSchema = z.object({
+  id: idSchema,
+  note: z.string().trim().max(2000).nullable(),
+});
+
+export const addOrderServiceSchema = z.object({
+  id: idSchema,
+  serviceId: idSchema,
+  quantity: z.number().int().positive().max(99).optional(),
+});
+
+export const removeOrderServiceSchema = z.object({
+  orderServiceId: idSchema,
+});
+
+export const setOrderServicePaidSchema = z.object({
+  orderServiceId: idSchema,
+  paid: z.boolean(),
+});
+
+export type SetStatusInput = z.infer<typeof setStatusSchema>;
+export type MoveOrderInput = z.infer<typeof moveOrderSchema>;
+export type OrderWorkerInput = z.infer<typeof orderWorkerSchema>;
+export type SetNoteInput = z.infer<typeof setNoteSchema>;
+export type AddOrderServiceInput = z.infer<typeof addOrderServiceSchema>;

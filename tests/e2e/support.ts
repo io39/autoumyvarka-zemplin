@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { expect, type Page } from "@playwright/test";
+import { bratislavaLocalToISO } from "@/lib/time/bratislava";
 
 /** Edge identities seeded in supabase/seed.sql. */
 export const MANAGER_EMAIL = "filicko203@gmail.com";
@@ -60,4 +61,167 @@ export function serviceClient() {
     throw new Error("Missing Supabase env (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
   }
   return createClient(url, key, { auth: { persistSession: false } });
+}
+
+/**
+ * Pick a Bratislava-local YYYY-MM-DD on a Mon–Fri weekday between 7 and ~120
+ * days out. Random offset per call so parallel seedOrder()s in different
+ * tests don't collide on the (box, starts_at) exclusion constraint. The
+ * seeded weekday opening hours (Mon–Fri 08:00–17:00) apply.
+ */
+export function nextWeekdayDate(offsetDays = 7, spread = 100): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays + Math.floor(Math.random() * spread));
+  const dow = d.getDay();
+  if (dow === 0) d.setDate(d.getDate() + 1);
+  if (dow === 6) d.setDate(d.getDate() + 2);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(d);
+}
+
+/**
+ * Far-future weekday date for `seedOrder`. Sits well past the date range used
+ * by `orders-create-and-conflict.spec.ts` (which uses ~7..120 days out via
+ * `nextWeekdayDate`), so spec 06 lifecycle fixtures never collide with the
+ * booking-conflict suite's fixed-slot orders even when tests run back-to-back
+ * against the same DB.
+ */
+function seedDate(): string {
+  return nextWeekdayDate(800, 1500);
+}
+
+interface SeededOrder {
+  orderId: string;
+  clientId: string;
+  carId: string;
+  serviceId: string;
+  serviceLineId: string;
+  date: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+/**
+ * Seed a fresh client + car + a single 60-min order at 09:00 in box 1 with one
+ * line for "Interiér Classic". Used by spec 06 lifecycle tests where the
+ * booking flow itself isn't under test.
+ */
+export async function seedOrder(opts?: {
+  status?: "vytvorena" | "hotova" | "zaplatena" | "nedostavil_sa";
+  box?: 1 | 2;
+  date?: string;
+  time?: string;
+}): Promise<SeededOrder> {
+  const db = serviceClient();
+
+  const { data: manager } = await db
+    .from("staff")
+    .select("id")
+    .eq("email", MANAGER_EMAIL)
+    .single();
+
+  const phone = `+421${uniquePhone().slice(1)}`;
+  const { data: client } = await db
+    .from("clients")
+    .insert({ phone, name: "E2E klient" })
+    .select("id")
+    .single();
+  const { data: car } = await db
+    .from("cars")
+    .insert({ spz: uniqueSpz("OD"), pricing_category: "os" })
+    .select("id")
+    .single();
+  await db.from("client_cars").insert({ client_id: client!.id, car_id: car!.id });
+
+  const { data: service } = await db
+    .from("services")
+    .select("id, name")
+    .eq("name", "Interiér Classic")
+    .single();
+  const { data: price } = await db
+    .from("service_prices")
+    .select("duration_min, price_cents")
+    .eq("service_id", service!.id)
+    .eq("pricing_category", "os")
+    .single();
+
+  const date = opts?.date ?? seedDate();
+  // Default time stays inside an 11:00–12:45 window that does NOT overlap
+  // the fixed slots used by orders-create-and-conflict.spec (09:00/09:30
+  // bookings, 13:00 worker booking). Combined with a wide random date, this
+  // keeps the (box, [start, end)) exclusion constraint quiet across suites.
+  const SAFE_TIMES = ["11:00", "11:30", "12:00", "12:30"];
+  const defaultTime = SAFE_TIMES[Math.floor(Math.random() * SAFE_TIMES.length)];
+  const time = opts?.time ?? defaultTime;
+  const startsAt = bratislavaLocalToISO(date, time);
+  const duration = price!.duration_min ?? 60;
+
+  // Retry the order insert with a fresh random date if the exclusion
+  // constraint catches another parallel test on the same (box, time) slot.
+  // We refuse to silently succeed with `data: null`.
+  let order: { id: string; ends_at: string } | null = null;
+  let attemptStart = startsAt;
+  let attemptDate = date;
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const res = await db
+      .from("orders")
+      .insert({
+        client_id: client!.id,
+        car_id: car!.id,
+        box: opts?.box ?? 1,
+        starts_at: attemptStart,
+        duration_min: duration,
+        ends_at: new Date(new Date(attemptStart).getTime() + duration * 60_000).toISOString(),
+        status: opts?.status ?? "vytvorena",
+        created_by: manager!.id,
+      })
+      .select("id, ends_at")
+      .single();
+    if (res.data) {
+      order = res.data;
+      break;
+    }
+    if (res.error && (res.error as { code?: string }).code === "23P01") {
+      // Only auto-rotate the date when the caller didn't pin one. If they
+      // intentionally targeted a specific date/time/box (e.g. to reproduce a
+      // rebooked-slot scenario), surface the conflict.
+      if (opts?.date) {
+        throw new Error(`seedOrder conflict at ${attemptStart}: ${res.error.message}`);
+      }
+      attemptDate = seedDate();
+      attemptStart = bratislavaLocalToISO(attemptDate, time);
+      continue;
+    }
+    throw new Error(
+      `seedOrder failed: ${res.error?.message ?? "no row returned"} (code=${(res.error as { code?: string } | null)?.code})`,
+    );
+  }
+  if (!order) throw new Error("seedOrder: exhausted retries finding a free slot");
+  const startsAtFinal = attemptStart;
+  const dateFinal = attemptDate;
+
+  const { data: line } = await db
+    .from("order_services")
+    .insert({
+      order_id: order.id,
+      service_id: service!.id,
+      name_snapshot: service!.name,
+      category_snapshot: "os",
+      quantity: 1,
+      duration_min_snapshot: duration,
+      price_cents_snapshot: price!.price_cents,
+      added_by: manager!.id,
+    })
+    .select("id")
+    .single();
+
+  return {
+    orderId: order.id,
+    clientId: client!.id,
+    carId: car!.id,
+    serviceId: service!.id,
+    serviceLineId: line!.id,
+    date: dateFinal,
+    startsAt: startsAtFinal,
+    endsAt: order.ends_at,
+  };
 }
