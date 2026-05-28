@@ -1,7 +1,7 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **Specs 01–03 are done; spec 04 is next.**
+**Phase:** Implementation, spec-driven. **Specs 01–04 are done; spec 05 is next.**
 **Last updated:** 2026-05-28.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
@@ -57,7 +57,9 @@ Planning artifacts are all written and committed locally on `main`:
   `lib/actions/clients.ts` + `lib/actions/cars.ts` (shared-ŠPZ link detection,
   manager-only edits, phone_change audit). UI `/clients` (fuzzy search) + `/clients/[id]`
   (detail, add-car/link-confirm, history placeholder for spec 08). 26 unit + 11 e2e pass.
-- **Spec 03 — DONE** (commit `feat: implement spec 03 (service catalog)`). Migration
+- **Spec 03 — DONE** (commits `feat: implement spec 03 (service catalog)` + the
+  code-review follow-ups `fix(services): apply spec 03 code-review should-fix items`
+  and `chore(services): apply spec 03 code-review nits`). Migration
   `0003_service_catalog.sql` (`services` + `service_prices`, `unique nulls not
   distinct (service_id, pricing_category)`, deny-by-default RLS). `supabase/seed.sql`
   extended with 24 services / 47 prices translated from `docs/services.md` (cents,
@@ -67,7 +69,20 @@ Planning artifacts are all written and committed locally on `main`:
   in `lib/actions/services.ts` (`listServices`, `getServicePrice`, `createService`,
   `updateService`, `upsertServicePrice`, `deleteServicePrice`, `setServiceActive`).
   UI `/services` (list + add) and `/services/[id]` (per-category grid edit) —
-  manager-only, 403 for workers. 44 unit + 19 e2e tests pass.
+  manager-only, 403 for workers.
+- **Spec 04 — DONE** (commit `feat: implement spec 04 (opening hours & day
+  overrides)`). Migration `0004_settings.sql` (`opening_hours` pk `day_of_week`,
+  `day_overrides` pk `day`, both with check constraints `closed ⇒ NULL times` /
+  `open ⇒ open<close`, deny-by-default RLS). Seed: 7 weekday rows (Mon–Fri
+  08:00–17:00, Sat 08:00–12:00, Sun closed). Pure helper
+  `lib/settings/availability.ts` (`getOpenInterval`, `isOpenAt`, `isRangeOpen`)
+  with **override-wins** resolution and **Europe/Bratislava** timezone handling
+  via `Intl.DateTimeFormat`. Actions `lib/actions/settings.ts`
+  (`getOpeningHours`, `getDayOverrides`, `saveOpeningHours`,
+  `upsertDayOverride`, `removeDayOverride`); 15-minute grid enforced in zod.
+  UI `/settings/hours` (7-row editor) + `/settings/exceptions` (closed-vs-
+  custom toggle, idempotent upsert, edit/remove). Slovak weekday labels.
+  72 unit + 25 e2e tests pass.
 
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
@@ -92,17 +107,23 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Specs 01, 02 & 03 — DONE.**
-2. **Spec 04 — settings: opening hours & day overrides** (next):
-   `docs/specs/04-settings-opening-hours-holidays.md`. Reuse the established patterns:
-   checked-in migration + `supabase db reset` + `pnpm supabase gen types` → alias in
-   `lib/supabase/types.ts`; `lib/actions/result.ts` (`ActionResult`/`toActionError`);
-   `getCurrentStaff` + `requireManager` before mutations; `writeAudit` with before/after
-   `details`; zod at every boundary; e2e against the production build
-   (see `tests/README.md`).
-3. **Then 05 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough order:
-   05 reservations & calendar (the big one) → 06 order lifecycle → 07 SMS → 08 client
-   history → 09 audit view → 10 unpaid alerts.
+1. **Specs 01–04 — DONE.**
+2. **Spec 05 — reservations & two-box calendar** (next, the big one):
+   `docs/specs/05-reservations-and-calendar.md`. Pulls together 02 (clients/cars),
+   03 (services/durations via `getServicePrice` and the spec-03 resolver), and 04
+   (`isRangeOpen` from `lib/settings/availability.ts`). Introduces the DB-level
+   box-overlap exclusion constraint (btree_gist), 15-min slot grid, automatic
+   duration calculation (Σ line durations, manually editable), the two-box calendar
+   with the four status colors, **Realtime live updates** (consumes the minted JWT
+   + RLS read policies from spec 01 / data-model §3.1), and mobile single-box
+   switching. Reuse the established patterns: checked-in migration + `supabase db
+   reset` + `pnpm supabase gen types` → alias in `lib/supabase/types.ts`;
+   `lib/actions/result.ts`; `getCurrentStaff` + `requireManager` (or role-specific
+   guard) before mutations; `writeAudit` with before/after `details`; zod at every
+   boundary; e2e against the production build (see `tests/README.md`).
+3. **Then 06 → 10 in order.** Dependencies are in `docs/specs/README.md`. Rough
+   order: 06 order lifecycle → 07 SMS → 08 client history → 09 audit view → 10
+   unpaid alerts.
 
 **Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
 VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when
