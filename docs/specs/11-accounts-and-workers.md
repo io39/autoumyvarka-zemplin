@@ -36,9 +36,13 @@ actual people who washed the car are recorded on the order as named **Zamestnanc
 3. **Soft-delete preserved** for both: deactivate (never hard-delete), so history stays
    intact. An inactive worker can't be newly assigned but stays visible on past orders
    and in client history.
-4. **`assigned_by` stays a `staff` (account) reference** — it records *which logged-in
+4. **Hide-inactive toggle** on both blocks: a per-block control (default: inactive
+   **hidden**) that filters out deactivated accounts/workers from the list, with a way
+   to reveal them again. Client-side filter over the already-loaded rows — the actions
+   still return active + inactive.
+5. **`assigned_by` stays a `staff` (account) reference** — it records *which logged-in
    account* performed the assignment; the assignee is now a worker.
-5. Every account/worker mutation writes `audit_log` (PRD §11).
+6. Every account/worker mutation writes `audit_log` (PRD §11).
 
 ### 1.2 User stories (PRD §3)
 
@@ -160,9 +164,16 @@ zamestnanca". The `order.assign`/`order.unassign` summaries return a fixed strin
 
 ### 2.7 UI
 
+- **Hide-inactive toggle** (both blocks): a `useState` boolean per block (default
+  `true` = hide inactive) bound to a small control — a checkbox or toggle button
+  labelled e.g. "Zobraziť neaktívne". When off, rows with `active === false` are
+  filtered out of the rendered list; when on, they show dimmed with the existing
+  "Neaktívny" badge (current behaviour). Pure client-side filter; no action change.
 - **`components/staff/worker-manager.tsx`** (new) — the Zamestnanci block: list with
-  active/inactive state, add form (name only), edit + activate/deactivate, mirroring
-  `StaffManager`'s UX. Slovak strings.
+  active/inactive state, the hide-inactive toggle, add form (name only), edit +
+  activate/deactivate, mirroring `StaffManager`'s UX. Slovak strings.
+- **`components/staff/staff-manager.tsx`** — add the same hide-inactive toggle to the
+  Účty block.
 - **`app/staff/page.tsx`** — loads `listStaff()` + `listWorkers()`, renders both blocks
   under headings **"Účty"** and **"Zamestnanci"** (with short Slovak sub-labels). Still
   `requireManager` with the 403 view.
@@ -194,8 +205,10 @@ No change to: edge auth (`getCurrentStaff` still reads `staff`), `requireManager
 4. **(S)** `lib/actions/clients.ts` history embed → `worker_id`; drop the
    `as unknown as` cast if it now resolves. (dep: 0)
 5. **(S)** `lib/audit/labels.ts`: four `worker.*` labels. (dep: 0)
-6. **(M)** UI: `components/staff/worker-manager.tsx`, two-block `app/staff/page.tsx`,
-   `order-detail.tsx` `staffId → workerId` rename. (dep: 2, 3)
+6. **(M)** UI: `components/staff/worker-manager.tsx` (with hide-inactive toggle),
+   two-block `app/staff/page.tsx`, the same hide-inactive toggle on
+   `components/staff/staff-manager.tsx`, `order-detail.tsx` `staffId → workerId` rename.
+   (dep: 2, 3)
 7. **(M)** Tests: unit (worker action validation; audit-label key
    `staff_id → worker_id`); e2e (`/staff` two blocks; manager add/deactivate worker;
    worker appears/disappears in order dropdown; prevádzka 403 on `/staff`). Update
@@ -234,6 +247,9 @@ pnpm build       # exits 0
   `worker.activate`.
 - An existing order that already had the worker assigned **still shows that worker**
   after deactivation (history preserved).
+- **Hide-inactive toggle:** with a deactivated worker present, the Zamestnanci list does
+  **not** show it by default; toggling "Zobraziť neaktívne" reveals it (dimmed,
+  "Neaktívny" badge). The Účty block behaves the same for an inactive account.
 
 ```bash
 pnpm test:e2e staff-workers    # exits 0
