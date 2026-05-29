@@ -133,6 +133,10 @@ export function summarizeDetails(action: string, details: Json | null): string {
       return "Účet aktivovaný";
     case "staff.deactivate":
       return "Účet deaktivovaný";
+    case "worker.activate":
+      return "Zamestnanec aktivovaný";
+    case "worker.deactivate":
+      return "Zamestnanec deaktivovaný";
     case "sms.resend":
       return "Nový pokus o odoslanie";
     default:

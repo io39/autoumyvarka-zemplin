@@ -61,6 +61,15 @@ describe("summarizeDetails", () => {
     expect(summarizeDetails("order.unassign", { worker_id: "x" })).toBe("Pracovník odobratý");
   });
 
+  it("summarizes worker activate / deactivate", () => {
+    expect(summarizeDetails("worker.activate", { from: { active: false }, to: { active: true } })).toBe(
+      "Zamestnanec aktivovaný",
+    );
+    expect(summarizeDetails("worker.deactivate", { from: { active: true }, to: { active: false } })).toBe(
+      "Zamestnanec deaktivovaný",
+    );
+  });
+
   it("every event covered by the spec §4.4 coverage check has a non-empty summary", () => {
     const cases: Array<[string, unknown]> = [
       ["order.create", { box: 1, starts_at: "x" }],
