@@ -80,7 +80,7 @@ describe("buildCarHistories", () => {
           { name_snapshot: "Interiér Classic", quantity: 1, removed_at: null },
           { name_snapshot: "Vosk", quantity: 2, removed_at: "2026-01-02T00:00:00Z" },
         ],
-        workers: [{ staff: { display_name: "Jano" } }, { staff: null }],
+        workers: [{ worker: { display_name: "Jano" } }, { worker: null }],
       }),
     ];
 
@@ -92,7 +92,7 @@ describe("buildCarHistories", () => {
       { name: "Interiér Classic", quantity: 1, removed: false },
       { name: "Vosk", quantity: 2, removed: true },
     ]);
-    // null staff embeds are dropped; only resolved names remain.
+    // null worker embeds are dropped; only resolved names remain.
     expect(entry.workers).toEqual(["Jano"]);
   });
 

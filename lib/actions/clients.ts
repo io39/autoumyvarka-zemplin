@@ -152,19 +152,14 @@ export async function getClientWithHistory(
   const { data: orders, error: ordersError } = await db
     .from("orders")
     .select(
-      "id, car_id, starts_at, status, note, deleted_at, services:order_services(name_snapshot, quantity, removed_at), workers:order_staff(staff:staff_id(display_name))",
+      "id, car_id, starts_at, status, note, deleted_at, services:order_services(name_snapshot, quantity, removed_at), workers:order_staff(worker:worker_id(display_name))",
     )
     .in("car_id", carIds);
   if (ordersError) throw ordersError;
 
-  // order_staff has two FKs to staff (staff_id, assigned_by), so the typed
-  // client can't resolve the `staff:staff_id` embed; the runtime shape is a
-  // single staff object per row, matching HistoryOrderInput.
-  const histories = buildCarHistories(
-    cars,
-    (orders ?? []) as unknown as HistoryOrderInput[],
-    sharedCarIds,
-  );
+  // After spec 11, worker_id -> workers and assigned_by -> staff point to
+  // different tables, so PostgREST resolves the `worker:worker_id` embed cleanly.
+  const histories = buildCarHistories(cars, (orders ?? []) as HistoryOrderInput[], sharedCarIds);
   return { client, cars: histories };
 }
 

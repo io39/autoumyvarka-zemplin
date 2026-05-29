@@ -54,7 +54,7 @@ export interface HistoryOrderInput {
     quantity: number;
     removed_at: string | null;
   }>;
-  workers: Array<{ staff: { display_name: string } | null }>;
+  workers: Array<{ worker: { display_name: string } | null }>;
 }
 
 function toEntry(o: HistoryOrderInput): HistoryEntry {
@@ -69,7 +69,7 @@ function toEntry(o: HistoryOrderInput): HistoryEntry {
       removed: s.removed_at !== null,
     })),
     workers: o.workers
-      .map((w) => w.staff?.display_name)
+      .map((w) => w.worker?.display_name)
       .filter((n): n is string => Boolean(n)),
   };
 }
