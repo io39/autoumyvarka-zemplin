@@ -507,7 +507,16 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Specs 01–10 — ALL DONE.** No more feature specs in `docs/specs/`.
+0. **🔶 FIRST: finish spec 11 verification (the immediate next action).** You are on
+   branch `feat/spec-11-accounts-workers` (local, unpushed, NOT merged to `main`). The
+   spec is fully implemented and committed, but the last commit (`8680181`) applied two
+   final code-review test fixes that are **UNVERIFIED** — see the 🔶 PENDING note in the
+   "Spec 11 — DONE" entry above. Before anything else: run `pnpm typecheck && pnpm lint`,
+   then `pnpm test:e2e staff-workers` and `pnpm test:e2e order-role-permissions`; confirm
+   green. If green, the branch is merge-ready (ask the user to merge/push — pushing is
+   hook-blocked from inside Claude Code). Only then move on to the items below.
+1. **Specs 01–11 — implemented.** No more feature specs in `docs/specs/` (subject to the
+   spec-11 verification in item 0).
 2. **Walking-skeleton / production deploy** (architecture §8) is now the main
    remaining work: provision Supabase Cloud EU, the self-hosted VPS, and the
    Cloudflare Tunnel + Access policies; wire the prod env store (Supabase keys,
