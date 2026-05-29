@@ -50,6 +50,9 @@ export type OrderServiceInsert = Database["public"]["Tables"]["order_services"][
 export type OrderStaffRow = Database["public"]["Tables"]["order_staff"]["Row"];
 export type OrderStaffInsert = Database["public"]["Tables"]["order_staff"]["Insert"];
 
+export type WorkerRow = Database["public"]["Tables"]["workers"]["Row"];
+export type WorkerInsert = Database["public"]["Tables"]["workers"]["Insert"];
+
 export type SmsType = Database["public"]["Enums"]["sms_type"];
 export type SmsStatus = Database["public"]["Enums"]["sms_status"];
 

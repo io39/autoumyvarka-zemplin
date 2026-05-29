@@ -257,19 +257,19 @@ export type Database = {
           assigned_at: string
           assigned_by: string
           order_id: string
-          staff_id: string
+          worker_id: string
         }
         Insert: {
           assigned_at?: string
           assigned_by: string
           order_id: string
-          staff_id: string
+          worker_id: string
         }
         Update: {
           assigned_at?: string
           assigned_by?: string
           order_id?: string
-          staff_id?: string
+          worker_id?: string
         }
         Relationships: [
           {
@@ -287,10 +287,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "order_staff_staff_id_fkey"
-            columns: ["staff_id"]
+            foreignKeyName: "order_staff_worker_id_fkey"
+            columns: ["worker_id"]
             isOneToOne: false
-            referencedRelation: "staff"
+            referencedRelation: "workers"
             referencedColumns: ["id"]
           },
         ]
@@ -531,6 +531,27 @@ export type Database = {
           email?: string
           id?: string
           role?: Database["public"]["Enums"]["staff_role"]
+        }
+        Relationships: []
+      }
+      workers: {
+        Row: {
+          active: boolean
+          created_at: string
+          display_name: string
+          id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          display_name: string
+          id?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          display_name?: string
+          id?: string
         }
         Relationships: []
       }
