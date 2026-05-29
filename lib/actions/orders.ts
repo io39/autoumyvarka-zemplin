@@ -18,6 +18,7 @@ import type {
   OrderStaffRow,
   ServicePriceRow,
   StaffRow,
+  WorkerRow,
 } from "@/lib/supabase/types";
 import { type ActionResult, toActionError } from "./result";
 import {
@@ -348,7 +349,7 @@ export interface OrderDetail {
   client: ClientRow;
   car: CarRow;
   services: OrderServiceRow[];
-  workers: Array<OrderStaffRow & { staff: Pick<StaffRow, "id" | "display_name" | "role" | "active"> }>;
+  workers: Array<OrderStaffRow & { worker: Pick<WorkerRow, "id" | "display_name" | "active"> }>;
 }
 
 /** Read one order with everything the detail page renders. Both roles. */
@@ -360,7 +361,7 @@ export async function getOrder(input: unknown): Promise<OrderDetail | null> {
   const { data, error } = await db
     .from("orders")
     .select(
-      "*, client:client_id(*), car:car_id(*), services:order_services(*), workers:order_staff(*, staff:staff_id(id, display_name, role, active))",
+      "*, client:client_id(*), car:car_id(*), services:order_services(*), workers:order_staff(*, worker:worker_id(id, display_name, active))",
     )
     .eq("id", id)
     .is("deleted_at", null)
@@ -564,15 +565,15 @@ export async function deleteOrder(input: unknown): Promise<ActionResult> {
 
 export async function addOrderWorker(input: unknown): Promise<ActionResult> {
   try {
-    const { id, staffId } = orderWorkerSchema.parse(input);
+    const { id, workerId } = orderWorkerSchema.parse(input);
     const actor = await getCurrentStaff();
     const db = getServiceClient();
 
     // Ensure the assignee exists and is active (FK alone would allow inactive).
     const { data: assignee, error: aErr } = await db
-      .from("staff")
+      .from("workers")
       .select("id, active")
-      .eq("id", staffId)
+      .eq("id", workerId)
       .maybeSingle();
     if (aErr) throw aErr;
     if (!assignee || !assignee.active) {
@@ -592,7 +593,7 @@ export async function addOrderWorker(input: unknown): Promise<ActionResult> {
     // Idempotent: re-adding the same worker is a no-op (PK collision swallowed).
     const { error: insErr } = await db
       .from("order_staff")
-      .insert({ order_id: id, staff_id: staffId, assigned_by: actor.id });
+      .insert({ order_id: id, worker_id: workerId, assigned_by: actor.id });
     if (insErr) {
       if ((insErr as { code?: string }).code === "23505") {
         return { ok: true };
@@ -605,7 +606,7 @@ export async function addOrderWorker(input: unknown): Promise<ActionResult> {
       "order.assign",
       "order",
       id,
-      { staff_id: staffId },
+      { worker_id: workerId },
       id,
     );
 
@@ -618,7 +619,7 @@ export async function addOrderWorker(input: unknown): Promise<ActionResult> {
 
 export async function removeOrderWorker(input: unknown): Promise<ActionResult> {
   try {
-    const { id, staffId } = orderWorkerSchema.parse(input);
+    const { id, workerId } = orderWorkerSchema.parse(input);
     const actor = await getCurrentStaff();
     const db = getServiceClient();
 
@@ -638,7 +639,7 @@ export async function removeOrderWorker(input: unknown): Promise<ActionResult> {
       .from("order_staff")
       .delete({ count: "exact" })
       .eq("order_id", id)
-      .eq("staff_id", staffId);
+      .eq("worker_id", workerId);
     if (delErr) throw delErr;
     if (!count) {
       // Nothing to remove; treat as no-op (idempotent) without an audit row.
@@ -650,7 +651,7 @@ export async function removeOrderWorker(input: unknown): Promise<ActionResult> {
       "order.unassign",
       "order",
       id,
-      { staff_id: staffId },
+      { worker_id: workerId },
       id,
     );
 

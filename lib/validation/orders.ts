@@ -74,7 +74,7 @@ export const deleteOrderSchema = z.object({ id: idSchema });
 
 export const orderWorkerSchema = z.object({
   id: idSchema,
-  staffId: idSchema,
+  workerId: idSchema,
 });
 
 export const setNoteSchema = z.object({

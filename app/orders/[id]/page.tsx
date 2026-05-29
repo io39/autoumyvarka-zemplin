@@ -26,19 +26,19 @@ export default async function OrderPage({
   if (!detail) notFound();
 
   const db = getServiceClient();
-  const [{ data: staffList, error: staffErr }, services, sms] = await Promise.all([
-    db.from("staff").select("id, display_name, role, active").eq("active", true).order("display_name"),
+  const [{ data: workerList, error: workerErr }, services, sms] = await Promise.all([
+    db.from("workers").select("id, display_name, active").eq("active", true).order("display_name"),
     listServices({ includeInactive: false }),
     getOrderSms({ orderId: id }),
   ]);
-  if (staffErr) throw staffErr;
+  if (workerErr) throw workerErr;
 
   return (
     <main className="mx-auto max-w-3xl space-y-4 p-3 sm:p-6">
       <OrderDetailView
         role={staff.role}
         detail={detail}
-        allStaff={staffList ?? []}
+        allWorkers={workerList ?? []}
         services={services}
         sms={sms}
       />
