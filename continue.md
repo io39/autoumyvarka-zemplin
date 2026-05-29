@@ -469,20 +469,18 @@ Planning artifacts are all written and committed locally on `main`:
   pinned (intermittent, full-suite-context-only); the capstone clean-DB full run was
   green (71/71 e2e). Treated as a pre-existing/cross-suite-interference flake, not a
   spec-11 regression — reported, not fixed (same handling as the client-history flake).
-  🔶 **PENDING — confirm/review before continuing.** The final code-review pass (full
-  branch) returned **0 blockers, 1 should-fix, 2 nits**. Two follow-up edits were made
-  in response but are **NOT yet verified** (typecheck/lint/e2e not re-run after them):
-  (1) should-fix — `order-role-permissions.spec.ts` "multiple workers" pre-check now
-  queries the `workers` table (`active`, ≥2) instead of `staff` (the dropdown is fed by
-  `workers` post-split; the old check tested the wrong table); (2) nit-2 coverage gap —
-  added a 4th test to `staff-workers.spec.ts` ("a deactivated worker still shows on an
-  order they were assigned to") covering spec §4.3's history-preservation criterion,
-  which had no direct e2e. **Next step: run `pnpm typecheck && pnpm lint`, then
-  `pnpm test:e2e staff-workers` and `pnpm test:e2e order-role-permissions`, confirm
-  green, then commit these two test edits.** Remaining nit-3 (audit `ENTITY_LABEL` maps
-  both `staff` and `worker` → "Zamestnanec") is intentional Slovak — no change. The
-  branch is `feat/spec-11-accounts-workers` (local, unpushed); merge to `main` only
-  after these fixes are confirmed.
+  ✅ **Final code-review pass (full branch): 0 blockers, 1 should-fix, 2 nits.** Both
+  actionable items applied AND verified: (1) should-fix — `order-role-permissions.spec.ts`
+  "multiple workers" pre-check now queries the `workers` table (`active`, ≥2) instead of
+  `staff` (the dropdown is fed by `workers` post-split; the old check tested the wrong
+  table); (2) nit-2 coverage gap — added a 4th test to `staff-workers.spec.ts`
+  ("a deactivated worker still shows on an order they were assigned to") covering spec
+  §4.3's history-preservation criterion. Verified green after the fixes:
+  `pnpm typecheck` ✓, `pnpm lint` ✓, `pnpm test:e2e staff-workers` (4/4) ✓,
+  `pnpm test:e2e order-role-permissions` (3/3) ✓, then a full `pnpm test` on a clean
+  `pnpm supabase db reset` ✓. Nit-3 (audit `ENTITY_LABEL` maps both `staff` and `worker`
+  → "Zamestnanec") is intentional Slovak — no change. Spec 11 is complete and merged to
+  `main` (local; push from your own terminal — pushing is hook-blocked here).
 
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
@@ -507,16 +505,10 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-0. **🔶 FIRST: finish spec 11 verification (the immediate next action).** You are on
-   branch `feat/spec-11-accounts-workers` (local, unpushed, NOT merged to `main`). The
-   spec is fully implemented and committed, but the last commit (`8680181`) applied two
-   final code-review test fixes that are **UNVERIFIED** — see the 🔶 PENDING note in the
-   "Spec 11 — DONE" entry above. Before anything else: run `pnpm typecheck && pnpm lint`,
-   then `pnpm test:e2e staff-workers` and `pnpm test:e2e order-role-permissions`; confirm
-   green. If green, the branch is merge-ready (ask the user to merge/push — pushing is
-   hook-blocked from inside Claude Code). Only then move on to the items below.
-1. **Specs 01–11 — implemented.** No more feature specs in `docs/specs/` (subject to the
-   spec-11 verification in item 0).
+1. **Specs 01–11 — ALL DONE.** No more feature specs in `docs/specs/`. Spec 11
+   (Účty/login accounts split from Zamestnanci/workers) is implemented, verified, and
+   **merged to `main` locally** (push from your own terminal — pushing is hook-blocked
+   here). The `feat/spec-11-accounts-workers` branch was merged then deleted.
 2. **Walking-skeleton / production deploy** (architecture §8) is now the main
    remaining work: provision Supabase Cloud EU, the self-hosted VPS, and the
    Cloudflare Tunnel + Access policies; wire the prod env store (Supabase keys,
