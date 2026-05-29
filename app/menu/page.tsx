@@ -42,6 +42,9 @@ export default async function MenuPage() {
             <Link href="/audit" className="underline underline-offset-4">
               Záznam zmien →
             </Link>
+            <Link href="/unpaid" className="underline underline-offset-4">
+              Nezaplatené objednávky →
+            </Link>
           </>
         )}
       </nav>

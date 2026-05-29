@@ -97,6 +97,10 @@ export const setOrderServicePaidSchema = z.object({
   paid: z.boolean(),
 });
 
+export const getUnpaidOrdersSchema = z.object({
+  scope: z.enum(["overdue", "all"]).optional(),
+});
+
 export type SetStatusInput = z.infer<typeof setStatusSchema>;
 export type MoveOrderInput = z.infer<typeof moveOrderSchema>;
 export type OrderWorkerInput = z.infer<typeof orderWorkerSchema>;

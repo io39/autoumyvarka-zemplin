@@ -4,10 +4,11 @@ import { getIdentity } from "@/lib/auth/identity";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { Calendar } from "@/components/calendar/calendar";
-import { getCalendar } from "@/lib/actions/orders";
+import { getCalendar, getUnpaidCount } from "@/lib/actions/orders";
 import { getOpeningHours, getDayOverrides } from "@/lib/actions/settings";
 import { mintRealtimeToken } from "@/lib/realtime/token";
 import { Badge } from "@/components/ui/badge";
+import { UnpaidBadge } from "@/components/unpaid/unpaid-badge";
 
 const ROLE_LABEL: Record<string, string> = {
   manazer: "Manažér",
@@ -70,6 +71,9 @@ export default async function HomePage({
     getIdentity(),
   ]);
   const realtimeJwt = await mintRealtimeToken(identity);
+  // Overdue badge is manager-only; getUnpaidCount throws for workers, so only
+  // call it for managers (workers never see the badge — spec 10 §1.4).
+  const unpaidCount = staff.role === "manazer" ? await getUnpaidCount() : 0;
 
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-3 sm:p-6">
@@ -79,6 +83,9 @@ export default async function HomePage({
           <p className="text-xs text-muted-foreground">{staff.email}</p>
         </div>
         <div className="flex items-center gap-2">
+          {staff.role === "manazer" && (
+            <UnpaidBadge initialCount={unpaidCount} realtimeJwt={realtimeJwt} />
+          )}
           <Badge variant={staff.role === "manazer" ? "default" : "secondary"}>
             {ROLE_LABEL[staff.role] ?? staff.role}
           </Badge>

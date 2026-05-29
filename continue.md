@@ -1,8 +1,9 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **Specs 01–09 are done; spec 10 is next (last).**
-**Last updated:** 2026-05-29.
+**Phase:** Implementation, spec-driven. **All feature specs (01–10) are done.**
+Remaining: walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare
+Tunnel/Access) and the client's open questions. **Last updated:** 2026-05-29.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`.
@@ -353,6 +354,49 @@ Planning artifacts are all written and committed locally on `main`:
   filter is single-select (multiselect deferred, user-accepted); no purge job
   (retain indefinitely per §2.3 — volume tiny); no CSV export (Phase 2).
 
+- **Spec 10 — DONE.** Unpaid-order alerts (manager-only, read-only/derived).
+  **No migration** (§2.5 partial index deferred — Phase-1 volume tiny). Pure
+  `lib/orders/unpaid.ts`: `isUnpaid` (deleted/`vytvorena`/`nedostavil_sa` never;
+  `hotova` OR any non-removed `paid=false` line), `isOverdue(o, todayKey)` via
+  `bratislavaDateKey` lexical compare, `unpaidAmountCents` (sums non-removed
+  unpaid lines; snapshot is already the line total — no ×quantity). **Key
+  interaction documented in that file:** `setStatus`→`zaplatena` does NOT
+  cascade lines to `paid` and lines default `paid=false`, so a `zaplatena`
+  order is "settled" only once its lines are individually marked paid
+  (`setOrderServicePaid`) — intended per-line workflow (PRD §9.3); the
+  definition is one-line-tunable if the client wants `zaplatena` alone to mean
+  settled (open question, see below). Actions in `lib/actions/orders.ts`:
+  `getUnpaidOrders({scope?})` (requireManager; candidate query = not-deleted +
+  status in hotova/zaplatena, nested client/car/order_services; filter via
+  `isUnpaid`; partition overdue/today; overdue-first then oldest; per-row unpaid
+  amount + service names) and `getUnpaidCount()` (lightweight overdue count for
+  the badge). Both fetch-and-filter (§2.5-sanctioned for Phase 1; caveat noted
+  in `fetchUnpaidCandidates` — narrow via an unpaid-line subquery or the partial
+  index if the `zaplatena` history grows). UI: `/unpaid` manager-only page (403
+  flow, mints realtimeJwt) + `components/unpaid/unpaid-list.tsx` (red banner when
+  overdue>0 "Pozor: {n} … z minulých dní", counts line, Table overdue-first with
+  date→order link, client, ŠPZ, services, `formatPriceCents` sum, Po
+  termíne/Dnes badge, Slovak empty-state; live-refetch on `orders` +
+  `order_services` realtime; **desktop table ≥sm + mobile stacked cards <sm**
+  for 360px readability — test hooks `data-section`/`data-order-id`/`data-spz`
+  live on the desktop table only, matching the spec-09 strict-mode lesson).
+  Header badge `components/unpaid/unpaid-badge.tsx`
+  in the home header (manager only — `getUnpaidCount` throws for workers so the
+  page calls it only for `manazer`; hidden at 0; links to `/unpaid`; live).
+  Menu link added. Tests: unit `tests/unit/orders/unpaid.test.ts` (9, all §4.2
+  cases incl. post-hoc unpaid line + removed-line exclusion); e2e
+  `unpaid-alerts` (overdue+today seed → badge count, banner text, list
+  overdue-first + amount + order links; **live**: paying a line via DB drops the
+  row + decrements the count with no reload) and `unpaid-permissions` (worker
+  403 on `/unpaid` + no badge; manager renders). New e2e helpers in `support.ts`:
+  `bratislavaDateOffset(days)` + `seedDatedOrder({date,status,linePaid})` (can
+  seed PAST dates for overdue — future-only seeders couldn't). **137 unit + 68
+  e2e pass on a clean `pnpm supabase db reset`.** Code-reviewer pass: 0 must-fix,
+  1 should-fix + 1 nit, both applied: header badge now reads "Po termíne: {n}"
+  (it counts overdue only — "Nezaplatené" misstated cardinality vs the page's
+  "Po termíne" rows); banner uses correct Slovak count-noun agreement via a new
+  shared `lib/intl/sk.ts` `skPlural` helper (1 / 2–4 / 5+) with a unit test.
+
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
   (`pnpm supabase …`). Node 22 (`.nvmrc`).
@@ -376,14 +420,19 @@ Planning artifacts are all written and committed locally on `main`:
 
 Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the checklist.
 
-1. **Specs 01–09 — DONE.**
-2. **Spec 10 — Unpaid-order alerts** (next, last): `docs/specs/10-unpaid-order-alerts.md`.
-   Open questions for the client: the exact "unpaid" definition (§1.2) and
-   whether workers may see the alerts view (§1.4).
+1. **Specs 01–10 — ALL DONE.** No more feature specs in `docs/specs/`.
+2. **Walking-skeleton / production deploy** (architecture §8) is now the main
+   remaining work: provision Supabase Cloud EU, the self-hosted VPS, and the
+   Cloudflare Tunnel + Access policies; wire the prod env store (Supabase keys,
+   `SUPABASE_JWT_SECRET`, SMS provider creds). Spec-07 deploy notes still apply:
+   `alter database … set app.reminder_url/app.reminder_secret` for the pg_cron
+   reminder, and a Cloudflare Access **bypass** policy for `/api/sms/webhook`.
+3. **Pick + pin the real Slovak SMS provider** (PRD §13#4 — provider AND final
+   wording both still open; `fake` adapter is the default in dev).
+4. **Resolve the client's open questions** (below) and tune where flagged.
 
-**Walking-skeleton deploy** (architecture §8 step 2) — provision Supabase Cloud EU +
-VPS + Cloudflare Tunnel/Access and deploy the thin slice — is still pending; do it when
-convenient now that spec 01 proves the vertical path.
+These remaining items are deploy/ops + client decisions, not new specs — use
+**`spec-writer`** only if a genuinely new feature is requested.
 
 Use the **`spec-writer`** subagent only if a *new* spec is needed; use **`code-reviewer`**
 after meaningful changes. The skills in `.claude/skills/` auto-load for migrations, auth,
@@ -429,8 +478,13 @@ and order-domain work — follow them.
 1. Final SMS wording + signature (PRD §13#4) — placeholders seeded for now.
 2. Split-shift / lunch-break hours — current model is one open–close interval per day
    (spec 04 §2.2). Promote `opening_hours`/`day_overrides` to multiple rows if needed.
-3. "Unpaid" definition for alerts (spec 10 §1.2) — confirm the default.
-4. Whether `prevadzka` (workers) may see the unpaid-alerts view (spec 10 §1.4).
+3. "Unpaid" definition for alerts (spec 10 §1.2) — **implemented** as `hotova`
+   OR any non-removed `paid=false` line (per-line workflow; `zaplatena` alone
+   does NOT settle lines). Confirm; tune the one-liner in `lib/orders/unpaid.ts`
+   if the client wants `zaplatena` to mean fully settled.
+4. Whether `prevadzka` (workers) may see the unpaid-alerts view (spec 10 §1.4)
+   — **implemented** manager-only (default). Open the badge + `/unpaid` to
+   workers if the client wants it.
 5. Whether cancelled (soft-deleted) orders should appear in client history (spec 08 §2.2).
 6. Real opening-hours defaults and the exact "/kabína" service modeling (spec 03/04).
 

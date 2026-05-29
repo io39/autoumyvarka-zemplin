@@ -33,7 +33,9 @@ import {
   setOrderServicePaidSchema,
   setStatusSchema,
   suggestSlotsSchema,
+  getUnpaidOrdersSchema,
 } from "@/lib/validation/orders";
+import { isUnpaid, isOverdue, unpaidAmountCents } from "@/lib/orders/unpaid";
 import { resolveOrderLines, totalDurationMin } from "@/lib/orders/duration";
 import { isOn15MinBoundary, suggestFreeSlots, type SlotProposal } from "@/lib/orders/slots";
 import { isRangeOpen } from "@/lib/settings/availability";
@@ -981,4 +983,110 @@ async function slotIsFree(
     .gt("ends_at", start.toISOString());
   if (error) throw error;
   return (data ?? []).length === 0;
+}
+
+// ---------------------------------------------------------------------------
+// Spec 10 — unpaid-order alerts (manager-only, read-only/derived)
+// ---------------------------------------------------------------------------
+
+export interface UnpaidOrderRow {
+  id: string;
+  startsAt: string;
+  status: OrderRow["status"];
+  overdue: boolean;
+  clientName: string | null;
+  clientPhone: string;
+  spz: string;
+  model: string | null;
+  serviceNames: string[];
+  unpaidAmountCents: number;
+}
+
+export interface UnpaidOrdersResult {
+  orders: UnpaidOrderRow[];
+  overdueCount: number;
+  todayCount: number;
+}
+
+interface UnpaidCandidate {
+  id: string;
+  starts_at: string;
+  status: OrderRow["status"];
+  deleted_at: string | null;
+  client: Pick<ClientRow, "name" | "phone"> | null;
+  car: Pick<CarRow, "spz" | "model"> | null;
+  services: Array<
+    Pick<OrderServiceRow, "paid" | "removed_at" | "price_cents_snapshot" | "name_snapshot">
+  >;
+}
+
+/**
+ * The candidate superset for the unpaid scan: not soft-deleted, and in a state
+ * that can owe money (`hotova` or `zaplatena` — `vytvorena`/`nedostavil_sa` can
+ * never be unpaid). `isUnpaid` does the precise filtering. Fetch-and-filter is
+ * sanctioned for Phase 1 (spec §2.5); if the `zaplatena` history grows heavy,
+ * add the partial index from §2.5 or narrow via an unpaid-line subquery.
+ */
+async function fetchUnpaidCandidates(): Promise<UnpaidCandidate[]> {
+  const { data, error } = await getServiceClient()
+    .from("orders")
+    .select(
+      "id, starts_at, status, deleted_at, client:client_id(name, phone), car:car_id(spz, model), services:order_services(paid, removed_at, price_cents_snapshot, name_snapshot)",
+    )
+    .is("deleted_at", null)
+    .in("status", ["hotova", "zaplatena"]);
+  if (error) throw error;
+  return (data ?? []) as unknown as UnpaidCandidate[];
+}
+
+/** Manager-only list of unpaid orders, overdue first (spec 10). */
+export async function getUnpaidOrders(input?: unknown): Promise<UnpaidOrdersResult> {
+  const { scope } = getUnpaidOrdersSchema.parse(input ?? {});
+  const actor = await getCurrentStaff();
+  requireManager(actor);
+
+  const today = bratislavaDateKey(new Date());
+  const candidates = await fetchUnpaidCandidates();
+
+  const rows: UnpaidOrderRow[] = [];
+  for (const c of candidates) {
+    if (!isUnpaid(c)) continue;
+    const overdue = isOverdue(c, today);
+    rows.push({
+      id: c.id,
+      startsAt: c.starts_at,
+      status: c.status,
+      overdue,
+      clientName: c.client?.name ?? null,
+      clientPhone: c.client?.phone ?? "",
+      spz: c.car?.spz ?? "",
+      model: c.car?.model ?? null,
+      serviceNames: c.services
+        .filter((l) => l.removed_at === null)
+        .map((l) => l.name_snapshot),
+      unpaidAmountCents: unpaidAmountCents(c),
+    });
+  }
+
+  const overdueCount = rows.filter((r) => r.overdue).length;
+  const todayCount = rows.length - overdueCount;
+
+  // Overdue first, then oldest first (chase the longest-outstanding payment).
+  rows.sort((a, b) => {
+    if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+    return a.startsAt.localeCompare(b.startsAt);
+  });
+
+  const orders = scope === "overdue" ? rows.filter((r) => r.overdue) : rows;
+  return { orders, overdueCount, todayCount };
+}
+
+/** Lightweight overdue count for the header badge (manager-only). */
+export async function getUnpaidCount(): Promise<number> {
+  const actor = await getCurrentStaff();
+  requireManager(actor);
+
+  const today = bratislavaDateKey(new Date());
+  const candidates = await fetchUnpaidCandidates();
+  return candidates.filter((c) => isOverdue(c, today)).length;
 }
