@@ -24,7 +24,7 @@ import type {
   OrderStatus,
   SmsMessageRow,
   StaffRole,
-  StaffRow,
+  WorkerRow,
 } from "@/lib/supabase/types";
 import { resendSms } from "@/lib/actions/sms";
 import { SMS_TYPE_LABEL } from "@/lib/sms/render";
@@ -51,12 +51,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type StaffLite = Pick<StaffRow, "id" | "display_name" | "role" | "active">;
+type WorkerLite = Pick<WorkerRow, "id" | "display_name" | "active">;
 
 interface Props {
   role: StaffRole;
   detail: OrderDetail;
-  allStaff: StaffLite[];
+  allWorkers: WorkerLite[];
   services: ServiceWithPrices[];
   sms: SmsMessageRow[];
 }
@@ -68,7 +68,7 @@ const STATUS_LABEL_BUTTON: Record<OrderStatus, string> = {
   nedostavil_sa: "Označiť ako nedostavil sa",
 };
 
-export function OrderDetailView({ role, detail, allStaff, services, sms }: Props) {
+export function OrderDetailView({ role, detail, allWorkers, services, sms }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { order, client, car } = detail;
@@ -85,8 +85,8 @@ export function OrderDetailView({ role, detail, allStaff, services, sms }: Props
   const statusStyle = STATUS_STYLE[order.status];
   const nextStatuses = allowedNextStatuses(order.status, role);
 
-  const assignableStaff = allStaff.filter(
-    (s) => !detail.workers.some((w) => w.staff_id === s.id),
+  const assignableWorkers = allWorkers.filter(
+    (w0) => !detail.workers.some((w) => w.worker_id === w0.id),
   );
 
   function call<T extends { ok: boolean; message?: string }>(
@@ -199,16 +199,16 @@ export function OrderDetailView({ role, detail, allStaff, services, sms }: Props
 
       <WorkersSection
         workers={detail.workers}
-        assignable={assignableStaff}
+        assignable={assignableWorkers}
         pending={pending}
-        onAdd={(staffId) =>
+        onAdd={(workerId) =>
           call("Zamestnanec pridaný.", () =>
-            addOrderWorker({ id: order.id, staffId }),
+            addOrderWorker({ id: order.id, workerId }),
           )
         }
-        onRemove={(staffId) =>
+        onRemove={(workerId) =>
           call("Zamestnanec odobraný.", () =>
-            removeOrderWorker({ id: order.id, staffId }),
+            removeOrderWorker({ id: order.id, workerId }),
           )
         }
       />
@@ -362,10 +362,10 @@ function WorkersSection({
   onRemove,
 }: {
   workers: OrderDetail["workers"];
-  assignable: StaffLite[];
+  assignable: WorkerLite[];
   pending: boolean;
-  onAdd: (staffId: string) => void;
-  onRemove: (staffId: string) => void;
+  onAdd: (workerId: string) => void;
+  onRemove: (workerId: string) => void;
 }) {
   const [selected, setSelected] = useState<string>("");
   return (
@@ -377,16 +377,16 @@ function WorkersSection({
         )}
         {workers.map((w) => (
           <li
-            key={w.staff_id}
-            data-worker-id={w.staff_id}
+            key={w.worker_id}
+            data-worker-id={w.worker_id}
             className="flex items-center justify-between rounded border p-2"
           >
-            <span>{w.staff.display_name}</span>
+            <span>{w.worker.display_name}</span>
             <Button
               size="sm"
               variant="ghost"
               disabled={pending}
-              onClick={() => onRemove(w.staff_id)}
+              onClick={() => onRemove(w.worker_id)}
             >
               Odobrať
             </Button>

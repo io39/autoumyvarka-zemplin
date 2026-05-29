@@ -17,7 +17,6 @@ import type {
   OrderServiceRow,
   OrderStaffRow,
   ServicePriceRow,
-  StaffRow,
   WorkerRow,
 } from "@/lib/supabase/types";
 import { type ActionResult, toActionError } from "./result";
