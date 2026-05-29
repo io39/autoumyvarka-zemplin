@@ -1,7 +1,7 @@
 # Continue — handoff for the next agent
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
-**Phase:** Implementation, spec-driven. **All feature specs (01–10) are done.**
+**Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
 Remaining: walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare
 Tunnel/Access) and the client's open questions. **Last updated:** 2026-05-29.
 
@@ -39,7 +39,7 @@ Planning artifacts are all written and committed locally on `main`:
 - `docs/architecture.md` — stack, edge-auth flow, deployment, env map, version policy.
 - `docs/data-model.md` — full schema (14 tables), RLS posture, soft-delete map.
 - `docs/services.md` — the client's price list (source for the catalog seed).
-- `docs/specs/01..10` — feature specs, dependency-ordered, all ✅ in `docs/specs/README.md`.
+- `docs/specs/01..11` — feature specs, dependency-ordered, all ✅ in `docs/specs/README.md`.
 - `.claude/` — `spec-writer` + `code-reviewer` subagents, hooks, and 3 skills
   (`supabase-migrations`, `edge-auth-authz`, `order-duration-conflict`).
 
@@ -397,6 +397,79 @@ Planning artifacts are all written and committed locally on `main`:
   "Po termíne" rows); banner uses correct Slovak count-noun agreement via a new
   shared `lib/intl/sk.ts` `skPlural` helper (1 / 2–4 / 5+) with a unit test.
 
+- **Spec 11 — DONE.** Účty (login accounts) & Zamestnanci (workers) split.
+  Splits the overloaded `staff` table — which did double duty as login identity
+  **and** order-assignable pool — into two: `staff` (logins, **unchanged**:
+  `getCurrentStaff`/`requireManager`/`audit_log.actor_staff_id` all still read it,
+  zero authz changes) and a new `workers` table (name + `active`, soft-delete, no
+  email/no role/no login). Migration `0009_workers.sql`: `create table workers
+  (id, display_name, active, created_at)`, partial `workers_active_idx (active)
+  where active`, RLS enabled **deny-by-default (0 policies)**; then repoints
+  `order_staff` in place — drops the old `staff_id` FK, renames `staff_id →
+  worker_id`, adds FK `order_staff_worker_id_fkey → workers(id)`, renames the index
+  to `order_staff_worker_idx`. The table name, RLS policy, realtime publication
+  entry, PK shape `(order_id, worker_id)` and `assigned_by → staff(id)` (the account
+  that performed the assignment) all stay. No data migration: on `supabase db reset`
+  the seed runs after migrations and seeds no `order_staff` rows, so the table is
+  empty when `0009` runs. `supabase/seed.sql` seeds 3 active workers (Peter, Jano,
+  Marek) for dev + e2e. `database.types.ts` regenerated; `WorkerRow`/`WorkerInsert`
+  added to `lib/supabase/types.ts`.
+  Validation `lib/validation/workers.ts` (`createWorkerSchema`/`updateWorkerSchema`/
+  `setWorkerActiveSchema` — trimmed non-empty name, uuid id, no uniqueness on name).
+  Actions `lib/actions/workers.ts` (`listWorkers` active-first/by-name,
+  `createWorker`/`updateWorker`/`setWorkerActive`), all `requireManager` + zod +
+  audit (`worker.create`/`update`/`activate`/`deactivate`), `revalidatePath("/staff")`
+  — **no self-deactivation guard** (workers aren't logins, no lockout risk).
+  Orders repoint (`lib/validation/orders.ts` `orderWorkerSchema` `staffId → workerId`;
+  `lib/actions/orders.ts` `OrderDetail.workers` type + `getOrder` embed
+  `workers:order_staff(*, worker:worker_id(id, display_name, active))` +
+  `addOrderWorker`/`removeOrderWorker` validate against `workers`, `worker_id`,
+  audit key `worker_id`; `app/orders/[id]/page.tsx` dropdown source `staff →
+  workers`, prop `allStaff → allWorkers`). Order-detail UI
+  (`components/orders/order-detail.tsx`) reads `workers`: `StaffLite → WorkerLite`,
+  `w.staff_id → w.worker_id`, `w.staff → w.worker`. Client history repoint
+  (`lib/clients/history.ts` `HistoryOrderInput.workers` shape `staff → worker`;
+  `lib/actions/clients.ts` embed `workers:order_staff(worker:worker_id(display_name))`)
+  — **the spec-08 `as unknown as HistoryOrderInput[]` cast is gone**: after the split
+  `worker_id → workers` and `assigned_by → staff` point to different tables, so
+  PostgREST resolves the embed cleanly and a plain `as HistoryOrderInput[]` typechecks.
+  Audit `lib/audit/labels.ts` gains four `worker.*` `ACTION_LABEL`s + `worker:
+  "Zamestnanec"` `ENTITY_LABEL` (the `order.assign`/`order.unassign` summaries return
+  fixed strings and don't read the detail key, so no `summarizeDetails` logic changed
+  — only the unit test's detail key moved `staff_id → worker_id`).
+  UI: `/staff` now renders **two manager-only blocks** —
+  `components/staff/staff-manager.tsx` (**Účty**, heading `<h1>Zamestnanci</h1>` → `<h2>Účty</h2>`,
+  `data-section="accounts-manager"`) and the new
+  `components/staff/worker-manager.tsx` (**Zamestnanci**, name-only add/edit/
+  activate-deactivate, `data-section="workers-manager"`, `data-worker-id`). **Both
+  blocks have a client-side hide-inactive toggle** (default: inactive hidden;
+  "Zobraziť neaktívne/neaktívnych" reveals them dimmed with the "Neaktívny" badge) —
+  pure `useMemo` filter over the already-loaded rows, the actions still return active
+  + inactive. `app/staff/page.tsx` loads `listStaff()` + `listWorkers()`, still
+  `requireManager` with the 403 view. Tests: unit `tests/unit/validation/workers.test.ts`
+  (4) + the moved audit-label key; e2e `tests/e2e/staff-workers.spec.ts` (3: two
+  blocks + worker CRUD + hide-inactive; deactivated worker drops out of the order
+  dropdown; prevádzka 403). E2e fixtures updated: `seedOrderFor` assigns by
+  `workerName` (was `workerEmail`→staff) inserting `worker_id`;
+  `order-role-permissions.spec.ts` `staff_id → worker_id`; `staff-permissions.spec.ts`
+  + `staff-audit.spec.ts` scoped to the Účty block (two "Pridať" buttons now). **143
+  unit + 71 e2e pass on a clean `pnpm supabase db reset`** (the prior counts grew by
+  the 4 new worker-validation unit tests and the worker-related e2e). Schema check
+  (after reset): `workers` exists, RLS on, **0 policies**; `order_staff` has
+  `worker_id` FK → `workers`, **no `staff_id`**, `assigned_by` FK → `staff`, PK
+  `(order_id, worker_id)`; seed = 3 workers. Backend code-review pass: **0 blockers,
+  2 nits applied.**
+  ⚠️ **Intermittent e2e seen during this session (NOT spec 11):** one full-suite run
+  failed at `tests/e2e/order-noshow-revert.spec.ts` (the nedostavil_sa → vytvorená
+  revert assertion) — the revert was rejected server-side. It is **distinct** from
+  the documented `client-history.spec.ts` shared-ŠPZ flake (different test, different
+  mechanism). Reproduces only under full-suite DB state (9/10 in isolation on the
+  branch, 5/5 on `main`), and `setStatus`/conflict/hours code is untouched by spec 11
+  (which only edits the worker embed + add/remove worker actions). Exact trigger not
+  pinned (intermittent, full-suite-context-only); the capstone clean-DB full run was
+  green (71/71 e2e). Treated as a pre-existing/cross-suite-interference flake, not a
+  spec-11 regression — reported, not fixed (same handling as the client-history flake).
+
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency
   (`pnpm supabase …`). Node 22 (`.nvmrc`).
@@ -487,6 +560,12 @@ and order-domain work — follow them.
    workers if the client wants it.
 5. Whether cancelled (soft-deleted) orders should appear in client history (spec 08 §2.2).
 6. Real opening-hours defaults and the exact "/kabína" service modeling (spec 03/04).
+7. Účty (login accounts) and Zamestnanci (workers) are **fully separate** (spec 11
+   §1.3): a `prevadzka` login is **not** auto-added as an assignable worker. To credit
+   a person on an order you add them as a **Zamestnanec** name (separate entry), even
+   if they also have a login. Confirm this double-entry is acceptable; if the client
+   wants a login to imply a worker, that's a Phase-2 link-worker-to-account feature
+   (currently out of scope).
 
 ## Gotchas
 
