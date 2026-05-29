@@ -9,7 +9,8 @@ test.describe("audit log", () => {
     const name = `Audit ${Date.now()}`;
 
     await page.goto("/staff");
-    await page.getByRole("button", { name: "Pridať" }).click();
+    const accounts = page.locator('[data-section="accounts-manager"]');
+    await accounts.getByRole("button", { name: "Pridať" }).click();
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Meno").fill(name);
     await page.getByRole("button", { name: "Uložiť" }).click();
@@ -37,8 +38,11 @@ test.describe("audit log", () => {
     });
 
     // Deactivate via the UI and assert the audit entry records before/after
-    // state (data-model §2.11), not just the new value.
+    // state (data-model §2.11), not just the new value. The accounts block
+    // hides inactive rows by default, so reveal it before asserting the badge.
     await row.getByRole("button", { name: "Deaktivovať" }).click();
+    await expect(row).toHaveCount(0);
+    await accounts.getByRole("button", { name: "Zobraziť neaktívne" }).click();
     await expect(row.getByText("Neaktívny")).toBeVisible();
 
     const { data: deactivateAudit } = await db

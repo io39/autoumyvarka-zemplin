@@ -6,8 +6,9 @@ test.describe("manager", () => {
 
   test("can open /staff and see the staff table", async ({ page }) => {
     await page.goto("/staff");
-    await expect(page.getByRole("heading", { name: "Zamestnanci" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Pridať" })).toBeVisible();
+    const accounts = page.locator('[data-section="accounts-manager"]');
+    await expect(page.getByRole("heading", { name: "Účty", exact: true })).toBeVisible();
+    await expect(accounts.getByRole("button", { name: "Pridať" })).toBeVisible();
   });
 
   test("can create a worker, then deactivate them", async ({ page }) => {
@@ -15,7 +16,8 @@ test.describe("manager", () => {
     const name = `Pracovník ${Date.now()}`;
 
     await page.goto("/staff");
-    await page.getByRole("button", { name: "Pridať" }).click();
+    const accounts = page.locator('[data-section="accounts-manager"]');
+    await accounts.getByRole("button", { name: "Pridať" }).click();
 
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Meno").fill(name);
@@ -27,8 +29,13 @@ test.describe("manager", () => {
     await expect(row).toBeVisible();
     await expect(row.getByText("Aktívny")).toBeVisible();
 
-    // Deactivate it.
+    // Deactivate it — the accounts block hides inactive rows by default, so
+    // the row drops out of the default view once the refresh lands.
     await row.getByRole("button", { name: "Deaktivovať" }).click();
+    await expect(row).toHaveCount(0);
+
+    // Toggling "Zobraziť neaktívne" reveals it again with the Neaktívny badge.
+    await accounts.getByRole("button", { name: "Zobraziť neaktívne" }).click();
     await expect(row.getByText("Neaktívny")).toBeVisible();
   });
 
@@ -46,6 +53,6 @@ test.describe("worker (prevadzka)", () => {
   test("gets the 403 view on /staff", async ({ page }) => {
     await page.goto("/staff");
     await expect(page.getByText("Nemáte oprávnenie")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Zamestnanci" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Účty", exact: true })).toHaveCount(0);
   });
 });

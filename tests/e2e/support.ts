@@ -202,7 +202,7 @@ export async function seedOrderFor(opts: {
   clientId: string;
   carId: string;
   status?: OrderStatusLite;
-  workerEmail?: string;
+  workerName?: string;
 }): Promise<{ orderId: string }> {
   const db = serviceClient();
 
@@ -265,15 +265,15 @@ export async function seedOrderFor(opts: {
     added_by: manager!.id,
   });
 
-  if (opts.workerEmail) {
+  if (opts.workerName) {
     const { data: worker } = await db
-      .from("staff")
+      .from("workers")
       .select("id")
-      .eq("email", opts.workerEmail)
+      .eq("display_name", opts.workerName)
       .single();
     await db.from("order_staff").insert({
       order_id: order.id,
-      staff_id: worker!.id,
+      worker_id: worker!.id,
       assigned_by: manager!.id,
     });
   }

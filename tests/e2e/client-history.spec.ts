@@ -2,7 +2,6 @@ import { test, expect } from "@playwright/test";
 import {
   accessHeaders,
   MANAGER_EMAIL,
-  WORKER_EMAIL,
   uniquePhone,
   uniqueSpz,
   createClientViaUI,
@@ -34,7 +33,7 @@ test.describe("client service history (spec 08)", () => {
       clientId,
       carId: car!.id,
       status: "zaplatena",
-      workerEmail: WORKER_EMAIL,
+      workerName: "Peter",
     });
     await seedOrderFor({ clientId, carId: car!.id, status: "nedostavil_sa" });
 
@@ -51,7 +50,7 @@ test.describe("client service history (spec 08)", () => {
     await expect(history.getByText("Zaplatená")).toBeVisible();
     await expect(history.getByText("Nedostavil sa")).toBeVisible();
     // The assigned worker shows on the paid order.
-    await expect(history.getByText(/Tester Prevádzka/)).toBeVisible();
+    await expect(history.getByText(/Peter/)).toBeVisible();
 
     // Clicking an entry navigates to the order detail.
     await history.locator("a").first().click();

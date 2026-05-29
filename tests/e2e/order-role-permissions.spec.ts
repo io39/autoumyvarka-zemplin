@@ -71,7 +71,7 @@ test.describe("worker — role-gated controls on order detail", () => {
 
     const { data: rows } = await db
       .from("order_staff")
-      .select("staff_id")
+      .select("worker_id")
       .eq("order_id", o.orderId);
     expect(rows).toHaveLength(1);
 
@@ -80,20 +80,20 @@ test.describe("worker — role-gated controls on order detail", () => {
       .from("order_staff")
       .insert({
         order_id: o.orderId,
-        staff_id: rows![0].staff_id,
+        worker_id: rows![0].worker_id,
         assigned_by: workerStaff!.id,
       });
     expect(dupErr).not.toBeNull(); // PK collision
 
     // Remove via UI.
     await page
-      .locator(`[data-worker-id="${rows![0].staff_id}"]`)
+      .locator(`[data-worker-id="${rows![0].worker_id}"]`)
       .getByRole("button", { name: "Odobrať" })
       .click();
     await expect(page.getByText("Zamestnanec odobraný.")).toBeVisible();
     const { data: after } = await db
       .from("order_staff")
-      .select("staff_id")
+      .select("worker_id")
       .eq("order_id", o.orderId);
     expect(after).toHaveLength(0);
   });
@@ -131,7 +131,7 @@ test.describe("manager — full controls on order detail", () => {
     }
     const { data: rows } = await db
       .from("order_staff")
-      .select("staff_id")
+      .select("worker_id")
       .eq("order_id", o.orderId);
     expect(rows).toHaveLength(2);
 
@@ -145,13 +145,13 @@ test.describe("manager — full controls on order detail", () => {
 
     // Remove one — count drops to 1, audit gains one unassign.
     await page
-      .locator(`[data-worker-id="${rows![0].staff_id}"]`)
+      .locator(`[data-worker-id="${rows![0].worker_id}"]`)
       .getByRole("button", { name: "Odobrať" })
       .click();
     await expect(page.getByText("Zamestnanec odobraný.")).toBeVisible();
     const { data: after } = await db
       .from("order_staff")
-      .select("staff_id")
+      .select("worker_id")
       .eq("order_id", o.orderId);
     expect(after).toHaveLength(1);
     const { data: unassigns } = await db
