@@ -88,3 +88,4 @@ Commit messages follow conventional commits.
 - **Skills** in `.claude/skills/` load automatically when working in the relevant area. They encode project-specific patterns that aren't obvious from the framework defaults (e.g. the box-conflict / duration-calculation rules, the Cloudflare-Access role-mapping pattern, migration conventions).
 - **Hooks** in `.claude/hooks/settings.json` enforce non-negotiable rules (typecheck on edit, block destructive DB operations).
 - **When unsure, ask.** If a decision isn't clear from the PRD, this file, or the relevant spec, surface the question rather than guess. Several PRD items are explicitly open (§13: shared ŠPZ ownership, Phase-1 pricing, duration mechanism, final SMS wording).
+
