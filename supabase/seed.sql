@@ -12,11 +12,12 @@ on conflict (email) do nothing;
 
 -- Order-assignable workers (Zamestnanci, spec 11). Names only — no login.
 -- Used by local dev and e2e (the order-detail assignment dropdown).
+-- No idempotency guard: workers have no natural unique key (duplicate names are
+-- allowed — spec 11), and `db reset` recreates the table before seeding anyway.
 insert into workers (display_name, active) values
   ('Peter', true),
   ('Jano', true),
-  ('Marek', true)
-on conflict do nothing;
+  ('Marek', true);
 
 -- ---------------------------------------------------------------------------
 -- Service catalog (spec 03). Source of truth: docs/services.md.
