@@ -20,6 +20,7 @@ written.
 | 08 | [Client detail & service history](./08-client-detail-and-history.md) | ✅ | §10, §13#1 | 02, 05, 06 |
 | 09 | [Audit log view (manager)](./09-audit-log-view.md) | ✅ | §11 | 01, 06 |
 | 10 | [Unpaid-order alerts](./10-unpaid-order-alerts.md) | ✅ | §9.3 (extends) | 06 |
+| 11 | [Účty & Zamestnanci (split login from workers)](./11-accounts-and-workers.md) | ✅ | §3, §11 | 01, 06 |
 
 ---
 
@@ -97,6 +98,14 @@ they should be — especially **unpaid orders from previous days**, and any ling
 unpaid from the current day. Shown to the manager (e.g. a badge/banner with a count
 and a drill-down list). Reads order status + per-line `paid` flags (data-model §2.7,
 §2.8). Depends on 06 (status + per-line paid).
+
+### 11 — Účty & Zamestnanci *(requested 2026-05-29)*
+Splits the overloaded `staff` table into **Účty** (`staff`, unchanged — login identity,
+email → role, drives all authz) and a new **Zamestnanci** (`workers` — name + active,
+the only thing assignable to an order). `order_staff` is repointed from `staff` to
+`workers` (`assigned_by` stays a `staff` reference). The `/staff` page gains a second
+manager-only block; both keep soft-delete. No authorization changes. Depends on 01
+(staff/auth) + 06 (order ⇄ worker assignment).
 
 ---
 
