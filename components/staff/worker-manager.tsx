@@ -3,8 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createStaff, updateStaff, setStaffActive } from "@/lib/actions/staff";
-import type { StaffRow, StaffRole } from "@/lib/supabase/types";
+import { createWorker, updateWorker, setWorkerActive } from "@/lib/actions/workers";
+import type { WorkerRow } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -25,40 +25,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-const ROLE_LABEL: Record<StaffRole, string> = {
-  manazer: "Manažér",
-  prevadzka: "Prevádzka",
-};
+type EditTarget = WorkerRow | "new" | null;
 
-type EditTarget = StaffRow | "new" | null;
-
-export function StaffManager({
-  initialStaff,
-  currentStaffId,
-}: {
-  initialStaff: StaffRow[];
-  currentStaffId: string;
-}) {
+export function WorkerManager({ initialWorkers }: { initialWorkers: WorkerRow[] }) {
   const router = useRouter();
   const [editing, setEditing] = useState<EditTarget>(null);
-  const [pending, startTransition] = useTransition();
   const [showInactive, setShowInactive] = useState(false);
+  const [pending, startTransition] = useTransition();
+
   const visible = useMemo(
-    () => (showInactive ? initialStaff : initialStaff.filter((s) => s.active)),
-    [initialStaff, showInactive],
+    () => (showInactive ? initialWorkers : initialWorkers.filter((w) => w.active)),
+    [initialWorkers, showInactive],
   );
 
-  function toggleActive(row: StaffRow) {
+  function toggleActive(row: WorkerRow) {
     startTransition(async () => {
-      const result = await setStaffActive({ id: row.id, active: !row.active });
+      const result = await setWorkerActive({ id: row.id, active: !row.active });
       if (result.ok) {
         toast.success(row.active ? "Zamestnanec deaktivovaný." : "Zamestnanec aktivovaný.");
         router.refresh();
@@ -69,18 +52,18 @@ export function StaffManager({
   }
 
   return (
-    <div className="space-y-4" data-section="accounts-manager">
+    <div className="space-y-4" data-section="workers-manager">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">Účty</h2>
+        <h2 className="text-xl font-semibold">Zamestnanci</h2>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setShowInactive((v) => !v)}>
-            {showInactive ? "Skryť neaktívne" : "Zobraziť neaktívne"}
+            {showInactive ? "Skryť neaktívnych" : "Zobraziť neaktívnych"}
           </Button>
           <Button onClick={() => setEditing("new")}>Pridať</Button>
         </div>
       </div>
       <p className="text-sm text-muted-foreground">
-        Prihlasovacie účty (email → rola). Určujú oprávnenia v aplikácii.
+        Mená pracovníkov, ktorých možno priradiť k objednávke. Bez prihlásenia.
       </p>
 
       <div className="rounded-lg border">
@@ -88,8 +71,6 @@ export function StaffManager({
           <TableHeader>
             <TableRow>
               <TableHead>Meno</TableHead>
-              <TableHead className="hidden sm:table-cell">Email</TableHead>
-              <TableHead>Rola</TableHead>
               <TableHead>Stav</TableHead>
               <TableHead className="text-right">Akcie</TableHead>
             </TableRow>
@@ -97,25 +78,18 @@ export function StaffManager({
           <TableBody>
             {visible.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={3} className="text-center text-muted-foreground">
                   Žiadni zamestnanci.
                 </TableCell>
               </TableRow>
             )}
             {visible.map((row) => (
-              <TableRow key={row.id} className={row.active ? "" : "opacity-60"}>
-                <TableCell className="font-medium">
-                  {row.display_name}
-                  <span className="block text-xs text-muted-foreground sm:hidden">{row.email}</span>
-                </TableCell>
-                <TableCell className="hidden sm:table-cell text-muted-foreground">
-                  {row.email}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={row.role === "manazer" ? "default" : "secondary"}>
-                    {ROLE_LABEL[row.role]}
-                  </Badge>
-                </TableCell>
+              <TableRow
+                key={row.id}
+                data-worker-id={row.id}
+                className={row.active ? "" : "opacity-60"}
+              >
+                <TableCell className="font-medium">{row.display_name}</TableCell>
                 <TableCell>
                   <Badge variant={row.active ? "outline" : "destructive"}>
                     {row.active ? "Aktívny" : "Neaktívny"}
@@ -129,7 +103,7 @@ export function StaffManager({
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={pending || (row.active && row.id === currentStaffId)}
+                      disabled={pending}
                       onClick={() => toggleActive(row)}
                     >
                       {row.active ? "Deaktivovať" : "Aktivovať"}
@@ -142,7 +116,7 @@ export function StaffManager({
         </Table>
       </div>
 
-      <StaffDialog
+      <WorkerDialog
         target={editing}
         onClose={() => setEditing(null)}
         onSaved={() => {
@@ -154,7 +128,7 @@ export function StaffManager({
   );
 }
 
-function StaffDialog({
+function WorkerDialog({
   target,
   onClose,
   onSaved,
@@ -166,18 +140,13 @@ function StaffDialog({
   const isNew = target === "new";
   const row = target && target !== "new" ? target : null;
   const [pending, startTransition] = useTransition();
-
-  // Re-key the form per target so default values reset between opens.
   const formKey = isNew ? "new" : (row?.id ?? "closed");
 
   function onSubmit(formData: FormData) {
     const display_name = String(formData.get("display_name") ?? "");
-    const role = String(formData.get("role") ?? "") as StaffRole;
-
     startTransition(async () => {
       if (isNew) {
-        const email = String(formData.get("email") ?? "");
-        const result = await createStaff({ email, display_name, role });
+        const result = await createWorker({ display_name });
         if (result.ok) {
           toast.success("Zamestnanec pridaný.");
           onSaved();
@@ -185,7 +154,7 @@ function StaffDialog({
           toast.error(result.message);
         }
       } else if (row) {
-        const result = await updateStaff({ id: row.id, display_name, role });
+        const result = await updateWorker({ id: row.id, display_name });
         if (result.ok) {
           toast.success("Zmeny uložené.");
           onSaved();
@@ -203,39 +172,19 @@ function StaffDialog({
           <DialogHeader>
             <DialogTitle>{isNew ? "Pridať zamestnanca" : "Upraviť zamestnanca"}</DialogTitle>
             <DialogDescription>
-              {isNew
-                ? "Zadajte email, meno a rolu nového zamestnanca."
-                : "Upravte meno a rolu zamestnanca."}
+              {isNew ? "Zadajte meno nového zamestnanca." : "Upravte meno zamestnanca."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {isNew && (
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" required autoComplete="off" />
-              </div>
-            )}
             <div className="space-y-2">
-              <Label htmlFor="display_name">Meno</Label>
+              <Label htmlFor="worker_display_name">Meno</Label>
               <Input
-                id="display_name"
+                id="worker_display_name"
                 name="display_name"
                 required
                 defaultValue={row?.display_name ?? ""}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Rola</Label>
-              <Select name="role" defaultValue={row?.role ?? "prevadzka"}>
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manazer">Manažér</SelectItem>
-                  <SelectItem value="prevadzka">Prevádzka</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
 
