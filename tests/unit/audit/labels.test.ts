@@ -57,8 +57,8 @@ describe("summarizeDetails", () => {
   });
 
   it("renders assign / unassign distinctly", () => {
-    expect(summarizeDetails("order.assign", { staff_id: "x" })).toBe("Pracovník priradený");
-    expect(summarizeDetails("order.unassign", { staff_id: "x" })).toBe("Pracovník odobratý");
+    expect(summarizeDetails("order.assign", { worker_id: "x" })).toBe("Pracovník priradený");
+    expect(summarizeDetails("order.unassign", { worker_id: "x" })).toBe("Pracovník odobratý");
   });
 
   it("every event covered by the spec §4.4 coverage check has a non-empty summary", () => {
@@ -67,7 +67,7 @@ describe("summarizeDetails", () => {
       ["order.status_change", { from: "vytvorena", to: "hotova" }],
       ["order.delete", { previous_status: "hotova" }],
       ["order.note_edit", { from: null, to: "Pozor" }],
-      ["order.assign", { staff_id: "x" }],
+      ["order.assign", { worker_id: "x" }],
     ];
     for (const [action, details] of cases) {
       expect(summarizeDetails(action, details as never).length).toBeGreaterThan(0);
@@ -118,5 +118,12 @@ describe("summarizeDetails", () => {
     for (const code of written) {
       expect(ACTION_LABEL[code], code).toBeDefined();
     }
+  });
+
+  it("labels worker actions", () => {
+    expect(ACTION_LABEL["worker.create"]).toBe("Vytvorenie zamestnanca");
+    expect(ACTION_LABEL["worker.update"]).toBe("Úprava zamestnanca");
+    expect(ACTION_LABEL["worker.activate"]).toBe("Aktivácia zamestnanca");
+    expect(ACTION_LABEL["worker.deactivate"]).toBe("Deaktivácia zamestnanca");
   });
 });

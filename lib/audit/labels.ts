@@ -41,6 +41,11 @@ export const ACTION_LABEL: Record<string, string> = {
   "staff.update": "Úprava zamestnanca",
   "staff.activate": "Aktivácia zamestnanca",
   "staff.deactivate": "Deaktivácia zamestnanca",
+  // workers (spec 11)
+  "worker.create": "Vytvorenie zamestnanca",
+  "worker.update": "Úprava zamestnanca",
+  "worker.activate": "Aktivácia zamestnanca",
+  "worker.deactivate": "Deaktivácia zamestnanca",
   // settings (spec 04)
   "settings.hours_update": "Úprava otváracích hodín",
   "settings.override_set": "Nastavenie výnimky",
@@ -57,6 +62,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   car: "Auto",
   service: "Služba",
   staff: "Zamestnanec",
+  worker: "Zamestnanec",
   settings: "Nastavenia",
   sms_template: "SMS šablóna",
   sms_message: "SMS správa",
