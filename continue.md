@@ -469,6 +469,20 @@ Planning artifacts are all written and committed locally on `main`:
   pinned (intermittent, full-suite-context-only); the capstone clean-DB full run was
   green (71/71 e2e). Treated as a pre-existing/cross-suite-interference flake, not a
   spec-11 regression — reported, not fixed (same handling as the client-history flake).
+  🔶 **PENDING — confirm/review before continuing.** The final code-review pass (full
+  branch) returned **0 blockers, 1 should-fix, 2 nits**. Two follow-up edits were made
+  in response but are **NOT yet verified** (typecheck/lint/e2e not re-run after them):
+  (1) should-fix — `order-role-permissions.spec.ts` "multiple workers" pre-check now
+  queries the `workers` table (`active`, ≥2) instead of `staff` (the dropdown is fed by
+  `workers` post-split; the old check tested the wrong table); (2) nit-2 coverage gap —
+  added a 4th test to `staff-workers.spec.ts` ("a deactivated worker still shows on an
+  order they were assigned to") covering spec §4.3's history-preservation criterion,
+  which had no direct e2e. **Next step: run `pnpm typecheck && pnpm lint`, then
+  `pnpm test:e2e staff-workers` and `pnpm test:e2e order-role-permissions`, confirm
+  green, then commit these two test edits.** Remaining nit-3 (audit `ENTITY_LABEL` maps
+  both `staff` and `worker` → "Zamestnanec") is intentional Slovak — no change. The
+  branch is `feat/spec-11-accounts-workers` (local, unpushed); merge to `main` only
+  after these fixes are confirmed.
 
 ### Local environment notes (real, learned this session)
 - **pnpm** runs via corepack (`pnpm 11.3.0`); the supabase CLI is a devDependency

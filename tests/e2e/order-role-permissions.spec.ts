@@ -105,11 +105,13 @@ test.describe("manager — full controls on order detail", () => {
   test("manager sees and can use note/move/delete; multiple workers", async ({ page }) => {
     const o = await seedOrder();
     const db = serviceClient();
-    const { data: allStaff } = await db
-      .from("staff")
-      .select("id, email")
+    // Need at least two active workers to assign two to the order (the dropdown
+    // is populated from `workers`, not `staff`, after spec 11).
+    const { data: activeWorkers } = await db
+      .from("workers")
+      .select("id")
       .eq("active", true);
-    expect(allStaff!.length).toBeGreaterThanOrEqual(2);
+    expect(activeWorkers!.length).toBeGreaterThanOrEqual(2);
 
     await page.goto(`/orders/${o.orderId}`);
 

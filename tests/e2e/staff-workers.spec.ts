@@ -73,6 +73,36 @@ test.describe("staff page — Účty + Zamestnanci (manager)", () => {
     await page.locator("#worker-select").click();
     await expect(page.getByRole("option", { name })).toHaveCount(0);
   });
+
+  test("a deactivated worker still shows on an order they were assigned to (history preserved)", async ({
+    page,
+  }) => {
+    const db = serviceClient();
+    const name = `History ${Date.now()}`;
+    const { data: w } = await db
+      .from("workers")
+      .insert({ display_name: name })
+      .select("id")
+      .single();
+    const { data: manager } = await db
+      .from("staff")
+      .select("id")
+      .eq("email", MANAGER_EMAIL)
+      .single();
+
+    const { orderId } = await seedOrder();
+    await db
+      .from("order_staff")
+      .insert({ order_id: orderId, worker_id: w!.id, assigned_by: manager!.id });
+
+    // Deactivate the worker, then open the order — the assignment must remain.
+    await db.from("workers").update({ active: false }).eq("id", w!.id);
+    await page.goto(`/orders/${orderId}`);
+
+    const workers = page.locator('[data-section="workers"]');
+    await expect(workers.locator(`[data-worker-id="${w!.id}"]`)).toBeVisible();
+    await expect(workers.getByText(name)).toBeVisible();
+  });
 });
 
 test.describe("staff page — worker (prevadzka) is blocked", () => {
