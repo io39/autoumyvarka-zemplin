@@ -2,11 +2,15 @@
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
-Remaining: walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare
-Tunnel/Access) and the client's open questions. **Last updated:** 2026-05-29.
+**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/` — to be done BEFORE the
+production deploy.** It restructures + reskins the working app to the reference prototype
+(`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action changes). After that:
+walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access) and the
+client's open questions. **Last updated:** 2026-05-31.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
-requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`.
+requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
+(features 01–11), `docs/ui-specs/README.md` (redesign 12–18) + `docs/UI-STRUCTURE.md`.
 
 ---
 
@@ -509,20 +513,38 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
    (Účty/login accounts split from Zamestnanci/workers) is implemented, verified, and
    **merged to `main` locally** (push from your own terminal — pushing is hook-blocked
    here). The `feat/spec-11-accounts-workers` branch was merged then deleted.
-2. **Walking-skeleton / production deploy** (architecture §8) is now the main
-   remaining work: provision Supabase Cloud EU, the self-hosted VPS, and the
-   Cloudflare Tunnel + Access policies; wire the prod env store (Supabase keys,
-   `SUPABASE_JWT_SECRET`, SMS provider creds). Spec-07 deploy notes still apply:
-   `alter database … set app.reminder_url/app.reminder_secret` for the pg_cron
-   reminder, and a Cloudflare Access **bypass** policy for `/api/sms/webhook`.
-3. **Pick + pin the real Slovak SMS provider** (PRD §13#4 — provider AND final
+
+2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — DO THIS NEXT, before deploy.**
+   Restructure + reskin the working app to the reference prototype (`docs/UI-STRUCTURE.md`).
+   **UI-layer only** — no schema, no Server-Action/authz changes (if a spec seems to need
+   one, stop and flag it). All seven specs are written; **none implemented yet.**
+   - **Build order (one spec at a time, merge before the next, keep `main` releasable):**
+     **12 → 13 → 14 → 15 → 16 → 17 → 18.** Deps are in `docs/ui-specs/README.md`.
+     Note **16 builds after 15** (it repoints spec-15's "Zmeniť čas" into the wizard).
+   - **Per spec:** read the spec file (`docs/ui-specs/NN-*.md`) + the cited `UI-STRUCTURE.md`
+     section; follow its Tasks; satisfy every Acceptance check (they're runnable shell/e2e);
+     run **`code-reviewer`**; commit. Each spec lists `pnpm typecheck/lint/test/build` gates.
+   - **Heads-up — confirm-in-review defaults still baked in** (search the specs for
+     "*confirm in review*"): PREVÁDZKA nav icons (Calendar/CalendarPlus/Users), the
+     desktop-sidebar vs mobile-header identity placement (spec 14), keep-`components/orders/`
+     folder (15/16). Surface these to the user before/while implementing the relevant spec.
+   - **Deferred (don't build yet):** dark-mode **activation** UI (toggle vs follow-OS) —
+     spec 13 keeps dark wired but leaves the switch for later.
+   - New shadcn primitives several specs add: `dropdown-menu` (12), `calendar`+`popover`
+     (14), `sheet` (15), `accordion` (17).
+
+3. **Walking-skeleton / production deploy** (architecture §8) — **after the redesign.**
+   Provision Supabase Cloud EU, the self-hosted VPS, and the Cloudflare Tunnel + Access
+   policies; wire the prod env store (Supabase keys, `SUPABASE_JWT_SECRET`, SMS provider
+   creds). Spec-07 deploy notes still apply: `alter database … set app.reminder_url/
+   app.reminder_secret` for the pg_cron reminder, and a Cloudflare Access **bypass** policy
+   for `/api/sms/webhook`.
+4. **Pick + pin the real Slovak SMS provider** (PRD §13#4 — provider AND final
    wording both still open; `fake` adapter is the default in dev).
-4. **Resolve the client's open questions** (below) and tune where flagged.
+5. **Resolve the client's open questions** (below) and tune where flagged.
 
-These remaining items are deploy/ops + client decisions, not new specs — use
-**`spec-writer`** only if a genuinely new feature is requested.
-
-Use the **`spec-writer`** subagent only if a *new* spec is needed; use **`code-reviewer`**
+The redesign specs already exist — **do not re-run `spec-writer` for them.** Use
+**`spec-writer`** only if a genuinely new feature is requested; use **`code-reviewer`**
 after meaningful changes. The skills in `.claude/skills/` auto-load for migrations, auth,
 and order-domain work — follow them.
 
