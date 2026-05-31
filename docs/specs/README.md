@@ -22,6 +22,10 @@ written.
 | 10 | [Unpaid-order alerts](./10-unpaid-order-alerts.md) | ✅ | §9.3 (extends) | 06 |
 | 11 | [Účty & Zamestnanci (split login from workers)](./11-accounts-and-workers.md) | ✅ | §3, §11 | 01, 06 |
 
+> **UI redesign specs (12+)** live in a separate folder — see
+> [`../ui-specs/README.md`](../ui-specs/README.md). They restructure/reskin this working
+> app to the reference prototype (`../UI-STRUCTURE.md`) and are UI-layer only.
+
 ---
 
 ## Per-spec scope notes
