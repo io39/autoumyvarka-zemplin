@@ -83,6 +83,9 @@ page-content changes beyond reconciling each page's outer container with the new
   `min-w-0 overflow-x-hidden`, plus bottom padding for the mobile nav +
   `env(safe-area-inset-bottom)`. Desktop reserves the 240px sidebar gutter
   (`md:pl-60` or a flex/grid two-column layout).
+- **Dedupe the actor lookup:** `AppShell` and every page both call `getCurrentStaff()`
+  (two DB lookups/request). Wrap it (or `getIdentity`) in React **`cache()`** so the shell
+  and the page share one result per request. Cheap to do now, annoying to retrofit.
 
 > Rationale (the route-group trade-off): an `app/(app)` group would let the 401/403 views
 > sit *outside* the shell for free. We instead keep the root layout and put the
@@ -171,13 +174,20 @@ Affected pages (current widths, from the baseline): `/` (5xl), `/clients` (2xl),
 > This is the part that makes "done" actually done: skipping it leaves nested containers
 > and doubled padding across the app.
 
-### 2.5 Remove the hub
+### 2.5 Remove the hub (and **every** link to it)
 
 - **Delete `app/menu/page.tsx`** (the hub) — replaced by the shell.
-- **Remove the calendar header's "Menu" link** (`app/page.tsx:92-93`) — navigation now
-  lives in the shell.
+- **Remove all four `/menu` links** — the route-killer must leave **zero** dead links
+  behind it (this spec ships before specs 13–18 on a releasable `main`). Current refs:
+  - `app/page.tsx` (calendar header "Menu")
+  - `components/audit/audit-view.tsx` (back link)
+  - `components/settings/sms-templates-editor.tsx` (back link)
+  - `components/unpaid/unpaid-list.tsx` (back link)
+
+  Later specs may add a context-appropriate back-affordance; the shell nav already covers
+  "go elsewhere".
 - No redirect needed for `/menu` (it was an internal hub, not a deep-link target); after
-  deletion it 404s, which is fine — nothing links to it once the calendar link is gone.
+  deletion it 404s, which is fine once every link above is gone.
 
 ### 2.6 Error handling & states
 
@@ -231,8 +241,8 @@ pnpm build                          # exits 0
 grep -rnE "<main" app/**/page.tsx app/page.tsx | grep -v AppShell | wc -l
 # /menu hub is gone — expect: no such file
 test ! -e app/menu/page.tsx && echo OK
-# Calendar no longer links to /menu — expect: 0
-grep -rn 'href="/menu"' app | wc -l
+# NO /menu links remain anywhere (4 today: calendar, audit, sms-templates, unpaid) — expect: 0
+grep -rn '/menu' app components | wc -l
 ```
 
 - Rendered DOM on any page contains **exactly one** `<main>` (assert in e2e).

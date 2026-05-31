@@ -164,8 +164,11 @@ Replace Zemplín's look with ours:
 Adopt **one home** for status colors (`STAV_FARBY` in `types/index.ts`) and retire
 `lib/orders/colors.ts`. Exact class values: **§15.B**.
 
-**Confirmed:** **light-only** (Zemplín has no dark mode). **Keep sonner toasts** for
-action feedback (save, status change, delete, resend SMS).
+**Updated decision:** **keep dark mode** — Zemplín has the dark plumbing wired, so the
+reskin provides Nova **light + dark** tokens and `dark:` status-color variants. The
+**activation mechanism (toggle vs follow-OS) is deferred** (decided later; no toggle built
+in spec 13). **Keep sonner toasts** for action feedback (save, status change, delete,
+resend SMS).
 
 ---
 
@@ -613,7 +616,8 @@ Keep these in **one place** (e.g. `types/index.ts`) and retire Zemplín's
 - **Fonts (`next/font/google`, `display: swap`):**
   - Sans: **Plus Jakarta Sans** → `--font-sans`
   - Mono: **JetBrains Mono** → `--font-mono`
-- **Toasts:** sonner (kept). **Dark mode:** none (light-only).
+- **Toasts:** sonner (kept). **Dark mode:** **kept** (light + dark Nova tokens; activation
+  toggle-vs-system deferred).
 
 ### D. SMS templates (≤ 70 chars incl. Slovak diacritics)
 - **Pripomienka:** „Pripomíname Vašu rezerváciu v autoumyvárni o {čas}. Tešíme sa na Vás!"
