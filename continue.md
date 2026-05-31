@@ -516,18 +516,31 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
 
 2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — DO THIS NEXT, before deploy.**
    Restructure + reskin the working app to the reference prototype (`docs/UI-STRUCTURE.md`).
-   **UI-layer only** — no schema, no Server-Action/authz changes (if a spec seems to need
-   one, stop and flag it). All seven specs are written; **none implemented yet.**
-   - **Build order (one spec at a time, merge before the next, keep `main` releasable):**
-     **12 → 13 → 14 → 15 → 16 → 17 → 18.** Deps are in `docs/ui-specs/README.md`.
-     Note **16 builds after 15** (it repoints spec-15's "Zmeniť čas" into the wizard).
-   - **Per spec:** read the spec file (`docs/ui-specs/NN-*.md`) + the cited `UI-STRUCTURE.md`
-     section; follow its Tasks; satisfy every Acceptance check (they're runnable shell/e2e);
-     run **`code-reviewer`**; commit. Each spec lists `pnpm typecheck/lint/test/build` gates.
-   - **Heads-up — confirm-in-review defaults still baked in** (search the specs for
-     "*confirm in review*"): PREVÁDZKA nav icons (Calendar/CalendarPlus/Users), the
-     desktop-sidebar vs mobile-header identity placement (spec 14), keep-`components/orders/`
-     folder (15/16). Surface these to the user before/while implementing the relevant spec.
+   All seven specs are written; **none implemented yet.**
+
+   > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
+   > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server
+   >    Actions, their zod schemas, or authz. If a spec *seems* to need a backend change,
+   >    **STOP and ask the user** — don't improvise one. (The actions, RLS, and audit are
+   >    done and verified in specs 01–11; the redesign only re-skins/re-arranges the UI.)
+   > 2. **Confirm the "confirm in review" defaults with the user BEFORE building the
+   >    affected spec** — don't silently accept them. They are: PREVÁDZKA nav icons
+   >    (Calendar / CalendarPlus / Users — spec 12), identity placement (sidebar on
+   >    desktop vs header on mobile — spec 14), and keeping `components/orders/` rather than
+   >    renaming to `booking/` (specs 15/16). Grep the specs for `confirm in review`.
+   > 3. **One spec at a time; keep `main` releasable.** Finish + verify + (with the user)
+   >    merge a spec before starting the next. Don't batch multiple specs into one branch.
+   > 4. **Every Acceptance check must pass** (they're runnable shell/e2e), and run the
+   >    **`code-reviewer`** subagent before declaring a spec done.
+   > 5. **Don't re-run `spec-writer`** for 12–18 — they already exist.
+   > 6. **Slovak** for all user-visible text; **English** identifiers (see spec 13).
+
+   - **Build order:** **12 → 13 → 14 → 15 → 16 → 17 → 18.** Deps are in
+     `docs/ui-specs/README.md`. Note **16 builds after 15** (it repoints spec-15's
+     "Zmeniť čas" button into the wizard edit mode).
+   - **Per spec:** read `docs/ui-specs/NN-*.md` + the cited `UI-STRUCTURE.md` section;
+     follow its Tasks; satisfy every Acceptance check; `pnpm typecheck/lint/test/build`;
+     `code-reviewer`; commit.
    - **Deferred (don't build yet):** dark-mode **activation** UI (toggle vs follow-OS) —
      spec 13 keeps dark wired but leaves the switch for later.
    - New shadcn primitives several specs add: `dropdown-menu` (12), `calendar`+`popover`
