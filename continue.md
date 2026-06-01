@@ -2,9 +2,9 @@
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
-**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Specs 12 + 13 + 14 are DONE +
-merged to `main`; spec 15 (order detail — popup Sheet + /orders/[id]) is the next step — to
-be done BEFORE the production deploy.** It restructures + reskins the working app to the reference prototype
+**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Specs 12–15 are DONE +
+merged to `main`; spec 16 (Nová rezervácia 4-step wizard + Zmeniť-čas edit mode) is the
+next step — to be done BEFORE the production deploy.** It restructures + reskins the working app to the reference prototype
 (`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action changes). After that:
 walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access) and the
 client's open questions. **Last updated:** 2026-06-01.
@@ -604,14 +604,49 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      accumulated-DB-state flake, not a regression. Carry-over nit: `client-detail.tsx` +
      `booking-form.tsx` still say "Nová objednávka" vs the new "Nová rezervácia" CTA —
      out of spec-14 scope; **spec 16 reworks the booking flow**, fix there.
-   - **Spec 15 — NEXT** (order detail — two surfaces, UI-STRUCTURE §7): extract the existing
-     `components/orders/order-detail.tsx` sections into shared one-per-file cards (incl. the
-     SMS log → `SmsStatusCard`), reordered to §7, rendered by **both** a **popup `Sheet`**
-     (opened from a calendar block via a new `getOrderDetailBundle` action — confirm whether
-     a new read action is OK; it's a read-only aggregate, no schema/mutation change) **and**
-     the kept `/orders/[id]` page. **"Confirm in review" item:** keep `components/orders/`
-     (don't rename to `booking/`) → confirm with the user first. Interim "Zmeniť čas" ships
-     here; **spec 16 upgrades it to the wizard.** New shadcn primitive: `sheet`.
+   - **Spec 15 — DONE + merged to `main`** (commit `feat: implement spec 15 (order detail —
+     popup Sheet + page + shared cards)` `706ceb4`, merged via `a0dba67`; branch deleted;
+     push from your own terminal). Extracted the 768-line `components/orders/order-detail.tsx`
+     into **10 one-per-file cards** under `components/orders/sections/`
+     (`BookingStatusBadge`/`BookingStatusActions`/`BookingClientCard`/`BookingCarCard`/
+     `BookingServicesList`/`BookingWorkerCard`/`BookingNotes`/`SmsStatusCard`/`ChangeTimeDialog`
+     [was MoveDialog]/`DeleteOrderDialog`) — **all `data-*` attrs + labels preserved** so the
+     existing order e2e still pass. New `components/orders/OrderDetailBody.tsx` renders the cards
+     in **§7 order** (Stav→Akcie→Klient→Auto→Služby→Pracovníci→Poznámka→SMS→status actions),
+     owns the `call()` mutation flow (toast + **injected `onRefresh`** — `router.refresh()` on
+     the page, **refetch** in the Sheet). `order-detail.tsx` is now the thin page wrapper
+     `OrderDetailView` (title/back/audit link + body); heading **"Objednávka"→"Rezervácia"**.
+     New `components/orders/BookingDetailSheet.tsx` — **responsive Sheet** (right desktop /
+     bottom mobile via `lib/hooks/use-media-query.ts` `useSyncExternalStore`), fetches the new
+     read-only **`getOrderDetailBundle({id})`** (`lib/actions/orders.ts` — composes
+     `getOrder` + active workers + `listServices` + `getOrderSms`; `getOrder` already gates on
+     `getCurrentStaff`; **no mutation/authz change** — spec §2.4-sanctioned) on open, with
+     skeleton + error/retry, rendering the **same** `OrderDetailBody`. Calendar wiring:
+     `components/calendar/order-sheet-context.ts` (`OpenOrderSheetContext`); `BookingBlock`
+     opens the Sheet via context (`<button>`) or falls back to a `/orders/[id]` `<Link>` when
+     no provider; `CalendarView` provides the context + renders the Sheet. Note prominence
+     restyled **off amber** (now the hotová status color) to an accent left-bar. Relabel:
+     "Presunúť termín"→**"Zmeniť čas"** (trigger), dialog confirm→**"Uložiť"**. Added shadcn
+     `sheet`. **"Confirm in review" → kept `components/orders/`** (user-confirmed; cards under
+     `sections/`). New e2e `tests/e2e/calendar-sheet.spec.ts` (3); updated
+     `order-role-permissions`/`order-move-delete` (label rename). **154 unit + 88 e2e pass on
+     a clean `pnpm supabase db reset`.** §4.2 ✓ (10 section files, body used by both surfaces).
+     Code-reviewer: **0 must-fix**, applied 3 should-fix (stale-fetch guard on rapid block
+     switch via a request ref; `sr-only` `SheetDescription` for a11y; `BookingNotes` resync
+     across orders — the Sheet reuses the component without remount) + nits (`cn()`, dialog
+     confirm label).
+   - **Spec 16 — NEXT** (Nová rezervácia 4-step wizard + Zmeniť-čas edit mode, UI-STRUCTURE §8):
+     rebuild `/orders/new` (`components/orders/booking-form.tsx`) into a 4-step wizard
+     (Klient → Auto → Služby → Termín), **adds an in-flow client step** (today the flow
+     redirects to `/clients`) and a richer Termín step (Deň/3-dni, shared §4 date control,
+     quick slots + visual picker with MINULOSŤ overlay). Reuses `createOrder`/`suggestSlots`/
+     pricing — **no new mutations** (confirm if a step seems to need one). **Also adds edit
+     mode:** repoints spec-15's **`ChangeTimeDialog` "Zmeniť čas"** to open the wizard prefilled
+     (client/car locked) on step 3 → adjust services + pick a new slot → apply diff via
+     `moveOrder` + service add/remove. New client/car **persist**. **"Confirm in review" item:**
+     keep `components/orders/` (don't rename to `booking/`) — already confirmed for spec 15, but
+     re-confirm for the wizard files. Carry-over: rename the remaining "Nová objednávka" labels
+     in `client-detail.tsx`/`booking-form.tsx` to "Nová rezervácia" here (deferred from spec 14).
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server
