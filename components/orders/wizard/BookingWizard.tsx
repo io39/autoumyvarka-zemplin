@@ -11,7 +11,7 @@ import {
 } from "@/lib/actions/orders";
 import { getClientWithCars } from "@/lib/actions/clients";
 import type { ServiceWithPrices } from "@/lib/actions/services";
-import type { CarRow, ClientRow, PricingCategory } from "@/lib/supabase/types";
+import type { CarRow, ClientRow, OpeningHoursRow, PricingCategory } from "@/lib/supabase/types";
 import {
   resolveSelectionLines,
   totalDurationMin,
@@ -37,6 +37,8 @@ export interface EditContext {
 export interface BookingWizardProps {
   mode: WizardMode;
   services: ServiceWithPrices[];
+  /** Weekly opening hours — drives the step-4 grid range + free-slot validation. */
+  hours: OpeningHoursRow[];
   initial: {
     step: number;
     client: ClientRow | null;
@@ -55,7 +57,7 @@ export interface BookingWizardProps {
  * locked, it opens on step 3, and finishing applies the diff against the
  * existing order (service add/remove + `moveOrder`) instead of creating one.
  */
-export function BookingWizard({ mode, services, initial, edit }: BookingWizardProps) {
+export function BookingWizard({ mode, services, hours, initial, edit }: BookingWizardProps) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -239,6 +241,8 @@ export function BookingWizard({ mode, services, initial, edit }: BookingWizardPr
           date={date}
           picked={picked}
           currentSlot={edit?.currentSlot ?? null}
+          excludeOrderId={edit?.orderId}
+          hours={hours}
           onViewChange={setView}
           onDateChange={setDate}
           onPick={setPicked}

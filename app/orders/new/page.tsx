@@ -4,6 +4,7 @@ import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { listServices } from "@/lib/actions/services";
 import { getClientWithCars } from "@/lib/actions/clients";
+import { getOpeningHours } from "@/lib/actions/settings";
 import { todayKey } from "@/lib/calendar/today";
 import { BookingWizard } from "@/components/orders/wizard/BookingWizard";
 import type { CarRow, ClientRow } from "@/lib/supabase/types";
@@ -21,7 +22,10 @@ export default async function NewOrderPage({
   }
 
   const params = await searchParams;
-  const services = await listServices({ includeInactive: false });
+  const [services, hours] = await Promise.all([
+    listServices({ includeInactive: false }),
+    getOpeningHours(),
+  ]);
 
   // Optional client prefill (from a client detail page) → start at step 2 (Auto).
   let client: ClientRow | null = null;
@@ -39,7 +43,7 @@ export default async function NewOrderPage({
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-4xl space-y-4">
       <header className="space-y-1">
         <Link href="/" className="text-sm underline underline-offset-4">
           ← Späť na kalendár
@@ -49,6 +53,7 @@ export default async function NewOrderPage({
       <BookingWizard
         mode="create"
         services={services}
+        hours={hours}
         initial={{
           step,
           client,

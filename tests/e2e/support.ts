@@ -455,30 +455,36 @@ function daysBetween(a: string, b: string): number {
   return Math.round((db - da) / 86_400_000);
 }
 
-/** Step the wizard's date control forward (Deň view) to `target`. */
+/**
+ * Step the wizard's date control forward (Deň view) until `target` is shown.
+ * Navigates until the day column appears rather than clicking a fixed count, so
+ * it can't under-shoot if a re-render lags between clicks.
+ */
 export async function wizardGoToDate(page: Page, target: string): Promise<void> {
-  const steps = daysBetween(bratislavaTodayKey(), target);
-  for (let i = 0; i < steps; i++) {
+  const dayCol = page.locator(`[data-step="termin"] [data-day="${target}"]`);
+  for (let i = 0; i <= daysBetween(bratislavaTodayKey(), target) + 5; i++) {
+    await expect(page.getByText("Načítavam voľné termíny…")).toHaveCount(0);
+    if ((await dayCol.count()) > 0) return;
     await page.getByRole("button", { name: "Nasledujúci" }).click();
   }
-  await expect(page.getByText("Načítavam voľné termíny…")).toHaveCount(0);
+  throw new Error(`wizardGoToDate: could not reach ${target}`);
 }
 
 /**
- * On wizard step 4: click the first selectable free, non-past, not-already-
- * selected slot, advancing days until one is found. Returns the picked slot.
+ * On wizard step 4 (interactive grid): click the first not-already-selected
+ * "Najbližšie" quick-slot, advancing days until one is found. Returns the slot.
  */
 export async function pickAFreeSlot(
   page: Page,
 ): Promise<{ date: string; box: number; localStart: string }> {
   for (let i = 0; i < 10; i++) {
     await expect(page.getByText("Načítavam voľné termíny…")).toHaveCount(0);
-    const slots = page.locator('[data-step="termin"] [data-free-slot]:not([data-past])');
+    const slots = page.locator('[data-step="termin"] [data-quick-slot]');
     const n = await slots.count();
     for (let j = 0; j < n; j++) {
       const s = slots.nth(j);
       if ((await s.getAttribute("aria-pressed")) !== "true") {
-        const value = (await s.getAttribute("data-free-slot"))!; // "YYYY-MM-DD-box-HH:MM"
+        const value = (await s.getAttribute("data-quick-slot"))!; // "YYYY-MM-DD-box-HH:MM"
         await s.click();
         const m = value.match(/^(\d{4}-\d{2}-\d{2})-(\d)-(\d{2}:\d{2})$/)!;
         return { date: m[1], box: Number(m[2]), localStart: m[3] };
@@ -486,5 +492,5 @@ export async function pickAFreeSlot(
     }
     await page.getByRole("button", { name: "Nasledujúci" }).click();
   }
-  throw new Error("no free slot found within range");
+  throw new Error("no free quick-slot found within range");
 }
