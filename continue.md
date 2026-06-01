@@ -2,9 +2,9 @@
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
-**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Specs 12 + 13 are DONE +
-merged to `main`; spec 14 (calendar header & controls) is the next step — to be done
-BEFORE the production deploy.** It restructures + reskins the working app to the reference prototype
+**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Specs 12 + 13 + 14 are DONE +
+merged to `main`; spec 15 (order detail — popup Sheet + /orders/[id]) is the next step — to
+be done BEFORE the production deploy.** It restructures + reskins the working app to the reference prototype
 (`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action changes). After that:
 walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access) and the
 client's open questions. **Last updated:** 2026-06-01.
@@ -570,14 +570,48 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      `StateColor.badge` field is unused until spec 14's `StatusLegend` (intended). ⚠️ The full
      e2e run flaked once on `clients-search` (pre-existing trigram-search flake, baseline-
      confirmed) — not a spec-13 regression.
-   - **Spec 14 — NEXT** (calendar header & controls, UI-STRUCTURE §4): §4 header layout, a
-     shadcn `Calendar` **popover date-picker** (month+year) replacing the native date input,
-     a **`StatusLegend`** (first consumer of `STATE_COLOR.badge`), and the **mobile-only**
-     Box 1 / Box 2 toggle (no "Obe"). **Reconciles the spec-12 identity/unpaid header
-     leftovers** — identity in the sidebar on desktop, header on mobile (this is the spec-14
-     "confirm in review" item → confirm with the user first). Grid/Realtime unchanged;
-     block→`/orders/[id]` stays a link (the popup Sheet is spec 15). New shadcn primitives:
-     `calendar` + `popover`.
+   - **Spec 14 — DONE + merged to `main`** (commit `feat: implement spec 14 (calendar
+     header, date-picker & box filter)` `f02386a`, merged via `5bb987f`; branch deleted;
+     push from your own terminal). Rebuilt the calendar header to UI-STRUCTURE §4 and
+     **decomposed the ~550-line `components/calendar/calendar.tsx` monolith** (deleted) into
+     one-component-per-file: `CalendarView.tsx` (orchestrator — client, state + Realtime),
+     `CalendarHeader.tsx`, `DateNav.tsx`, `StatusLegend.tsx`, `BoxFilter.tsx`, `DayView.tsx`,
+     `WeekView.tsx`, `BookingBlock.tsx`, `TimeAxis.tsx`. Pure date/grid math + today helpers
+     → `lib/calendar/{grid,today,types}.ts` (de-duped from `app/page.tsx`, unit-tested
+     `tests/unit/calendar/{grid,today}.test.ts`). New header (top→bottom): actions
+     (Nová rezervácia · manager `UnpaidBadge` · **mobile-only identity**, `md:hidden` —
+     desktop uses the spec-12 sidebar footer, **user-confirmed**) → centered Deň/Týždeň
+     toggle → `DateNav` → legend + mobile box-filter row → grid. **Native `<input type=date>`
+     REPLACED** by a shadcn **`Calendar` popover** (`captionLayout="dropdown"` month+year,
+     Slovak `sk` locale, Monday start); ◀▶ step day/week; **DNES** pill vs **Späť na dnes**
+     via `viewCoversToday`. `StatusLegend` full labels `sm:+` / short labels mobile (first
+     consumer of `STATE_COLOR.badge`); `BoxFilter` mobile-only Box 1/Box 2 (no "Obe" — see
+     spec §2.5 deviation note). `app/page.tsx` thinned to fetch + `<CalendarView/>`. Added
+     shadcn `calendar` + `popover` (**react-day-picker v10 + date-fns v4**); dropped a
+     v10-incompatible `table` classNames key from the generated `components/ui/calendar.tsx`.
+     Grid/closed-zone/duration math unchanged; block→`/orders/[id]` still a `Link` (popup
+     Sheet is spec 15). Code-reviewer: **1 must-fix + 4 should-fix applied** — a **Realtime
+     staleness guard** (`currentKeyRef`: a stale pre-navigation channel's refetch can't
+     overwrite the new route's blocks — the orchestrator now syncs `blocks` to fresh
+     `initialBlocks` on navigation via the render-time key pattern, so the new date-picker
+     actually updates the grid), memoized nav callbacks, `md:contents` empty-desktop-row fix,
+     cross-month week labels, identity-placement e2e. New e2e `tests/e2e/calendar-header.spec.ts`
+     (5); updated `calendar-week-view.spec.ts` (old "Kalendár" h1 gone). **154 unit + 85 e2e
+     pass on a clean `pnpm supabase db reset`.** §4.2/4.3 acceptance ✓. ⚠️ Mid-session the
+     `shared-spz`/`clients-search` trigram tests failed **deterministically** once the local
+     DB accumulated many `TT`-prefixed test clients (4-char ŠPZ-prefix search exceeds the
+     result limit) — **all green after `pnpm supabase db reset`**; this is the documented
+     accumulated-DB-state flake, not a regression. Carry-over nit: `client-detail.tsx` +
+     `booking-form.tsx` still say "Nová objednávka" vs the new "Nová rezervácia" CTA —
+     out of spec-14 scope; **spec 16 reworks the booking flow**, fix there.
+   - **Spec 15 — NEXT** (order detail — two surfaces, UI-STRUCTURE §7): extract the existing
+     `components/orders/order-detail.tsx` sections into shared one-per-file cards (incl. the
+     SMS log → `SmsStatusCard`), reordered to §7, rendered by **both** a **popup `Sheet`**
+     (opened from a calendar block via a new `getOrderDetailBundle` action — confirm whether
+     a new read action is OK; it's a read-only aggregate, no schema/mutation change) **and**
+     the kept `/orders/[id]` page. **"Confirm in review" item:** keep `components/orders/`
+     (don't rename to `booking/`) → confirm with the user first. Interim "Zmeniť čas" ships
+     here; **spec 16 upgrades it to the wizard.** New shadcn primitive: `sheet`.
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server
