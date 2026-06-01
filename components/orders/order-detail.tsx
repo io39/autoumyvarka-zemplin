@@ -17,7 +17,7 @@ import {
   type OrderDetail,
 } from "@/lib/actions/orders";
 import { allowedNextStatuses } from "@/lib/orders/transitions";
-import { STATUS_STYLE } from "@/lib/orders/colors";
+import { STATE_COLOR, STATE_LABEL } from "@/types";
 import { bratislavaHHMM, bratislavaDateKey } from "@/lib/settings/availability";
 import { bratislavaLocalToISO } from "@/lib/time/bratislava";
 import type {
@@ -82,7 +82,7 @@ export function OrderDetailView({ role, detail, allWorkers, services, sms }: Pro
   const startHHMM = bratislavaHHMM(new Date(order.starts_at));
   const endHHMM = bratislavaHHMM(new Date(order.ends_at));
   const dateKey = bratislavaDateKey(new Date(order.starts_at));
-  const statusStyle = STATUS_STYLE[order.status];
+  const statusStyle = STATE_COLOR[order.status];
   const nextStatuses = allowedNextStatuses(order.status, role);
 
   const assignableWorkers = allWorkers.filter(
@@ -124,8 +124,8 @@ export function OrderDetailView({ role, detail, allWorkers, services, sms }: Pro
             </Link>
           )}
         </div>
-        <Badge className={`${statusStyle.bg} ${statusStyle.text}`}>
-          {statusStyle.label}
+        <Badge className={`border ${statusStyle.bg} ${statusStyle.border} ${statusStyle.text}`}>
+          {STATE_LABEL[order.status]}
         </Badge>
       </header>
 
@@ -186,7 +186,7 @@ export function OrderDetailView({ role, detail, allWorkers, services, sms }: Pro
               disabled={pending}
               onClick={() =>
                 call(
-                  `Stav: ${STATUS_STYLE[next].label}.`,
+                  `Stav: ${STATE_LABEL[next]}.`,
                   () => setStatus({ id: order.id, next }),
                 )
               }
