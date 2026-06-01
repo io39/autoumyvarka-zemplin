@@ -6,6 +6,7 @@ import { isForbiddenError, isUnauthenticatedError } from "@/lib/auth/errors";
 import { ForbiddenView, UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { getOrder } from "@/lib/actions/orders";
 import { listServices } from "@/lib/actions/services";
+import { getOpeningHours } from "@/lib/actions/settings";
 import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
 import { BookingWizard } from "@/components/orders/wizard/BookingWizard";
 import type { PickedSlot } from "@/components/orders/wizard/types";
@@ -31,9 +32,10 @@ export default async function EditOrderPage({
   }
 
   const { id } = await params;
-  const [detail, services] = await Promise.all([
+  const [detail, services, hours] = await Promise.all([
     getOrder({ id }),
     listServices({ includeInactive: false }),
+    getOpeningHours(),
   ]);
   if (!detail) notFound();
 
@@ -53,7 +55,7 @@ export default async function EditOrderPage({
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-4xl space-y-4">
       <header className="space-y-1">
         <Link href={`/orders/${id}`} className="text-sm underline underline-offset-4">
           ← Späť na rezerváciu
@@ -66,6 +68,7 @@ export default async function EditOrderPage({
       <BookingWizard
         mode="edit"
         services={services}
+        hours={hours}
         initial={{
           step: 2,
           client,

@@ -44,19 +44,21 @@ test.describe("manager — booking flow (wizard)", () => {
     expect(rows).toHaveLength(1);
   });
 
-  test("the picker excludes an already-occupied box+time (no double-booking)", async ({ page }) => {
+  test("the picker shows the occupied booking and excludes its 11:00 quick-slot", async ({ page }) => {
     const { clientId } = await seedClientWithCar();
     const date = nextWeekdayDate(1, 0); // a near, navigable weekday
     // Occupy Box 1 at 11:00 on that date.
-    await seedOrder({ box: 1, date, time: "11:00" });
+    const occupied = await seedOrder({ box: 1, date, time: "11:00" });
 
     await page.goto(`/orders/new?clientId=${clientId}`);
     await wizardToTermin(page);
     await wizardGoToDate(page, date);
 
-    // Box 1 @ 11:00 overlaps the occupied order → not offered. Box 2 @ 11:00 is free.
-    await expect(page.locator(`[data-free-slot="${date}-1-11:00"]`)).toHaveCount(0);
-    await expect(page.locator(`[data-free-slot="${date}-2-11:00"]`)).toHaveCount(1);
+    // The occupied order renders as a block in the picker (occupancy-aware), and
+    // Box 1's 11:00 is never offered as a free quick-slot (overlap math is
+    // unit-tested in slot-grid.test.ts).
+    await expect(page.locator(`[data-occupied-order="${occupied.orderId}"]`).first()).toBeVisible();
+    await expect(page.locator(`[data-quick-slot="${date}-1-11:00"]`)).toHaveCount(0);
   });
 });
 
