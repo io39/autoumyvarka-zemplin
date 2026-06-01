@@ -1,6 +1,6 @@
 import type { Json } from "@/lib/supabase/database.types";
 import type { OrderStatus } from "@/lib/supabase/types";
-import { STATUS_STYLE } from "@/lib/orders/colors";
+import { STATE_LABEL } from "@/types";
 
 /**
  * Slovak presentation of audit_log entries (spec 09). Pure — no I/O — so the
@@ -86,7 +86,7 @@ function asRecord(details: Json | null): Record<string, unknown> {
 
 function statusLabel(value: unknown): string {
   if (typeof value !== "string") return "?";
-  return STATUS_STYLE[value as OrderStatus]?.label ?? value;
+  return STATE_LABEL[value as OrderStatus] ?? value;
 }
 
 /**

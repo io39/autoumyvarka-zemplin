@@ -10,7 +10,7 @@ import {
   bratislavaHHMM,
   getOpenInterval,
 } from "@/lib/settings/availability";
-import { STATUS_STYLE } from "@/lib/orders/colors";
+import { STATE_COLOR } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -465,7 +465,7 @@ function Block({
   const endHHMM = bratislavaHHMM(end);
   const offsetMin = diffMinutes(intervalOpen, startHHMM);
   const heightMin = Math.max(15, diffMinutes(startHHMM, endHHMM));
-  const style = STATUS_STYLE[block.order.status];
+  const style = STATE_COLOR[block.order.status];
 
   const mainService =
     block.services.find((s) => !s.removed_at)?.name_snapshot ?? "—";
@@ -474,7 +474,7 @@ function Block({
     <Link
       href={`/orders/${block.order.id}`}
       data-order-id={block.order.id}
-      className={`absolute left-1 right-1 rounded border px-1 py-0.5 text-xs ${style.bg} ${style.text}`}
+      className={`absolute left-1 right-1 rounded border px-1 py-0.5 text-xs transition-opacity hover:opacity-90 ${style.bg} ${style.border} ${style.text}`}
       style={{
         top: (offsetMin / SLOT_MIN) * ROW_PX,
         height: (heightMin / SLOT_MIN) * ROW_PX - 2,
