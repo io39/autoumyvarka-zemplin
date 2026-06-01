@@ -218,9 +218,9 @@ export function Step4TimeSlot({
                     <span className="text-xs font-semibold">Box {box}</span>
                     <span className="text-[10px] text-muted-foreground">{count} rez.</span>
                   </div>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {quick.length === 0 ? (
-                      <span className="text-[11px] text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
                     ) : (
                       quick.map((min) => (
                         <button
@@ -230,13 +230,16 @@ export function Step4TimeSlot({
                           aria-pressed={selMin === min}
                           onClick={() => onPick({ dateKey: day, box, localStart: minToHHMM(min) })}
                           className={cn(
-                            "rounded border px-1.5 py-0.5 font-mono text-[11px] transition-colors",
+                            "min-h-9 flex-1 rounded-md border px-2.5 py-1.5 text-center font-mono text-sm font-medium transition-colors",
                             selMin === min
                               ? "border-primary bg-primary text-primary-foreground"
-                              : "border-green-500/40 bg-green-50 text-green-800 hover:bg-green-100 dark:bg-green-950 dark:text-green-300",
+                              : "border-green-500/50 bg-green-50 text-green-800 hover:bg-green-100 dark:bg-green-950 dark:text-green-300",
                           )}
                         >
                           {minToHHMM(min)}
+                          <span className="ml-1 text-xs font-normal opacity-70">
+                            – {minToHHMM(min + durationMin)}
+                          </span>
                         </button>
                       ))
                     )}
@@ -283,8 +286,15 @@ function TimeAxis({ rows }: { rows: string[] }) {
   return (
     <div className="text-[10px] text-muted-foreground" style={{ height: rows.length * ROW_PX }}>
       {rows.map((t) => (
-        <div key={t} style={{ height: ROW_PX }} className="pr-1 text-right leading-none">
-          {t.endsWith(":00") ? t : ""}
+        <div
+          key={t}
+          style={{ height: ROW_PX }}
+          className={cn(
+            "pr-1 text-right leading-none",
+            t.endsWith(":00") && "font-medium text-foreground/70",
+          )}
+        >
+          {t.endsWith(":00") || t.endsWith(":30") ? t : ""}
         </div>
       ))}
     </div>
