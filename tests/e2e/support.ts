@@ -145,7 +145,9 @@ export async function seedDatedOrder(opts: {
     .single();
   const duration = price!.duration_min ?? 60;
 
-  const TIMES = ["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "14:00", "14:30", "15:00"];
+  // Keep seeded starts within 10:00–15:00 local (so even the raw UTC timestamp,
+  // CEST −2h, stays in-hours) and the booking ends before the 17:00 close.
+  const TIMES = ["10:00", "10:30", "11:00", "13:00", "13:30", "14:00", "14:30", "15:00"];
   let order: { id: string } | null = null;
   for (let attempt = 0; attempt < 25; attempt++) {
     const time = TIMES[Math.floor(Math.random() * TIMES.length)];
