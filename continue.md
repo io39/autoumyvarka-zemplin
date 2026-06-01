@@ -2,9 +2,9 @@
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
-**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Specs 12–15 are DONE +
-merged to `main`; spec 16 (Nová rezervácia 4-step wizard + Zmeniť-čas edit mode) is the
-next step — to be done BEFORE the production deploy.** It restructures + reskins the working app to the reference prototype
+**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Specs 12–16 are DONE +
+merged to `main`; spec 17 (Zákazníci merged master-detail) is the next step, then spec 18
+— to be done BEFORE the production deploy.** It restructures + reskins the working app to the reference prototype
 (`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action changes). After that:
 walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access) and the
 client's open questions. **Last updated:** 2026-06-01.
@@ -635,18 +635,47 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      switch via a request ref; `sr-only` `SheetDescription` for a11y; `BookingNotes` resync
      across orders — the Sheet reuses the component without remount) + nits (`cn()`, dialog
      confirm label).
-   - **Spec 16 — NEXT** (Nová rezervácia 4-step wizard + Zmeniť-čas edit mode, UI-STRUCTURE §8):
-     rebuild `/orders/new` (`components/orders/booking-form.tsx`) into a 4-step wizard
-     (Klient → Auto → Služby → Termín), **adds an in-flow client step** (today the flow
-     redirects to `/clients`) and a richer Termín step (Deň/3-dni, shared §4 date control,
-     quick slots + visual picker with MINULOSŤ overlay). Reuses `createOrder`/`suggestSlots`/
-     pricing — **no new mutations** (confirm if a step seems to need one). **Also adds edit
-     mode:** repoints spec-15's **`ChangeTimeDialog` "Zmeniť čas"** to open the wizard prefilled
-     (client/car locked) on step 3 → adjust services + pick a new slot → apply diff via
-     `moveOrder` + service add/remove. New client/car **persist**. **"Confirm in review" item:**
-     keep `components/orders/` (don't rename to `booking/`) — already confirmed for spec 15, but
-     re-confirm for the wizard files. Carry-over: rename the remaining "Nová objednávka" labels
-     in `client-detail.tsx`/`booking-form.tsx` to "Nová rezervácia" here (deferred from spec 14).
+   - **Spec 16 — DONE + merged to `main`** (commit `feat: implement spec 16 (Nová rezervácia
+     4-step wizard + Zmeniť-čas edit mode)` `8c6452f`, merged via `2498202`; branch deleted;
+     push from your own terminal). Replaced `booking-form.tsx` (**deleted**) with a **4-step
+     wizard** in `components/orders/wizard/`: `BookingWizard.tsx` (create + edit state machine),
+     `BookingStepper`, `WizardActions`, `Step1Client` (spec-02 `searchClients` + new-client
+     `createClient` dialog), `Step2Car` (cars + new-car `addCarToClient` dialog, shared-ŠPZ
+     `linkExistingCar`), `Step3Services` (Hlavné/Doplnkové `ServiceGroup` + Σ-min/Σ-€ +
+     create-only override), `Step4TimeSlot` (Deň/3-dni date control + **Calendar popover** + ◀▶
+     + DNES/Späť na dnes; per-day×box **free-slot picker** from `suggestSlots` `limit:48`, past
+     slots greyed = MINULOSŤ; **box implicit** in the pick; `data-free-slot` attr — note
+     `data-slot` collides with shadcn). Pure `lib/orders/booking.ts`
+     (`resolveSelectionLines`/`totalDurationMin`/`totalPriceCents`/`finishHHMM`) + unit tests;
+     `addDays` added to `lib/calendar/grid.ts`. `app/orders/new/page.tsx` **dropped the
+     `/clients` redirect**; `?clientId=` prefills → step 2. **Edit mode:** new
+     `app/orders/[id]/edit/page.tsx` (manager-gated) mounts the wizard with client/car **locked**,
+     opens step 3; finish **applies the diff** (service `addOrderService`/`removeOrderService` +
+     `moveOrder`, slot move only if changed so keeping the time isn't a self-conflict; on
+     mid-diff failure `router.refresh()` re-syncs `originalLines`). `OrderDetailBody` "Zmeniť čas"
+     is now a **`<Link>` to the edit route** (deleted `ChangeTimeDialog`). **No Server-Action/
+     schema/authz changes** — create/availability actions reused as-is. `client-detail` "Nová
+     objednávka" → **"Nová rezervácia"** (deferred from spec 14). **Confirm-in-review: kept
+     `components/orders/`** (user-confirmed). The wizard picker **pre-filters** free/open slots,
+     so the old "pick a bad slot → server rejects" e2e is UI-prevented: `orders-create-and-conflict`
+     was rewritten to assert the **exclusion** (occupied box+time not offered); `createOrder`'s
+     conflict/hours checks remain the backstop. e2e: new `booking-wizard.spec.ts` (5: create flow,
+     new-client, prefill→step2, edit move+service, prevádzka 403 on edit); migrated
+     `audit-coverage` create step + `order-move-delete` (dropped dialog move, kept delete) +
+     `order-role-permissions` + `calendar-sheet` (Zmeniť čas now a link); shared
+     `pickAFreeSlot`/`wizardGoToDate`/`seedClientWithCar` in `support.ts`. **159 unit + 92 e2e
+     pass on a clean `pnpm supabase db reset`.** §4.3 ✓ (no `/clients` redirect). Code-reviewer:
+     **2 blockers + 4 should-fix + nits, all applied + verified** — edit apply-diff re-sync,
+     override hidden in edit (it wasn't persisted), `Ďalej` gated on pending, 3-day `coversToday`,
+     clear `picked` on service-change in edit, lock client step in edit, a11y labels.
+     ⚠️ Edit apply-diff is **non-transactional** (several actions); on mid-diff failure it
+     re-syncs and the manager retries — documented in `BookingWizard.submit()`.
+   - **Spec 17 — NEXT** (Zákazníci merged master-detail, UI-STRUCTURE §9): merge search + detail
+     into one `/clients?id=` master-detail page; keep `/clients/[id]` as a **redirect**.
+     Restructure the detail to §9: Klient blok (Nová rezervácia / +auto / Upraviť), per-car
+     **accordion** history with **Poradie**, expanded-order Pracovníci/Poznámka/box/€, row →
+     `/orders/[id]`. **No client/car/history action changes; no invented car fields.** New shadcn
+     primitive: `accordion`. Depends on 13/15/16. No "confirm in review" item flagged for 17.
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server
