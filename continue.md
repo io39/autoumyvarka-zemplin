@@ -670,6 +670,25 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      clear `picked` on service-change in edit, lock client step in edit, a11y labels.
      ⚠️ Edit apply-diff is **non-transactional** (several actions); on mid-diff failure it
      re-syncs and the manager retries — documented in `BookingWizard.submit()`.
+     - **Follow-up (merged to `main`): interactive day-grid Termín picker** (commit
+       `feat: interactive day-grid slot picker in the booking wizard (step 4)` `a37593e`,
+       merged `22dd41f`). Replaced step 4's flat free-slot buttons with a **calendar grid**:
+       occupied bookings as colored read-only blocks, free time as dashed-green **VOĽNÉ**
+       zones, **click a box column → snaps to a 15-min start** (picks if the duration fits;
+       hover ghost + selection bar), **MINULOSŤ** past-greying, closed-hours greying. **Deň**
+       = 2 boxes side-by-side + shared time axis; **3 dni** = 3 days × 2 boxes on one axis;
+       nearest-free **quick-slots** above each box (also the keyboard/AT path; Enter/Space on
+       a column picks the nearest free). New pure `lib/orders/slot-grid.ts`
+       (`computeFreeZones`/`fitsAt`/`validStarts`/`nearestFreeStarts`/`offsetToStartMin`) +
+       unit tests. `Step4TimeSlot` fetches `getCalendar` per visible day + `getDayOverrides`;
+       weekly **`hours`** threaded from `/orders/new` + `/orders/[id]/edit` (`getOpeningHours`)
+       through `BookingWizard`. Grid range = union of open intervals AND all booking extents;
+       columns `overflow-hidden`. Edit mode passes `excludeOrderId` so the order's own slot is
+       pickable (dashed outline, excluded from busy + the rendered block/count). **No
+       Server-Action/schema/authz changes** — reads reused. Pages widened to `max-w-4xl`. e2e:
+       `pickAFreeSlot` clicks a `[data-quick-slot]`; `wizardGoToDate` navigates until the
+       target `[data-day]` column appears (race fix). **166 unit + 92 e2e** on a clean reset;
+       both views screenshot-verified vs the reference images.
    - **Spec 17 — NEXT** (Zákazníci merged master-detail, UI-STRUCTURE §9): merge search + detail
      into one `/clients?id=` master-detail page; keep `/clients/[id]` as a **redirect**.
      Restructure the detail to §9: Klient blok (Nová rezervácia / +auto / Upraviť), per-car
