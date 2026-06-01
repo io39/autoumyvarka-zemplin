@@ -6,33 +6,10 @@ import {
   serviceClient,
 } from "./support";
 
-test.describe("manager — move + delete", () => {
+// Moving an order now happens through the wizard edit flow (spec 16); that is
+// covered in booking-wizard.spec.ts. This suite keeps the delete coverage.
+test.describe("manager — delete", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
-
-  test("moveOrder into an occupied box/time → rejected; free slot → succeeds", async ({
-    page,
-  }) => {
-    const occupied = await seedOrder({ box: 1, time: "11:00" });
-    const target = await seedOrder({ box: 2, date: occupied.date, time: "14:00" });
-
-    await page.goto(`/orders/${target.orderId}`);
-
-    // Move target into Box 1 at occupied's time → conflict.
-    await page.getByRole("button", { name: "Zmeniť čas" }).click();
-    await page.locator("#move-date").fill(occupied.date);
-    await page.locator("#move-time").fill("11:00");
-    await page.locator("#move-box").click();
-    await page.getByRole("option", { name: "Box 1" }).click();
-    await page.getByRole("button", { name: "Uložiť", exact: true }).click();
-    await expect(page.getByText("Termín v tomto boxe je obsadený.")).toBeVisible();
-
-    // Move target to Box 2 at 15:30 (free, open) → success.
-    await page.getByRole("button", { name: "Zmeniť čas" }).click();
-    await page.locator("#move-date").fill(occupied.date);
-    await page.locator("#move-time").fill("15:30");
-    await page.getByRole("button", { name: "Uložiť", exact: true }).click();
-    await expect(page.getByText("Termín presunutý.")).toBeVisible();
-  });
 
   test("deleteOrder rejected on zaplatena; soft-deletes a pre-paid order; audit recorded", async ({
     page,

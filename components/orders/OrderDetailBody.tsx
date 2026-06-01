@@ -1,12 +1,12 @@
 "use client";
 
 import { useTransition } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   addOrderService,
   addOrderWorker,
   deleteOrder,
-  moveOrder,
   removeOrderService,
   removeOrderWorker,
   setNote,
@@ -19,6 +19,7 @@ import type { ServiceWithPrices } from "@/lib/actions/services";
 import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
 import type { OrderStatus, SmsMessageRow, StaffRole, WorkerRow } from "@/lib/supabase/types";
 import { STATE_LABEL } from "@/types";
+import { Button } from "@/components/ui/button";
 import { BookingStatusBadge } from "./sections/BookingStatusBadge";
 import { BookingStatusActions } from "./sections/BookingStatusActions";
 import { BookingClientCard } from "./sections/BookingClientCard";
@@ -27,7 +28,6 @@ import { BookingServicesList } from "./sections/BookingServicesList";
 import { BookingWorkerCard } from "./sections/BookingWorkerCard";
 import { BookingNotes } from "./sections/BookingNotes";
 import { SmsStatusCard } from "./sections/SmsStatusCard";
-import { ChangeTimeDialog } from "./sections/ChangeTimeDialog";
 import { DeleteOrderDialog } from "./sections/DeleteOrderDialog";
 
 type WorkerLite = Pick<WorkerRow, "id" | "display_name" | "active">;
@@ -91,20 +91,13 @@ export function OrderDetailBody({
         </span>
       </div>
 
-      {/* §7 #3 Akcie (manager): Zmeniť čas (left) / Zmazať (right) */}
+      {/* §7 #3 Akcie (manager): Zmeniť čas (left) / Zmazať (right). Zmeniť čas
+          opens the wizard edit flow (spec 16 §2.9). */}
       {isManager && (
         <section className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
-          <ChangeTimeDialog
-            box={order.box}
-            startDate={dateKey}
-            startTime={startHHMM}
-            pending={pending}
-            onMove={(box, startsAtIso) =>
-              call("Termín presunutý.", () =>
-                moveOrder({ id: order.id, box, startsAt: startsAtIso }),
-              )
-            }
-          />
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/orders/${order.id}/edit`}>Zmeniť čas</Link>
+          </Button>
           <DeleteOrderDialog
             disabled={order.status === "zaplatena" || pending}
             pending={pending}

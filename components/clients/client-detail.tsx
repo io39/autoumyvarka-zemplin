@@ -75,7 +75,7 @@ export function ClientDetail({
             {cars.length > 0 && (
               <Button size="sm" asChild>
                 <Link href={`/orders/new?clientId=${client.id}`}>
-                  Nová objednávka
+                  Nová rezervácia
                 </Link>
               </Button>
             )}

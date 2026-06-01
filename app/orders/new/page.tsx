@@ -1,47 +1,63 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentStaff } from "@/lib/auth/session";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { listServices } from "@/lib/actions/services";
 import { getClientWithCars } from "@/lib/actions/clients";
-import { BookingForm } from "@/components/orders/booking-form";
+import { todayKey } from "@/lib/calendar/today";
+import { BookingWizard } from "@/components/orders/wizard/BookingWizard";
+import type { CarRow, ClientRow } from "@/lib/supabase/types";
 
 export default async function NewOrderPage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string; carId?: string; date?: string }>;
+  searchParams: Promise<{ clientId?: string; carId?: string }>;
 }) {
   try {
-    await getCurrentStaff();
+    await getCurrentStaff(); // both roles may create
   } catch (error) {
     if (isUnauthenticatedError(error)) return <UnauthenticatedView />;
     throw error;
   }
 
   const params = await searchParams;
-  // Without a client preselected, send the user to the clients page to
-  // find/create one. Reusing the spec-02 flow avoids duplicating the
-  // unified phone/name/ŠPZ search here.
-  if (!params.clientId) {
-    redirect("/clients?return=/orders/new");
-  }
+  const services = await listServices({ includeInactive: false });
 
-  const [clientData, services] = await Promise.all([
-    getClientWithCars(params.clientId),
-    listServices({ includeInactive: false }),
-  ]);
-  if (!clientData) {
-    redirect("/clients?return=/orders/new");
+  // Optional client prefill (from a client detail page) → start at step 2 (Auto).
+  let client: ClientRow | null = null;
+  let cars: CarRow[] = [];
+  let carId: string | null = null;
+  let step = 0;
+  if (params.clientId) {
+    const data = await getClientWithCars(params.clientId);
+    if (data) {
+      client = data.client;
+      cars = data.cars;
+      carId = params.carId && data.cars.some((c) => c.id === params.carId) ? params.carId : null;
+      step = 1;
+    }
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <BookingForm
-        client={clientData.client}
-        cars={clientData.cars}
+      <header className="space-y-1">
+        <Link href="/" className="text-sm underline underline-offset-4">
+          ← Späť na kalendár
+        </Link>
+        <h1 className="text-xl font-semibold">Nová rezervácia</h1>
+      </header>
+      <BookingWizard
+        mode="create"
         services={services}
-        preselectedCarId={params.carId}
-        date={params.date}
+        initial={{
+          step,
+          client,
+          cars,
+          carId,
+          selections: [],
+          date: todayKey(new Date()),
+          picked: null,
+        }}
       />
     </div>
   );
