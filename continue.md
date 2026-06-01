@@ -2,11 +2,12 @@
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
-**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/` — to be done BEFORE the
+**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Spec 12 is DONE + merged
+to `main`; spec 13 (theme reskin) is the next step — to be done BEFORE the
 production deploy.** It restructures + reskins the working app to the reference prototype
 (`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action changes). After that:
 walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access) and the
-client's open questions. **Last updated:** 2026-05-31.
+client's open questions. **Last updated:** 2026-06-01.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -514,9 +515,39 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
    **merged to `main` locally** (push from your own terminal — pushing is hook-blocked
    here). The `feat/spec-11-accounts-workers` branch was merged then deleted.
 
-2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — DO THIS NEXT, before deploy.**
+2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — IN PROGRESS, before deploy.**
    Restructure + reskin the working app to the reference prototype (`docs/UI-STRUCTURE.md`).
-   All seven specs are written; **none implemented yet.**
+   All seven specs are written. **Spec 12 DONE; specs 13–18 not implemented yet.**
+
+   - **Spec 12 — DONE + merged to `main`** (commit `feat: implement spec 12 (app shell &
+     navigation)` `6e4ef89`, merged via `284a60c`; branch `feat/spec-12-app-shell` deleted;
+     push from your own terminal — hook-blocked here). Replaced the `/menu` hub with a
+     persistent shell: 240px desktop `components/navigation/Sidebar.tsx` + mobile
+     `BottomNav.tsx`, both driven by `components/navigation/navItems.ts` (PREVÁDZKA =
+     Kalendár/Nová rezervácia/Zákazníci for all roles, confirmed icons Calendar/CalendarPlus/
+     Users; SPRÁVA = staff/services/hours/sms-templates/audit behind a manager-only `Settings`
+     burger → shadcn `dropdown-menu`, opens upward on mobile). `AppShell.tsx` (server) resolves
+     `getCurrentStaff()` → full shell or **chrome-less passthrough** (no-identity → 401 stays
+     full-screen). `getCurrentStaff` wrapped in React **`cache()`** (shell+page share one actor
+     lookup/request — load-bearing for the single-`<main>` invariant). Shell owns the single
+     `<main>`; **container sweep** stripped every page's own `<main>`/outer padding → inner
+     `max-w-* div`. **`ForbiddenView` no longer emits its own `<main>`** (a worker on a
+     manager-only page resolves an identity, so the 403 renders *inside* the shell — keeps one
+     `<main>`, lets them navigate away; `UnauthenticatedView` keeps its `<main>` since it only
+     appears in the passthrough). Deleted `app/menu/page.tsx` + all 4 `/menu` links. New e2e
+     `tests/e2e/navigation.spec.ts` (8 tests: role gating, SPRÁVA burger nav, active-link,
+     single-`<main>` incl. the worker-403 case, no-identity passthrough). Verified:
+     `pnpm typecheck`/`lint`/`build` ✓, 143 unit ✓, navigation e2e 8/8 ✓, §4.2 greps ✓
+     (0 own `<main>`, 0 `/menu` refs). Code-reviewer: 1 blocker (nested `<main>` on worker-403
+     — fixed) + 1 should-fix (sm-range bottom-nav clearance) + 3 nits (distinct nav landmark
+     labels Bočná/Spodná, removed redundant `aria-label`s, `min-h-dvh`) — **all applied.**
+     ⚠️ The full e2e run flaked on `shared-spz`/`clients-search` (the **pre-existing trigram-
+     search flake** — fail/fail/pass in isolation; untouched code, only `<main>`→`<div>` on
+     `/clients`). Not a spec-12 regression.
+   - **Spec 13 — NEXT** (theme reskin: Nova preset tokens + Plus Jakarta Sans/JetBrains Mono,
+     light+dark wired, consolidate `STATE_COLOR`+`STATE_LABEL` into `types/index.ts`, retire
+     `lib/orders/colors.ts`). Confirm the rules below first; no "confirm in review" item is
+     specific to 13 (the dark-mode activation toggle is **deferred** — keep dark wired, no switch).
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server
