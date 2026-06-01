@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getIdentity } from "./identity";
 import { UnauthenticatedError } from "./errors";
 import { getServiceClient } from "@/lib/supabase/server";
@@ -31,8 +32,13 @@ function applyDevRoleOverride(role: StaffRole, source: "header" | "dev"): StaffR
 /**
  * Map the edge identity to an ACTIVE staff row → the current actor. Throws
  * UnauthenticatedError if the identity maps to no active staff member.
+ *
+ * Wrapped in React `cache()` so the app shell and the page it renders share a
+ * single DB lookup per request (both resolve the actor — without this they'd
+ * each hit the staff table). Cache is per-request, so it never leaks an actor
+ * across requests or Server Action invocations.
  */
-export async function getCurrentStaff(): Promise<CurrentStaff> {
+export const getCurrentStaff = cache(async (): Promise<CurrentStaff> => {
   const { email, source } = await getIdentity();
 
   const { data, error } = await getServiceClient()
@@ -51,4 +57,4 @@ export async function getCurrentStaff(): Promise<CurrentStaff> {
     role: applyDevRoleOverride(data.role, source),
     display_name: data.display_name,
   };
-}
+});

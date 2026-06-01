@@ -25,13 +25,13 @@ export default async function ClientDetailPage({
   if (!detail) notFound();
 
   return (
-    <main className="mx-auto max-w-2xl p-4 sm:p-6">
+    <div className="mx-auto max-w-2xl">
       <ClientDetail
         client={detail.client}
         cars={detail.cars.map((c) => c.car)}
         histories={detail.cars}
         role={role}
       />
-    </main>
+    </div>
   );
 }

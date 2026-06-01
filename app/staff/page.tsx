@@ -22,9 +22,9 @@ export default async function StaffPage() {
   const [staff, workers] = await Promise.all([listStaff(), listWorkers()]);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-10 p-4 sm:p-6">
+    <div className="mx-auto max-w-3xl space-y-10">
       <StaffManager initialStaff={staff} currentStaffId={currentStaffId} />
       <WorkerManager initialWorkers={workers} />
-    </main>
+    </div>
   );
 }

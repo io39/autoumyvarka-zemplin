@@ -25,8 +25,8 @@ export default async function ServiceDetailPage({
   if (!data) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl p-4 sm:p-6">
+    <div className="mx-auto max-w-3xl">
       <ServiceEditor service={data.service} prices={data.prices} />
-    </main>
+    </div>
   );
 }

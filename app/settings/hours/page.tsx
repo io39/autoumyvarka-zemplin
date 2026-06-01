@@ -18,8 +18,8 @@ export default async function OpeningHoursPage() {
   const hours = await getOpeningHours();
 
   return (
-    <main className="mx-auto max-w-2xl p-4 sm:p-6">
+    <div className="mx-auto max-w-2xl">
       <OpeningHoursEditor initialHours={hours} />
-    </main>
+    </div>
   );
 }

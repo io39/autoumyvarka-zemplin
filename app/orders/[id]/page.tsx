@@ -34,7 +34,7 @@ export default async function OrderPage({
   if (workerErr) throw workerErr;
 
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-3 sm:p-6">
+    <div className="mx-auto max-w-3xl space-y-4">
       <OrderDetailView
         role={staff.role}
         detail={detail}
@@ -42,6 +42,6 @@ export default async function OrderPage({
         services={services}
         sms={sms}
       />
-    </main>
+    </div>
   );
 }

@@ -30,12 +30,12 @@ export default async function AuditPage({
   const initial = await getAuditLog(orderId ? { orderId } : {});
 
   return (
-    <main className="mx-auto max-w-4xl p-4 sm:p-6">
+    <div className="mx-auto max-w-4xl">
       <AuditView
         initialEntries={initial.entries}
         initialCursor={initial.nextCursor}
         orderId={orderId}
       />
-    </main>
+    </div>
   );
 }

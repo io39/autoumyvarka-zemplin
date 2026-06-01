@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/sonner";
+import { AppShell } from "@/components/navigation/AppShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,8 +15,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="sk">
-      <body className="min-h-svh antialiased">
-        {children}
+      <body className="min-h-dvh antialiased">
+        <AppShell>{children}</AppShell>
         <Toaster />
       </body>
     </html>

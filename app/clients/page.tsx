@@ -12,8 +12,8 @@ export default async function ClientsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-4 sm:p-6">
+    <div className="mx-auto max-w-2xl">
       <ClientSearch />
-    </main>
+    </div>
   );
 }

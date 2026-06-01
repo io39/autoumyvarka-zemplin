@@ -21,13 +21,13 @@ export default async function UnpaidPage() {
   const realtimeJwt = await mintRealtimeToken(identity);
 
   return (
-    <main className="mx-auto max-w-3xl p-4 sm:p-6">
+    <div className="mx-auto max-w-3xl">
       <UnpaidList
         initialOrders={initial.orders}
         initialOverdueCount={initial.overdueCount}
         initialTodayCount={initial.todayCount}
         realtimeJwt={realtimeJwt}
       />
-    </main>
+    </div>
   );
 }
