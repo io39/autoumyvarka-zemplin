@@ -2,47 +2,23 @@ import { getCurrentStaff } from "@/lib/auth/session";
 import { getIdentity } from "@/lib/auth/identity";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
-import { Calendar } from "@/components/calendar/calendar";
+import { CalendarView } from "@/components/calendar/CalendarView";
 import { getCalendar, getUnpaidCount } from "@/lib/actions/orders";
 import { getOpeningHours, getDayOverrides } from "@/lib/actions/settings";
 import { mintRealtimeToken } from "@/lib/realtime/token";
-import { Badge } from "@/components/ui/badge";
-import { UnpaidBadge } from "@/components/unpaid/unpaid-badge";
-
-const ROLE_LABEL: Record<string, string> = {
-  manazer: "Manažér",
-  prevadzka: "Prevádzka",
-};
-
-function todayBratislava(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(
-    new Date(),
-  );
-}
+import { weekRange } from "@/lib/calendar/grid";
+import { todayKey } from "@/lib/calendar/today";
+import type { CalendarView as ViewMode } from "@/lib/calendar/types";
 
 function normalizeDate(input: string | string[] | undefined): string {
   const v = Array.isArray(input) ? input[0] : input;
   if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-  return todayBratislava();
+  return todayKey(new Date());
 }
 
-function normalizeView(input: string | string[] | undefined): "day" | "week" {
+function normalizeView(input: string | string[] | undefined): ViewMode {
   const v = Array.isArray(input) ? input[0] : input;
   return v === "week" ? "week" : "day";
-}
-
-/** Monday-anchored 7-day key range for the week containing `dateKey`. */
-function weekRange(dateKey: string): { from: string; to: string } {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const probe = new Date(Date.UTC(y, m - 1, d, 12));
-  const dow = (probe.getUTCDay() + 6) % 7; // 0=Mon..6=Sun
-  const monday = new Date(probe);
-  monday.setUTCDate(monday.getUTCDate() - dow);
-  const sunday = new Date(monday);
-  sunday.setUTCDate(monday.getUTCDate() + 6);
-  const fmt = (d: Date) =>
-    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-  return { from: fmt(monday), to: fmt(sunday) };
 }
 
 export default async function HomePage({
@@ -75,29 +51,17 @@ export default async function HomePage({
   const unpaidCount = staff.role === "manazer" ? await getUnpaidCount() : 0;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-base font-medium">{staff.display_name}</h1>
-          <p className="text-xs text-muted-foreground">{staff.email}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {staff.role === "manazer" && (
-            <UnpaidBadge initialCount={unpaidCount} realtimeJwt={realtimeJwt} />
-          )}
-          <Badge variant={staff.role === "manazer" ? "default" : "secondary"}>
-            {ROLE_LABEL[staff.role] ?? staff.role}
-          </Badge>
-        </div>
-      </header>
-
-      <Calendar
+    <div className="mx-auto max-w-5xl">
+      <CalendarView
         initialBlocks={blocks}
         hours={hours}
         overrides={overrides}
         date={date}
         view={view}
         realtimeJwt={realtimeJwt}
+        staffName={staff.display_name}
+        role={staff.role}
+        unpaidCount={unpaidCount}
       />
     </div>
   );

@@ -97,6 +97,9 @@ calendar popup Sheet is spec 15).
 - Keep the existing **2-way** mobile box toggle: **Box 1 / Box 2** (`activeBox: 1 | 2`),
   **mobile only** (`sm:hidden`); desktop always renders both columns. Default **Box 1** (as
   today). Restyle to the new theme; no "Obe" option.
+  > **Deviation from `UI-STRUCTURE.md` §4** (which draws `Box 1 | Box 2 | Obe`): "Obe" is
+  > intentionally omitted — the existing 2-way toggle is sufficient and there is no
+  > "show both in one mobile column" layout. Desktop already shows both boxes.
 - Day view honors `activeBox`; desktop (`sm:+`) is unaffected (always both).
 
 ### 2.6 Header reconciliation with spec 12 (identity & unpaid)

@@ -6,7 +6,8 @@ test.describe("calendar — week view", () => {
 
   test("toggle shows 7 day cells and date links open each day", async ({ page }) => {
     await page.goto("/?view=week");
-    await expect(page.getByRole("heading", { name: "Kalendár" })).toBeVisible();
+    // Week view is active (the §4 header replaced the old "Kalendár" h1).
+    await expect(page.getByRole("button", { name: "Týždeň", exact: true })).toBeVisible();
 
     // Seven day cells should be present.
     const cells = page.locator("[data-day]");
