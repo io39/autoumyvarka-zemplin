@@ -19,8 +19,9 @@ test.describe("worker — role-gated controls on order detail", () => {
     await expect(
       page.locator('[data-section="note"]').getByRole("button"),
     ).toHaveCount(0);
+    // Zmeniť čas (now a link to the edit wizard) is manager-only.
     await expect(
-      page.getByRole("button", { name: "Zmeniť čas" }),
+      page.getByRole("link", { name: "Zmeniť čas" }),
     ).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Zrušiť objednávku" }),

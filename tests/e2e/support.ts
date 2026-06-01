@@ -417,3 +417,74 @@ export async function seedOrder(opts?: {
     endsAt: order.ends_at,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Booking-wizard helpers (spec 16)
+// ---------------------------------------------------------------------------
+
+/** Seed a searchable client with one "os" car directly in the DB. */
+export async function seedClientWithCar(): Promise<{
+  clientId: string;
+  carId: string;
+  phone: string;
+}> {
+  const db = serviceClient();
+  const phone = `+421${uniquePhone().slice(1)}`;
+  const { data: client } = await db
+    .from("clients")
+    .insert({ phone, name: `Wizard ${Date.now()}` })
+    .select("id")
+    .single();
+  const { data: car } = await db
+    .from("cars")
+    .insert({ spz: uniqueSpz("WZ"), pricing_category: "os" })
+    .select("id")
+    .single();
+  await db.from("client_cars").insert({ client_id: client!.id, car_id: car!.id });
+  return { clientId: client!.id, carId: car!.id, phone };
+}
+
+/** Bratislava-local today "YYYY-MM-DD". */
+export function bratislavaTodayKey(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(new Date());
+}
+
+function daysBetween(a: string, b: string): number {
+  const da = new Date(`${a}T12:00:00Z`).getTime();
+  const db = new Date(`${b}T12:00:00Z`).getTime();
+  return Math.round((db - da) / 86_400_000);
+}
+
+/** Step the wizard's date control forward (Deň view) to `target`. */
+export async function wizardGoToDate(page: Page, target: string): Promise<void> {
+  const steps = daysBetween(bratislavaTodayKey(), target);
+  for (let i = 0; i < steps; i++) {
+    await page.getByRole("button", { name: "Nasledujúci" }).click();
+  }
+  await expect(page.getByText("Načítavam voľné termíny…")).toHaveCount(0);
+}
+
+/**
+ * On wizard step 4: click the first selectable free, non-past, not-already-
+ * selected slot, advancing days until one is found. Returns the picked slot.
+ */
+export async function pickAFreeSlot(
+  page: Page,
+): Promise<{ date: string; box: number; localStart: string }> {
+  for (let i = 0; i < 10; i++) {
+    await expect(page.getByText("Načítavam voľné termíny…")).toHaveCount(0);
+    const slots = page.locator('[data-step="termin"] [data-free-slot]:not([data-past])');
+    const n = await slots.count();
+    for (let j = 0; j < n; j++) {
+      const s = slots.nth(j);
+      if ((await s.getAttribute("aria-pressed")) !== "true") {
+        const value = (await s.getAttribute("data-free-slot"))!; // "YYYY-MM-DD-box-HH:MM"
+        await s.click();
+        const m = value.match(/^(\d{4}-\d{2}-\d{2})-(\d)-(\d{2}:\d{2})$/)!;
+        return { date: m[1], box: Number(m[2]), localStart: m[3] };
+      }
+    }
+    await page.getByRole("button", { name: "Nasledujúci" }).click();
+  }
+  throw new Error("no free slot found within range");
+}

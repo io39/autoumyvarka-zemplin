@@ -20,7 +20,7 @@ test.describe("calendar order popup Sheet (manager)", () => {
     }
     // SMS empty state, and manager-only controls present.
     await expect(sheet.getByText("Žiadne SMS pre túto objednávku.")).toBeVisible();
-    await expect(sheet.getByRole("button", { name: "Zmeniť čas" })).toBeVisible();
+    await expect(sheet.getByRole("link", { name: "Zmeniť čas" })).toBeVisible();
     await expect(sheet.getByRole("button", { name: "Zrušiť objednávku" })).toBeVisible();
 
     // Closing the Sheet returns to the calendar.

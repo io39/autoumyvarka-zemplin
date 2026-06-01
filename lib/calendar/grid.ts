@@ -58,3 +58,11 @@ export function weekRange(dateKey: string): { from: string; to: string } {
   const keys = weekDateKeys(dateKey);
   return { from: keys[0], to: keys[6] };
 }
+
+/** Shift a "YYYY-MM-DD" key by `n` days (calendar-safe, no TZ drift). */
+export function addDays(dateKey: string, n: number): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const probe = new Date(Date.UTC(y, m - 1, d, 12));
+  probe.setUTCDate(probe.getUTCDate() + n);
+  return `${probe.getUTCFullYear()}-${pad(probe.getUTCMonth() + 1)}-${pad(probe.getUTCDate())}`;
+}

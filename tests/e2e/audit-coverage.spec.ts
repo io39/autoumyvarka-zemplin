@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import {
   accessHeaders,
   MANAGER_EMAIL,
-  nextWeekdayDate,
+  pickAFreeSlot,
   serviceClient,
   uniquePhone,
   uniqueSpz,
@@ -54,14 +54,14 @@ test.describe("audit coverage of order lifecycle (spec 09 §4.4)", () => {
       .eq("name", "Interiér Classic")
       .single();
 
-    const date = nextWeekdayDate();
-
-    // 1) Create the order through the booking form → order.create.
-    await page.goto(`/orders/new?clientId=${client!.id}&date=${date}`);
-    await page.locator("#date").fill(date);
-    await page.locator("#time").fill("14:00");
-    await page.locator(`[data-service-id="${service!.id}"]`).getByRole("checkbox").check();
-    await page.getByRole("button", { name: "Vytvoriť" }).click();
+    // 1) Create the order through the booking wizard → order.create.
+    await page.goto(`/orders/new?clientId=${client!.id}`);
+    await page.locator('[data-step="car"] [data-car-id]').first().click();
+    await page.getByRole("button", { name: "Ďalej" }).click();
+    await page.locator(`[data-step="services"] label[data-service-id="${service!.id}"]`).click();
+    await page.getByRole("button", { name: "Ďalej" }).click();
+    await pickAFreeSlot(page);
+    await page.getByRole("button", { name: "Vytvoriť rezerváciu" }).click();
     await page.waitForURL(/\/\?date=/);
     await expect(page.getByText("Objednávka vytvorená.")).toBeVisible();
 
