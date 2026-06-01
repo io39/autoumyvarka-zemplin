@@ -162,7 +162,12 @@ export function Step4TimeSlot({
     () => days.flatMap((day) => [{ day, box: 1 as const }, { day, box: 2 as const }]),
     [days],
   );
-  const colTemplate = `2.75rem repeat(${columns.length}, minmax(0, 1fr))`;
+  // Deň fills the width (2 boxes). 3 dni gives each of the 6 box-columns a wide
+  // minimum so they stay easy to tap on a phone and the grid side-scrolls.
+  const colTemplate =
+    view === "day"
+      ? "2.75rem repeat(2, minmax(0, 1fr))"
+      : `2.75rem repeat(${columns.length}, minmax(8.5rem, 1fr))`;
 
   return (
     <section className="space-y-4" data-step="termin">
