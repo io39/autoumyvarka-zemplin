@@ -2,9 +2,9 @@
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
-**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Spec 12 is DONE + merged
-to `main`; spec 13 (theme reskin) is the next step — to be done BEFORE the
-production deploy.** It restructures + reskins the working app to the reference prototype
+**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Specs 12 + 13 are DONE +
+merged to `main`; spec 14 (calendar header & controls) is the next step — to be done
+BEFORE the production deploy.** It restructures + reskins the working app to the reference prototype
 (`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action changes). After that:
 walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access) and the
 client's open questions. **Last updated:** 2026-06-01.
@@ -544,10 +544,40 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      ⚠️ The full e2e run flaked on `shared-spz`/`clients-search` (the **pre-existing trigram-
      search flake** — fail/fail/pass in isolation; untouched code, only `<main>`→`<div>` on
      `/clients`). Not a spec-12 regression.
-   - **Spec 13 — NEXT** (theme reskin: Nova preset tokens + Plus Jakarta Sans/JetBrains Mono,
-     light+dark wired, consolidate `STATE_COLOR`+`STATE_LABEL` into `types/index.ts`, retire
-     `lib/orders/colors.ts`). Confirm the rules below first; no "confirm in review" item is
-     specific to 13 (the dark-mode activation toggle is **deferred** — keep dark wired, no switch).
+   - **Spec 13 — DONE + merged to `main`** (commit `feat: implement spec 13 (theme reskin
+     — Nova preset, fonts, STATE_COLOR)` `638e141`, merged via `16220b6`; branch deleted;
+     push from your own terminal). New **`types/index.ts`** = single home for order-status
+     presentation: `STATE_LABEL` (Slovak) + `STATE_COLOR` (bg/border/text/badge per status,
+     **with `dark:` variants**), palette remapped vytvorená→red, hotová→orange, zaplatená→
+     green, nedostavil sa→gray. All 5 call sites migrated off the **deleted**
+     `lib/orders/colors.ts` (`STATUS_STYLE`): `calendar.tsx`, `order-detail.tsx`,
+     `client-detail.tsx` (its bespoke `HISTORY_STATUS_BADGE` folded into the shared source —
+     safe now that `STATE_COLOR.nedostavil_sa` is clean, no strike-through/opacity),
+     `lib/audit/labels.ts` (`statusLabel` → `STATE_LABEL[v] ?? v`). `globals.css`: `:root` +
+     `.dark` swapped to **neutral (Nova base) oklch** tokens (dark mode stays wired —
+     `.dark` block + `@custom-variant dark` kept; **activation toggle deferred**); fonts
+     mapped in `@theme inline` to **distinct `next/font` variables**
+     (`--font-plus-jakarta-sans`/`--font-jetbrains-mono`) to avoid a self-referential
+     `--font-sans: var(--font-sans)` cycle (code-review should-fix); body gets `font-sans`.
+     `layout.tsx`: **Plus Jakarta Sans + JetBrains Mono** via `next/font/google`
+     (`latin`+`latin-ext` for Slovak diacritics, `display: swap`), `suppressHydrationWarning`.
+     `components.json` `baseColor` slate→**neutral** (`style` left `new-york` — `base-nova`
+     isn't a CLI style value and has no runtime effect; Nova look comes from the tokens —
+     spec §2.3 fallback). Unit `tests/unit/types/state-color.test.ts` (4 keys, palette,
+     `dark:` variants). **147 unit + 80 e2e pass.** §4.2/4.3/4.4 acceptance ✓; served CSS
+     bundle carries the new palette + `font-family:var(--font-sans)`. Code-reviewer:
+     **0 blockers**, applied the font-cycle should-fix + a history-badge intent comment; the
+     `StateColor.badge` field is unused until spec 14's `StatusLegend` (intended). ⚠️ The full
+     e2e run flaked once on `clients-search` (pre-existing trigram-search flake, baseline-
+     confirmed) — not a spec-13 regression.
+   - **Spec 14 — NEXT** (calendar header & controls, UI-STRUCTURE §4): §4 header layout, a
+     shadcn `Calendar` **popover date-picker** (month+year) replacing the native date input,
+     a **`StatusLegend`** (first consumer of `STATE_COLOR.badge`), and the **mobile-only**
+     Box 1 / Box 2 toggle (no "Obe"). **Reconciles the spec-12 identity/unpaid header
+     leftovers** — identity in the sidebar on desktop, header on mobile (this is the spec-14
+     "confirm in review" item → confirm with the user first). Grid/Realtime unchanged;
+     block→`/orders/[id]` stays a link (the popup Sheet is spec 15). New shadcn primitives:
+     `calendar` + `popover`.
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server
