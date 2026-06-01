@@ -35,7 +35,7 @@ export default async function NewOrderPage({
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-4 p-3 sm:p-6">
+    <div className="mx-auto max-w-2xl space-y-4">
       <BookingForm
         client={clientData.client}
         cars={clientData.cars}
@@ -43,6 +43,6 @@ export default async function NewOrderPage({
         preselectedCarId={params.carId}
         date={params.date}
       />
-    </main>
+    </div>
   );
 }

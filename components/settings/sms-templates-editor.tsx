@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import { saveSmsTemplate } from "@/lib/actions/sms";
 import { SMS_TYPE_LABEL, smsSegmentCount, smsOverLimit } from "@/lib/sms/render";
@@ -39,9 +38,6 @@ export function SmsTemplatesEditor({ initial }: Props) {
 
   return (
     <div className="space-y-4">
-      <Link href="/menu" className="text-sm underline underline-offset-4">
-        ← Späť na menu
-      </Link>
       {types.map((type) => {
         const body = bodies[type];
         const segments = smsSegmentCount(body);

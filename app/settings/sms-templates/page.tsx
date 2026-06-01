@@ -18,7 +18,7 @@ export default async function SmsTemplatesPage() {
   const templates = await getSmsTemplates();
 
   return (
-    <main className="mx-auto max-w-2xl space-y-4 p-3 sm:p-6">
+    <div className="mx-auto max-w-2xl space-y-4">
       <header>
         <h1 className="text-xl font-semibold">SMS šablóny</h1>
         <p className="text-sm text-muted-foreground">
@@ -28,6 +28,6 @@ export default async function SmsTemplatesPage() {
         </p>
       </header>
       <SmsTemplatesEditor initial={templates} />
-    </main>
+    </div>
   );
 }

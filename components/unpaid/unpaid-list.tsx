@@ -63,12 +63,7 @@ export function UnpaidList({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Nezaplatené objednávky</h1>
-        <Link href="/menu" className="text-sm underline underline-offset-4">
-          Menu →
-        </Link>
-      </div>
+      <h1 className="text-xl font-semibold">Nezaplatené objednávky</h1>
 
       {overdueCount > 0 && (
         <div

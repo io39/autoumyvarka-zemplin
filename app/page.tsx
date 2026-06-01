@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getCurrentStaff } from "@/lib/auth/session";
 import { getIdentity } from "@/lib/auth/identity";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
@@ -76,7 +75,7 @@ export default async function HomePage({
   const unpaidCount = staff.role === "manazer" ? await getUnpaidCount() : 0;
 
   return (
-    <main className="mx-auto max-w-5xl space-y-4 p-3 sm:p-6">
+    <div className="mx-auto max-w-5xl space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-base font-medium">{staff.display_name}</h1>
@@ -89,9 +88,6 @@ export default async function HomePage({
           <Badge variant={staff.role === "manazer" ? "default" : "secondary"}>
             {ROLE_LABEL[staff.role] ?? staff.role}
           </Badge>
-          <Link href="/menu" className="text-sm underline underline-offset-4">
-            Menu
-          </Link>
         </div>
       </header>
 
@@ -103,6 +99,6 @@ export default async function HomePage({
         view={view}
         realtimeJwt={realtimeJwt}
       />
-    </main>
+    </div>
   );
 }

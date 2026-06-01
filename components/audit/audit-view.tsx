@@ -110,12 +110,7 @@ export function AuditView({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Záznam zmien</h1>
-        <Link href="/menu" className="text-sm underline underline-offset-4">
-          Menu →
-        </Link>
-      </div>
+      <h1 className="text-xl font-semibold">Záznam zmien</h1>
 
       {orderId && (
         <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
