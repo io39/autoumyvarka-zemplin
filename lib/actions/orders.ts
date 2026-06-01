@@ -17,9 +17,12 @@ import type {
   OrderServiceRow,
   OrderStaffRow,
   ServicePriceRow,
+  SmsMessageRow,
   WorkerRow,
 } from "@/lib/supabase/types";
 import { type ActionResult, toActionError } from "./result";
+import { listServices, type ServiceWithPrices } from "./services";
+import { getOrderSms } from "./sms";
 import {
   addOrderServiceSchema,
   createOrderSchema,
@@ -377,6 +380,41 @@ export async function getOrder(input: unknown): Promise<OrderDetail | null> {
     services: r.services ?? [],
     workers: r.workers ?? [],
   };
+}
+
+export interface OrderDetailBundle {
+  detail: OrderDetail;
+  allWorkers: Array<Pick<WorkerRow, "id" | "display_name" | "active">>;
+  services: ServiceWithPrices[];
+  sms: SmsMessageRow[];
+}
+
+/**
+ * Everything the order-detail cards render, in one client-callable read — used
+ * by the calendar popup Sheet (spec 15 §2.4). Composes the same reads the
+ * `/orders/[id]` page does server-side (`getOrder` + active workers +
+ * `listServices` + `getOrderSms`); `getOrder` already gates on `getCurrentStaff`.
+ * Returns null when the order is missing/cancelled (so the Sheet can show an
+ * inline error). Read-only — no mutation, no authz change.
+ */
+export async function getOrderDetailBundle(input: unknown): Promise<OrderDetailBundle | null> {
+  const { id } = getOrderSchema.parse(input);
+  const detail = await getOrder({ id });
+  if (!detail) return null;
+
+  const db = getServiceClient();
+  const [{ data: workerList, error: workerErr }, services, sms] = await Promise.all([
+    db
+      .from("workers")
+      .select("id, display_name, active")
+      .eq("active", true)
+      .order("display_name"),
+    listServices({ includeInactive: false }),
+    getOrderSms({ orderId: id }),
+  ]);
+  if (workerErr) throw workerErr;
+
+  return { detail, allWorkers: workerList ?? [], services, sms };
 }
 
 export async function setStatus(input: unknown): Promise<ActionResult> {
