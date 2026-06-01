@@ -1,14 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import type { CalendarBlock } from "@/lib/actions/orders";
 import { bratislavaHHMM } from "@/lib/settings/availability";
 import { ROW_PX, SLOT_MIN, diffMinutes } from "@/lib/calendar/grid";
 import { STATE_COLOR } from "@/types";
 import { Badge } from "@/components/ui/badge";
+import { useOpenOrderSheet } from "./order-sheet-context";
 
 /**
- * One order block on the calendar grid. Stays a `Link` to `/orders/[id]` — spec
- * 15 swaps it for the popup Sheet trigger. Behavior unchanged from the original
- * inline `Block`.
+ * One order block on the calendar grid. Clicking it opens the order popup Sheet
+ * (spec 15) via the calendar's `OpenOrderSheetContext`; if no provider is
+ * present it falls back to a `/orders/[id]` link.
  */
 export function BookingBlock({
   block,
@@ -19,6 +22,7 @@ export function BookingBlock({
   intervalOpen: string;
   compact?: boolean;
 }) {
+  const openOrder = useOpenOrderSheet();
   const start = new Date(block.order.starts_at);
   const end = new Date(block.order.ends_at);
   const startHHMM = bratislavaHHMM(start);
@@ -29,16 +33,14 @@ export function BookingBlock({
 
   const mainService = block.services.find((s) => !s.removed_at)?.name_snapshot ?? "—";
 
-  return (
-    <Link
-      href={`/orders/${block.order.id}`}
-      data-order-id={block.order.id}
-      className={`absolute left-1 right-1 rounded border px-1 py-0.5 text-xs transition-opacity hover:opacity-90 ${style.bg} ${style.border} ${style.text}`}
-      style={{
-        top: (offsetMin / SLOT_MIN) * ROW_PX,
-        height: (heightMin / SLOT_MIN) * ROW_PX - 2,
-      }}
-    >
+  const className = `absolute left-1 right-1 rounded border px-1 py-0.5 text-left text-xs transition-opacity hover:opacity-90 ${style.bg} ${style.border} ${style.text}`;
+  const positionStyle = {
+    top: (offsetMin / SLOT_MIN) * ROW_PX,
+    height: (heightMin / SLOT_MIN) * ROW_PX - 2,
+  };
+
+  const content = (
+    <>
       <div className="flex items-center justify-between gap-1">
         <span className="truncate font-medium">{block.car.spz}</span>
         {!compact && (
@@ -59,6 +61,31 @@ export function BookingBlock({
           <div className="truncate text-[11px]">{mainService}</div>
         </>
       )}
+    </>
+  );
+
+  if (openOrder) {
+    return (
+      <button
+        type="button"
+        data-order-id={block.order.id}
+        className={`block ${className}`}
+        style={positionStyle}
+        onClick={() => openOrder(block.order.id)}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={`/orders/${block.order.id}`}
+      data-order-id={block.order.id}
+      className={className}
+      style={positionStyle}
+    >
+      {content}
     </Link>
   );
 }

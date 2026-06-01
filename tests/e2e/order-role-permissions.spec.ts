@@ -20,7 +20,7 @@ test.describe("worker — role-gated controls on order detail", () => {
       page.locator('[data-section="note"]').getByRole("button"),
     ).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Presunúť termín" }),
+      page.getByRole("button", { name: "Zmeniť čas" }),
     ).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Zrušiť objednávku" }),

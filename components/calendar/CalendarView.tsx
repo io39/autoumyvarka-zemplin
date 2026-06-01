@@ -10,6 +10,8 @@ import { todayKey } from "@/lib/calendar/today";
 import type { CalendarView as ViewMode } from "@/lib/calendar/types";
 import { createBrowserRealtimeClient } from "@/lib/realtime/browser";
 import { Button } from "@/components/ui/button";
+import { BookingDetailSheet } from "@/components/orders/BookingDetailSheet";
+import { OpenOrderSheetContext } from "./order-sheet-context";
 import { CalendarHeader } from "./CalendarHeader";
 import { DateNav } from "./DateNav";
 import { StatusLegend } from "./StatusLegend";
@@ -51,6 +53,7 @@ export function CalendarView({
   const router = useRouter();
   const [blocks, setBlocks] = useState(initialBlocks);
   const [activeBox, setActiveBox] = useState<1 | 2>(1);
+  const [sheetOrderId, setSheetOrderId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Adopt the server's fresh blocks on navigation. Soft navigation keeps this
@@ -163,7 +166,8 @@ export function CalendarView({
   );
 
   return (
-    <div className="space-y-4">
+    <OpenOrderSheetContext.Provider value={setSheetOrderId}>
+      <div className="space-y-4">
       <CalendarHeader
         date={date}
         role={role}
@@ -223,6 +227,15 @@ export function CalendarView({
       {blocks.length === 0 && (
         <p className="text-sm text-muted-foreground">Žiadne objednávky.</p>
       )}
-    </div>
+      </div>
+
+      <BookingDetailSheet
+        orderId={sheetOrderId}
+        role={role}
+        onOpenChange={(o) => {
+          if (!o) setSheetOrderId(null);
+        }}
+      />
+    </OpenOrderSheetContext.Provider>
   );
 }
