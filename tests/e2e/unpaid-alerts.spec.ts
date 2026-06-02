@@ -17,9 +17,11 @@ test.describe("unpaid alerts — badge, list, live update (spec 10 §4.3)", () =
     const overdue = await seedDatedOrder({ date: bratislavaDateOffset(-2), status: "hotova" });
     const todayOrder = await seedDatedOrder({ date: bratislavaDateOffset(0), status: "hotova" });
 
-    // Home header badge is present for the manager (overdue count ≥ 1).
+    // The overdue badge is present for the manager (overdue count ≥ 1). The badge
+    // exists in two breakpoint slots (desktop sidebar + mobile calendar header);
+    // scope to the visible one for this desktop-viewport run.
     await page.goto("/");
-    const badge = page.locator("[data-unpaid-badge]");
+    const badge = page.locator("[data-unpaid-badge]:visible");
     await expect(badge).toBeVisible();
     expect(Number(await badge.getAttribute("data-count"))).toBeGreaterThanOrEqual(1);
 

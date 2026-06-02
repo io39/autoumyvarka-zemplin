@@ -11,10 +11,13 @@ export function BookingStepper({
   current,
   maxReached,
   onStepClick,
+  subtitles,
 }: {
   current: number;
   maxReached: number;
   onStepClick?: (index: number) => void;
+  /** Optional context line under a step label (e.g. selected client / car). */
+  subtitles?: (string | null | undefined)[];
 }) {
   return (
     <ol className="flex items-center gap-1" data-stepper aria-label="Postup rezervácie">
@@ -22,6 +25,7 @@ export function BookingStepper({
         const done = i < current;
         const active = i === current;
         const reachable = i <= maxReached;
+        const subtitle = subtitles?.[i];
         return (
           <li key={label} className="flex flex-1 items-center gap-1">
             <button
@@ -46,7 +50,14 @@ export function BookingStepper({
               >
                 {done ? <Check className="size-3.5" /> : i + 1}
               </span>
-              <span className="truncate">{label}</span>
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate">{label}</span>
+                {subtitle && (
+                  <span className="truncate text-xs font-normal text-muted-foreground">
+                    {subtitle}
+                  </span>
+                )}
+              </span>
             </button>
             {i < WIZARD_STEPS.length - 1 && <span className="text-muted-foreground/40">›</span>}
           </li>

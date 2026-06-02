@@ -27,7 +27,7 @@ export function BookingStatusActions({
 }) {
   const nextStatuses = allowedNextStatuses(status, role);
   return (
-    <section className="space-y-2 rounded-lg border p-3" data-section="status">
+    <section className="space-y-2 rounded-lg border p-4" data-section="status">
       <h2 className="text-sm font-medium">Stav</h2>
       <div className="flex flex-wrap items-center gap-2">
         {nextStatuses.length === 0 && (

@@ -43,7 +43,7 @@ export function BookingServicesList({
   const [selected, setSelected] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("1");
   return (
-    <section data-section="services" className="space-y-2 rounded-lg border p-3">
+    <section data-section="services" className="space-y-2 rounded-lg border p-4">
       <h2 className="text-sm font-medium">Služby</h2>
       <ul className="space-y-1 text-sm">
         {lines.length === 0 && <li className="text-muted-foreground">Žiadne služby.</li>}

@@ -7,6 +7,7 @@ import {
   createClient,
   type ClientSuggestion,
 } from "@/lib/actions/clients";
+import { normalizePhone } from "@/lib/clients/phone";
 import type { ClientRow } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +117,22 @@ function NewClientDialog({ onCreated }: { onCreated: (clientId: string) => void 
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [pending, start] = useTransition();
+  // Non-blocking duplicate-phone hint: the existing client's name, if any.
+  const [dupName, setDupName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const norm = normalizePhone(phone);
+      if (!norm) {
+        setDupName(null);
+        return;
+      }
+      const results = await searchClients({ query: phone });
+      const hit = results.find((r) => r.phone === norm);
+      setDupName(hit ? (hit.name ?? "bez mena") : null);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [phone]);
 
   function submit() {
     start(async () => {
@@ -155,6 +172,14 @@ function NewClientDialog({ onCreated }: { onCreated: (clientId: string) => void 
               onChange={(e) => setPhone(e.target.value)}
               placeholder="0905123456"
             />
+            {dupName && (
+              <p
+                data-dup-phone
+                className="rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+              >
+                Klient s týmto číslom už existuje — {dupName}. Po pridaní sa vyberie existujúci.
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <Label htmlFor="new-client-name">Meno (voliteľné)</Label>

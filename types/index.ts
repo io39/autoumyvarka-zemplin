@@ -1,4 +1,18 @@
-import type { OrderStatus } from "@/lib/supabase/types";
+import type { OrderStatus, PricingCategory } from "@/lib/supabase/types";
+
+/**
+ * Short vehicle-category codes shown next to the model on calendar/order cards.
+ * Full labels (Osobné, Dodávka…) live in the client UI; these are the compact
+ * badge forms (UI redesign — calendar card layout).
+ */
+export const CATEGORY_BADGE: Record<PricingCategory, string> = {
+  os: "OS",
+  suv: "SUV",
+  van: "VAN",
+  dod: "DOD",
+  motorka: "MOTO",
+  stavba: "STAV",
+};
 
 /**
  * Single home for order-status presentation (UI redesign spec 13, UI-STRUCTURE

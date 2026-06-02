@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const PROMINENT =
-  "rounded-lg border border-l-4 border-l-primary bg-muted/50 p-3 text-sm";
+  "rounded-lg border border-l-4 border-l-primary bg-muted/50 p-4 text-sm";
 
 /**
  * The order note (UI-STRUCTURE §7 #8, PRD §7). Stays prominent — a thick accent
@@ -37,7 +37,7 @@ export function BookingNotes({
     return (
       <section data-section="note" className={PROMINENT}>
         <div className="text-xs uppercase text-muted-foreground">Poznámka</div>
-        <p className="font-medium">
+        <p className="whitespace-pre-wrap break-words font-medium">
           {note?.trim() ? note : <span className="text-muted-foreground">—</span>}
         </p>
       </section>
@@ -85,7 +85,7 @@ export function BookingNotes({
           </div>
         </div>
       ) : (
-        <p className="font-medium">
+        <p className="whitespace-pre-wrap break-words font-medium">
           {note?.trim() ? note : <span className="text-muted-foreground">—</span>}
         </p>
       )}

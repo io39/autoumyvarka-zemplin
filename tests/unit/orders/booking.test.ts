@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  addonGroup,
   finishHHMM,
   resolveSelectionLines,
   totalDurationMin,
@@ -49,5 +50,14 @@ describe("booking wizard math (spec 16)", () => {
     expect(finishHHMM("09:00", 90)).toBe("10:30");
     expect(finishHHMM("23:30", 60)).toBe("00:30");
     expect(finishHHMM("09:00", 0)).toBe("");
+  });
+
+  it("addonGroup buckets add-ons by name prefix (with/without diacritics)", () => {
+    expect(addonGroup("Tepovanie sedadla")).toBe("tepovanie");
+    expect(addonGroup("tepovanie kufra")).toBe("tepovanie");
+    expect(addonGroup("Čistenie okien")).toBe("cistenie");
+    expect(addonGroup("cistenie motorovej casti")).toBe("cistenie");
+    expect(addonGroup("Voskovanie")).toBe("ostatne");
+    expect(addonGroup("")).toBe("ostatne");
   });
 });

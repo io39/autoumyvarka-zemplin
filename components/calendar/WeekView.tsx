@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { CalendarBlock } from "@/lib/actions/orders";
-import { bratislavaDateKey } from "@/lib/settings/availability";
+import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
 import { ROW_PX, SLOT_MIN, diffMinutes, pad, type Interval } from "@/lib/calendar/grid";
-import { BookingBlock } from "./BookingBlock";
+import { cn } from "@/lib/utils";
+import { BookingCard } from "./BookingCard";
 import { TimeAxis } from "./TimeAxis";
 
 const WEEKDAY_SHORT = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"];
@@ -97,7 +98,10 @@ function DayCell({
           {rows.map((t, i) => (
             <div
               key={t}
-              className="absolute left-0 right-0 border-t border-dashed"
+              className={cn(
+                "absolute left-0 right-0 border-t border-dashed border-muted-foreground/25",
+                (t.endsWith(":00") || t.endsWith(":30")) && "border-muted-foreground/40",
+              )}
               style={{ top: i * ROW_PX, height: ROW_PX }}
             />
           ))}
@@ -121,9 +125,24 @@ function DayCell({
           )}
           {blocks
             .filter((b) => b.order.box === box)
-            .map((b) => (
-              <BookingBlock key={b.order.id} block={b} intervalOpen={gridInterval.open} compact />
-            ))}
+            .map((b) => {
+              const startHHMM = bratislavaHHMM(new Date(b.order.starts_at));
+              const endHHMM = bratislavaHHMM(new Date(b.order.ends_at));
+              const offsetMin = diffMinutes(gridInterval.open, startHHMM);
+              const heightMin = Math.max(SLOT_MIN, diffMinutes(startHHMM, endHHMM));
+              return (
+                <BookingCard
+                  key={b.order.id}
+                  block={b}
+                  density="compact"
+                  className="absolute left-1 right-1 text-xs"
+                  style={{
+                    top: (offsetMin / SLOT_MIN) * ROW_PX,
+                    height: (heightMin / SLOT_MIN) * ROW_PX - 2,
+                  }}
+                />
+              );
+            })}
         </div>
       ))}
     </div>

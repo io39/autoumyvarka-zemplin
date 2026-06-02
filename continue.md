@@ -2,18 +2,18 @@
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
-**The UI redesign (specs 12–18 in `docs/ui-specs/`) is COMPLETE. Specs 12–17 are DONE +
-merged to `main` (spec 17 commit `aa50cc3` + merge `e471932`); spec 18 (SPRÁVA sections)
-is DONE on branch `feat/spec-18-sprava-sections` (commit `694b779`, NOT yet merged —
-push/merge from your own terminal).** Next up: the **walking-skeleton production deploy**
-(Supabase Cloud EU + VPS + Cloudflare Tunnel/Access), picking the real SMS provider, and
-the client's open questions. The redesign restructured + reskinned the working app to the
-reference prototype (`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action
-changes). **Last updated:** 2026-06-02.
+**The UI redesign (specs 12–18 in `docs/ui-specs/`) is COMPLETE and all merged to `main`.**
+**Spec 19 (calendar & booking refinements — `docs/ui-specs/19-…`) is DONE + committed to
+`main` locally** (push from your own terminal — pushing is hook-blocked here). Next up: the
+**walking-skeleton production deploy** (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access),
+picking the real SMS provider, and the client's open questions. The redesign restructured +
+reskinned the working app to the reference prototype (`docs/UI-STRUCTURE.md`); UI-layer only
+(spec 19 added one **read-only** additive field, `getClientWithCars.sharedCarIds`).
+**Last updated:** 2026-06-02.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
-(features 01–11), `docs/ui-specs/README.md` (redesign 12–18) + `docs/UI-STRUCTURE.md`.
+(features 01–11), `docs/ui-specs/README.md` (redesign 12–19) + `docs/UI-STRUCTURE.md`.
 
 ---
 
@@ -517,11 +517,11 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
    **merged to `main` locally** (push from your own terminal — pushing is hook-blocked
    here). The `feat/spec-11-accounts-workers` branch was merged then deleted.
 
-2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — COMPLETE.**
+2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — COMPLETE + all merged to `main`.**
    Restructure + reskin the working app to the reference prototype (`docs/UI-STRUCTURE.md`).
-   All seven specs are written and implemented. **Specs 12–17 DONE + merged to `main`;
-   spec 18 DONE on branch `feat/spec-18-sprava-sections` (commit `694b779`, awaiting your
-   merge).**
+   All seven specs written, implemented, and merged. **A follow-up — spec 19 (calendar &
+   booking refinements) — is DONE + committed to `main` locally** (see its entry below;
+   push from your own terminal).
 
    - **Spec 12 — DONE + merged to `main`** (commit `feat: implement spec 12 (app shell &
      navigation)` `6e4ef89`, merged via `284a60c`; branch `feat/spec-12-app-shell` deleted;
@@ -693,8 +693,7 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
        `pickAFreeSlot` clicks a `[data-quick-slot]`; `wizardGoToDate` navigates until the
        target `[data-day]` column appears (race fix). **166 unit + 92 e2e** on a clean reset;
        both views screenshot-verified vs the reference images.
-   - **Spec 17 — DONE on branch `feat/spec-17-clients-master-detail`** (commit `aa50cc3`;
-     **not yet merged — push/merge from your own terminal**, pushing is hook-blocked here).
+   - **Spec 17 — DONE + merged to `main`** (commit `aa50cc3`).
      Merged the client search page + detail into one **master-detail** `/clients?id=`:
      `app/clients/page.tsx` (server reads `searchParams.id` → `getClientWithHistory`, renders
      `ClientSearch` master + `ClientDetail` detail; side-by-side `sm:+`, stacked mobile; blank
@@ -728,8 +727,8 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      stacked). Code-reviewer: **0 blockers**; applied 3 should-fix (`aria-current` boolean,
      dropped the duplicate "Žiadne služby." in empty-car content, `hover:no-underline` on
      badge-bearing accordion triggers). No "confirm in review" item was flagged for 17.
-   - **Spec 18 — DONE on branch `feat/spec-18-sprava-sections`** (commit `694b779`;
-     **not yet merged — push/merge from your own terminal**). The last redesign spec:
+   - **Spec 18 — DONE + merged to `main`** (commit `694b779`, merge `6f136d4`). The last
+     redesign spec:
      restyle the manager-only SPRÁVA sections + three structural changes (UI-STRUCTURE
      §10/§11). **(1) Merged hours page** — `app/settings/hours/page.tsx` now `Promise.all`s
      `getOpeningHours` + `getDayOverrides` and renders `OpeningHoursEditor` (top) +
@@ -759,6 +758,44 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      screenshot-verified. Code-reviewer: **0 blockers**, 2 should-fix (single page `<h1>`
      applied; SMS task confirmed a no-op) + nits (accordion border on wrapper; precise test
      trigger selector). Acceptance §4.2 greps: exceptions redirect = 1, `/menu` links = 0. ✅
+   - **Spec 19 — DONE + committed to `main`** (post-redesign refinements;
+     `docs/ui-specs/19-calendar-and-booking-refinements.md`; push from your own terminal).
+     **Calendar:** axis labels only at `:00`/`:30` but **all** 15-min lines kept at higher
+     contrast (`/25` vs `/40`); `ROW_PX` compressed to **20**; new shared
+     **`components/calendar/BookingCard.tsx`** (densities **rich**/**compact**/**line**, +
+     `CATEGORY_BADGE` in `types/`) replacing the deleted `BookingBlock`; **`DayView` rewritten
+     to a single CSS grid** (`gridTemplateRows: auto repeat(N, minmax(ROW_PX, auto))`,
+     bookings as row-spanning grid items) so a single-slot card **grows its rows and pushes
+     the grid** while the axis stays aligned (Step-4 keeps a uniform grid — its click-to-pick
+     maps Y→time — and truncates instead). `WeekView` uses compact cards; `Step4TimeSlot`
+     occupied blocks use **line** density, the **3-day** grid no longer side-scrolls on
+     desktop (`useMediaQuery` → `minmax(0,1fr)`), and a box-header row shows `Box N` + the
+     reservation count (`skPlural`). The booking card shows time (2 rows, 20px) · `model –
+     services` (20px, one row, model semibold) · category badge · `Pozn: …` (20px) when set.
+     **Order-detail panel:** Sheet widened to `sm:max-w-lg xl:max-w-xl`, **full-height on
+     desktop** (dropped the `90dvh` cap that was cutting it off); shared `OrderDetailBody`
+     `space-y-5`, section cards `p-4`, `break-words` on client/car/notes — **section order
+     left unchanged** (user-confirmed). **Shell:** `CalendarHeader` is now **`md:hidden`**
+     (mobile-only); the manager **`UnpaidBadge` moved to the desktop `Sidebar`** above SPRÁVA
+     (`AppShell` mints the Realtime JWT + `getUnpaidCount` for managers and passes them in) —
+     the badge now lives in two breakpoint slots (mobile header / desktop sidebar), one
+     visible at a time. **Wizard:** live **non-blocking** duplicate-phone (Step 1) and
+     duplicate-vehicle (Step 2) hints (debounced `searchClients`, exact `normalizePhone` /
+     `normalizeSpz` match — submit stays enabled, the actions de-dupe/link); **zdieľané-auto**
+     badge on Step-2 car rows via **`getClientWithCars.sharedCarIds`** (one extra read-only
+     query — additive, like spec 17; threaded through `/orders/new` + `/orders/[id]/edit` +
+     `BookingWizard`); **Doplnkové** wrapped in a shadcn `Accordion` (**collapsed by default**,
+     force-open + `N vybraté` badge when any add-on selected) with **Tepovanie/Čistenie/
+     Ostatné** sub-headers via the pure `addonGroup` helper (`lib/orders/booking.ts`, name-
+     prefix heuristic, unit-tested); `BookingStepper` shows the **client name** under Klient
+     and **car brand** under Auto. **170 unit + e2e green** (`calendar-header`,
+     `calendar-sheet`, `calendar-week-view`, `navigation`, `unpaid-*`, `booking-wizard`, order
+     suites) on a clean `pnpm supabase db reset`; typecheck/lint/build clean. E2e touched:
+     `unpaid-alerts` badge locator scoped to `:visible`; `calendar-header` "Nová rezervácia"
+     assertion repointed to the sidebar nav (the header button was already commented out).
+     **Gotcha learned:** keep `pnpm dev` stopped during e2e — Playwright `reuseExistingServer`
+     reuses port 3000, and a dev server's HMR websocket fails in the sandbox and **blocks
+     hydration** (interaction tests then fail spuriously).
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server

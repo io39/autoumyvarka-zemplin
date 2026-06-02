@@ -23,6 +23,7 @@ sections (biggest visible change, lowest risk, first — `UI-STRUCTURE.md` §14)
 | 16 | [Nová rezervácia — 4-step wizard (+ Zmeniť-čas edit mode)](./16-new-reservation-wizard.md) | ✅ | §8 | 13, 14, 15 |
 | 17 | [Zákazníci — merged master-detail (`?id=`)](./17-clients-master-detail.md) | ✅ | §9 | 13, 15, 16 |
 | 18 | [SPRÁVA sections — restyle + hours merge + services accordions](./18-sprava-sections.md) | ✅ | §10 | 12, 13, 17 |
+| 19 | [Calendar & booking refinements](./19-calendar-and-booking-refinements.md) | ✅ | §4, §7, §8 | 14, 15, 16 |
 
 ---
 
@@ -80,3 +81,14 @@ in accordions (primitive from spec 17); **merge** opening-hours + výnimky onto
 `/settings/hours` (`/settings/exceptions` → redirect); switch audit pagination from infinite
 "load more" to **◀ ▶ paged navigation** (reusing the existing keyset cursor + a client cursor
 stack). (`/menu` links are all removed in spec 12, not here.)
+
+### 19 — Calendar & booking refinements
+Post-redesign usability pass. Calendar: 30-min axis labels + all 15-min lines at higher
+contrast, compressed `ROW_PX`, a shared `BookingCard` (rich/compact/line) and a **CSS-grid
+Day view with dynamic per-card height** (single-slot cards grow + push the grid, axis stays
+aligned); Step-4 3-day fits desktop without scroll + box-header counts. Order-detail Sheet
+widened (`xl:max-w-xl`, full-height) + more spacing/wrapping (section order unchanged).
+Shell: calendar header is mobile-only, the **unpaid badge moves to the desktop sidebar**.
+Wizard: live non-blocking **duplicate phone/vehicle** hints, **zdieľané-auto** badge on
+Step-2 cars (`getClientWithCars.sharedCarIds`, read-only), **Doplnkové accordion** with
+Tepovanie/Čistenie/Ostatné sub-headers, and stepper subtitles (client / car).

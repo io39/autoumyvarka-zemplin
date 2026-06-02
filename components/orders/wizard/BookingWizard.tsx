@@ -43,6 +43,7 @@ export interface BookingWizardProps {
     step: number;
     client: ClientRow | null;
     cars: CarRow[];
+    sharedCarIds: string[];
     carId: string | null;
     selections: Selection[];
     date: string;
@@ -65,6 +66,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
   const [maxReached, setMaxReached] = useState(initial.step);
   const [client, setClient] = useState<ClientRow | null>(initial.client);
   const [cars, setCars] = useState<CarRow[]>(initial.cars);
+  const [sharedCarIds, setSharedCarIds] = useState<string[]>(initial.sharedCarIds);
   const [carId, setCarId] = useState<string | null>(initial.carId);
   const [selections, setSelections] = useState<Selection[]>(initial.selections);
   const [overrideMin, setOverrideMin] = useState("");
@@ -95,6 +97,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
       }
       setClient(data.client);
       setCars(data.cars);
+      setSharedCarIds(data.sharedCarIds);
       setCarId(null);
       goTo(1);
     });
@@ -104,7 +107,10 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
     start(async () => {
       if (!client) return;
       const data = await getClientWithCars(client.id);
-      if (data) setCars(data.cars);
+      if (data) {
+        setCars(data.cars);
+        setSharedCarIds(data.sharedCarIds);
+      }
       setCarId(newCarId);
     });
   }
@@ -207,7 +213,18 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
 
   return (
     <div className="space-y-4">
-      <BookingStepper current={step} maxReached={maxReached} onStepClick={(i) => setStep(i)} />
+      <BookingStepper
+        current={step}
+        maxReached={maxReached}
+        onStepClick={(i) => setStep(i)}
+        subtitles={[
+          client?.name ?? undefined,
+          (() => {
+            const c = cars.find((x) => x.id === carId);
+            return c ? (c.model ?? c.spz) : undefined;
+          })(),
+        ]}
+      />
 
       {step === 0 && (
         <Step1Client selectedClient={client} locked={isEdit} onSelect={selectClient} />
@@ -216,6 +233,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
         <Step2Car
           clientId={client.id}
           cars={cars}
+          sharedCarIds={sharedCarIds}
           selectedCarId={carId}
           locked={isEdit}
           onSelect={setCarId}

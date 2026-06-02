@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { addCarToClient, linkExistingCar } from "@/lib/actions/cars";
+import { searchClients } from "@/lib/actions/clients";
+import { normalizeSpz } from "@/lib/cars/spz";
 import type { CarRow, PricingCategory } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +46,7 @@ const CATEGORIES = Object.keys(CATEGORY_LABEL) as PricingCategory[];
 export function Step2Car({
   clientId,
   cars,
+  sharedCarIds,
   selectedCarId,
   locked,
   onSelect,
@@ -50,11 +54,13 @@ export function Step2Car({
 }: {
   clientId: string;
   cars: CarRow[];
+  sharedCarIds: string[];
   selectedCarId: string | null;
   locked?: boolean;
   onSelect: (carId: string) => void;
   onCarAdded: (carId: string) => void;
 }) {
+  const shared = new Set(sharedCarIds);
   return (
     <section className="space-y-3" data-step="car">
       {cars.length === 0 && (
@@ -76,8 +82,15 @@ export function Step2Car({
                   : "hover:bg-accent/60 disabled:opacity-50",
               )}
             >
-              <span className="font-medium">{c.spz}</span>
-              <span className="text-muted-foreground">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="font-medium">{c.spz}</span>
+                {shared.has(c.id) && (
+                  <Badge variant="outline" title="Auto je zdieľané s iným klientom">
+                    zdieľané auto
+                  </Badge>
+                )}
+              </span>
+              <span className="truncate text-muted-foreground">
                 {c.model ? `${c.model} · ` : ""}
                 {CATEGORY_LABEL[c.pricing_category]}
               </span>
@@ -103,6 +116,22 @@ function NewCarDialog({
   const [model, setModel] = useState("");
   const [category, setCategory] = useState<PricingCategory>("os");
   const [pending, start] = useTransition();
+  // Non-blocking duplicate-vehicle hint: the client name the ŠPZ is found under.
+  const [dupClient, setDupClient] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const norm = normalizeSpz(spz);
+      if (!norm) {
+        setDupClient(null);
+        return;
+      }
+      const results = await searchClients({ query: spz });
+      const hit = results.find((r) => r.matchedSpz && normalizeSpz(r.matchedSpz) === norm);
+      setDupClient(hit ? (hit.name ?? "bez mena") : null);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [spz]);
 
   function submit() {
     start(async () => {
@@ -150,6 +179,14 @@ function NewCarDialog({
           <div className="space-y-1">
             <Label htmlFor="new-car-spz">ŠPZ</Label>
             <Input id="new-car-spz" value={spz} onChange={(e) => setSpz(e.target.value)} placeholder="BV123AB" />
+            {dupClient && (
+              <p
+                data-dup-vehicle
+                className="rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+              >
+                Vozidlo už existuje v systéme — klient: {dupClient}. Po pridaní sa auto prepojí.
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <Label htmlFor="new-car-model">Model</Label>

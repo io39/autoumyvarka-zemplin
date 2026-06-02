@@ -26,10 +26,12 @@ test.describe("calendar header & controls (manager, desktop)", () => {
     await expect(page.locator("[data-box-filter]")).toBeHidden();
     // Identity is NOT in the header on desktop (the sidebar footer carries it).
     await expect(page.locator("[data-identity]")).toBeHidden();
-    // Nová rezervácia action (header button — scoped to main to avoid the
-    // sidebar nav item of the same name).
+    // Nová rezervácia lives in the sidebar nav on desktop (the calendar header
+    // is mobile-only now, so there is no header action button here).
     await expect(
-      page.getByRole("main").getByRole("link", { name: "Nová rezervácia" }),
+      page
+        .getByRole("navigation", { name: "Bočná navigácia" })
+        .getByRole("link", { name: "Nová rezervácia" }),
     ).toHaveAttribute("href", /\/orders\/new/);
   });
 
@@ -89,7 +91,9 @@ test.describe("calendar header — role gating", () => {
   test("prevádzka sees the core controls but no unpaid badge", async ({ page }) => {
     await page.goto("/");
     await expect(
-      page.getByRole("main").getByRole("link", { name: "Nová rezervácia" }),
+      page
+        .getByRole("navigation", { name: "Bočná navigácia" })
+        .getByRole("link", { name: "Nová rezervácia" }),
     ).toBeVisible();
     await expect(page.locator("[data-status-legend]")).toBeVisible();
     await expect(page.locator("[data-unpaid-badge]")).toHaveCount(0);

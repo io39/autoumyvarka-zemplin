@@ -14,8 +14,9 @@ const ROLE_LABEL: Record<StaffRole, string> = {
  * actions stack: identity (left) + unpaid (right) on one line, then a
  * full-width `Nová rezervácia` below.
  *
- * Identity is shown **only on mobile** (`md:hidden`) — on desktop the sidebar
- * footer already carries it, so showing it here too would duplicate it.
+ * The whole row is **mobile-only** (`md:hidden`): on desktop the sidebar footer
+ * carries the identity and the sidebar carries the `UnpaidBadge`, so the calendar
+ * needs no header there at all.
  */
 export function CalendarHeader({
   date,
@@ -33,7 +34,7 @@ export function CalendarHeader({
   const isManager = role === "manazer";
 
   return (
-    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-end">
+    <div className="flex flex-col gap-2 md:hidden">
       {/* On mobile this is its own row (identity left, badge right). On desktop
           `md:contents` dissolves it so the badge flows into the right-aligned
           row beside the button and the hidden identity leaves no empty gap. */}
@@ -43,9 +44,9 @@ export function CalendarHeader({
         </span>
         {isManager && <UnpaidBadge initialCount={unpaidCount} realtimeJwt={realtimeJwt} />}
       </div>
-      <Button asChild className="w-full md:w-auto">
+      {/* <Button asChild className="w-full md:w-auto">
         <Link href={`/orders/new?date=${date}`}>Nová rezervácia</Link>
-      </Button>
+      </Button> */}
     </div>
   );
 }

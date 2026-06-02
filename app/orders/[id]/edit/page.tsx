@@ -73,6 +73,7 @@ export default async function EditOrderPage({
           step: 2,
           client,
           cars: [car],
+          sharedCarIds: [],
           carId: car.id,
           selections,
           date: currentSlot.dateKey,

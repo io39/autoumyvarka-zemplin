@@ -1,5 +1,8 @@
 import { getCurrentStaff } from "@/lib/auth/session";
+import { getIdentity } from "@/lib/auth/identity";
 import { isUnauthenticatedError, isForbiddenError } from "@/lib/auth/errors";
+import { mintRealtimeToken } from "@/lib/realtime/token";
+import { getUnpaidCount } from "@/lib/actions/orders";
 import { Sidebar } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
 
@@ -27,9 +30,25 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     throw error;
   }
 
+  // The sidebar carries the manager-only overdue-unpaid badge on desktop. Mint a
+  // Realtime token + initial count only for managers (getUnpaidCount throws for
+  // workers, and the badge is hidden from them — spec 10 §1.4).
+  const isManager = staff.role === "manazer";
+  let unpaidCount = 0;
+  let realtimeJwt = "";
+  if (isManager) {
+    realtimeJwt = await mintRealtimeToken(await getIdentity());
+    unpaidCount = await getUnpaidCount();
+  }
+
   return (
     <>
-      <Sidebar role={staff.role} staffName={staff.display_name} />
+      <Sidebar
+        role={staff.role}
+        staffName={staff.display_name}
+        unpaidCount={unpaidCount}
+        realtimeJwt={realtimeJwt}
+      />
       <div className="md:pl-60">
         {/* Bottom padding clears the mobile BottomNav (visible until md). Keep
             the bottom inset for the whole 0–md range — only `sm:px-6 sm:pt-6`

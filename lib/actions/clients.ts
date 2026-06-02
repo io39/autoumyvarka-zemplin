@@ -51,6 +51,8 @@ export async function findClientByPhone(input: unknown): Promise<ClientRow | nul
 export interface ClientWithCars {
   client: ClientRow;
   cars: CarRow[];
+  /** Cars linked to more than one client → show the "zdieľané auto" badge. */
+  sharedCarIds: string[];
 }
 
 /** Client detail: the client row + its linked cars (ŠPZ, model, category). Both roles. */
@@ -76,7 +78,26 @@ export async function getClientWithCars(clientId: string): Promise<ClientWithCar
     .map((l) => l.cars as CarRow | null)
     .filter((c): c is CarRow => c !== null);
 
-  return { client, cars };
+  // A car linked to >1 client is "shared" (read-only/additive; same definition
+  // as the history view — PRD §13#1). One extra query over this client's cars.
+  const carIds = cars.map((c) => c.id);
+  let sharedCarIds: string[] = [];
+  if (carIds.length > 0) {
+    const { data: shareLinks, error: shareError } = await db
+      .from("client_cars")
+      .select("car_id, client_id")
+      .in("car_id", carIds);
+    if (shareError) throw shareError;
+    const owners = new Map<string, Set<string>>();
+    for (const l of shareLinks ?? []) {
+      const set = owners.get(l.car_id) ?? new Set<string>();
+      set.add(l.client_id);
+      owners.set(l.car_id, set);
+    }
+    sharedCarIds = carIds.filter((id) => (owners.get(id)?.size ?? 0) > 1);
+  }
+
+  return { client, cars, sharedCarIds };
 }
 
 export interface ClientWithHistory {

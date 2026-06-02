@@ -60,6 +60,21 @@ export function totalPriceCents(lines: ResolvedLine[]): number {
   return lines.reduce((a, l) => a + l.priceCents, 0);
 }
 
+/**
+ * Sub-group for an add-on (Doplnkové) service, derived from its name prefix
+ * (the catalog has no sub-category column). Used to render Tepovanie / Čistenie
+ * / Ostatné headers in step 3. Anything that isn't clearly tepovanie/čistenie
+ * falls into "ostatne".
+ */
+export type AddonGroup = "tepovanie" | "cistenie" | "ostatne";
+
+export function addonGroup(name: string): AddonGroup {
+  const n = name.trim().toLowerCase();
+  if (n.startsWith("tepovan")) return "tepovanie";
+  if (n.startsWith("čisten") || n.startsWith("cisten")) return "cistenie";
+  return "ostatne";
+}
+
 /** Local finish "HH:MM" for a start "HH:MM" + duration (wraps at 24h). */
 export function finishHHMM(startHHMM: string, durationMin: number): string {
   if (durationMin <= 0) return "";

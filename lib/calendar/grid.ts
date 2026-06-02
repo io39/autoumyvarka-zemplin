@@ -5,8 +5,12 @@
 
 /** One time-grid row = 15 minutes. */
 export const SLOT_MIN = 15;
-/** Pixel height of one 15-min row. */
-export const ROW_PX = 24;
+/**
+ * Base pixel height of one 15-min row. On the main Day view this is the *minimum*
+ * row height (rows grow to fit a booking card's content); on the Week view and
+ * the Step-4 picker it is a fixed row height.
+ */
+export const ROW_PX = 20;
 
 export interface Interval {
   open: string; // "HH:MM"

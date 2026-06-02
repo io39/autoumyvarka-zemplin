@@ -85,7 +85,7 @@ export function BookingDetailSheet({
       <SheetContent
         side={isDesktop ? "right" : "bottom"}
         data-order-sheet
-        className="flex max-h-[90dvh] w-full flex-col gap-0 p-0 sm:max-w-md"
+        className="flex max-h-[90dvh] w-full flex-col gap-0 p-0 sm:max-h-none sm:max-w-lg xl:max-w-xl"
       >
         <SheetHeader className="border-b px-4 py-3">
           <SheetTitle className="text-base">{title}</SheetTitle>

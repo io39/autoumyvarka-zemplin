@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { UnpaidBadge } from "@/components/unpaid/unpaid-badge";
 import { prevadzkaItems, spravaItems, isActive } from "./navItems";
 
 const ROLE_LABEL: Record<StaffRole, string> = {
@@ -21,14 +22,17 @@ const ROLE_LABEL: Record<StaffRole, string> = {
 interface SidebarProps {
   role: StaffRole;
   staffName: string;
+  unpaidCount: number;
+  realtimeJwt: string;
 }
 
 /**
- * Desktop sidebar (md:+). Renders the PREVÁDZKA items, and — manager only — a
- * SPRÁVA burger (gear) opening a dropdown of the admin sections. Bottom-anchors
- * the logged-in staff name + role. Active state via usePathname.
+ * Desktop sidebar (md:+). Renders the PREVÁDZKA items, and — manager only — the
+ * overdue-unpaid badge + a SPRÁVA burger (gear) opening a dropdown of the admin
+ * sections. Bottom-anchors the logged-in staff name + role. Active state via
+ * usePathname.
  */
-export function Sidebar({ role, staffName }: SidebarProps) {
+export function Sidebar({ role, staffName, unpaidCount, realtimeJwt }: SidebarProps) {
   const pathname = usePathname();
   const isManager = role === "manazer";
 
@@ -62,6 +66,11 @@ export function Sidebar({ role, staffName }: SidebarProps) {
       </nav>
 
       <div className="mt-auto border-t p-3">
+        {isManager && realtimeJwt && (
+          <div className="mb-2 px-3">
+            <UnpaidBadge initialCount={unpaidCount} realtimeJwt={realtimeJwt} />
+          </div>
+        )}
         {isManager && (
           <DropdownMenu>
             <DropdownMenuTrigger

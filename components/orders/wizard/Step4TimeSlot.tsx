@@ -20,6 +20,9 @@ import {
 } from "@/lib/orders/slot-grid";
 import { STATE_COLOR } from "@/types";
 import { cn } from "@/lib/utils";
+import { skPlural } from "@/lib/intl/sk";
+import { BookingCardContent } from "@/components/calendar/BookingCard";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -163,11 +166,13 @@ export function Step4TimeSlot({
     [days],
   );
   // Deň fills the width (2 boxes). 3 dni gives each of the 6 box-columns a wide
-  // minimum so they stay easy to tap on a phone and the grid side-scrolls.
+  // tap-friendly minimum on mobile (the grid side-scrolls there); on desktop the
+  // columns shrink to fit the container so there is no horizontal scroll.
+  const isDesktop = useMediaQuery("(min-width: 640px)");
   const colTemplate =
     view === "day"
       ? "2.75rem repeat(2, minmax(0, 1fr))"
-      : `2.75rem repeat(${columns.length}, minmax(8.5rem, 1fr))`;
+      : `2.75rem repeat(${columns.length}, minmax(${isDesktop ? "0" : "8.5rem"}, 1fr))`;
 
   return (
     <section className="space-y-4" data-step="termin">
@@ -202,7 +207,32 @@ export function Step4TimeSlot({
               </>
             )}
 
-            {/* Quick "nearest free" slots + box label row */}
+            {/* Box header row: label + reservation count per box column */}
+            <div />
+            {columns.map(({ day, box }) => {
+              const dd = data.byDay[day];
+              const count = (dd?.blocks ?? []).filter(
+                (b) => b.order.box === box && b.order.id !== excludeOrderId,
+              ).length;
+              return (
+                <div
+                  key={`bh-${day}-${box}`}
+                  className="flex items-baseline justify-between gap-1 border-b pb-1"
+                >
+                  <span className="text-sm font-semibold">Box {box}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {count}{" "}
+                    {skPlural(count, {
+                      one: "rezervácia",
+                      few: "rezervácie",
+                      many: "rezervácií",
+                    })}
+                  </span>
+                </div>
+              );
+            })}
+
+            {/* Quick "nearest free" slots row */}
             <div />
             {columns.map(({ day, box }) => {
               const dd = data.byDay[day];
@@ -212,17 +242,10 @@ export function Step4TimeSlot({
               const quick = iv
                 ? nearestFreeStarts(hhmmToMin(iv.open), hhmmToMin(iv.close), durationMin, busy, fromMin, 2)
                 : [];
-              const count = (dd?.blocks ?? []).filter(
-                (b) => b.order.box === box && b.order.id !== excludeOrderId,
-              ).length;
               const selMin =
                 picked && picked.dateKey === day && picked.box === box ? hhmmToMin(picked.localStart) : null;
               return (
                 <div key={`q-${day}-${box}`} className="space-y-1">
-                  <div className="flex items-baseline justify-between gap-1">
-                    <span className="text-xs font-semibold">Box {box}</span>
-                    <span className="text-[10px] text-muted-foreground">{count} rez.</span>
-                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {quick.length === 0 ? (
                       <span className="text-xs text-muted-foreground">—</span>
@@ -289,7 +312,7 @@ export function Step4TimeSlot({
 
 function TimeAxis({ rows }: { rows: string[] }) {
   return (
-    <div className="text-[10px] text-muted-foreground" style={{ height: rows.length * ROW_PX }}>
+    <div className="text-[11px] text-muted-foreground" style={{ height: rows.length * ROW_PX }}>
       {rows.map((t) => (
         <div
           key={t}
@@ -394,8 +417,8 @@ function GridColumn({
         <div
           key={t}
           className={cn(
-            "absolute inset-x-0 border-t border-dashed border-muted-foreground/15",
-            t.endsWith(":00") && "border-muted-foreground/30",
+            "absolute inset-x-0 border-t border-dashed border-muted-foreground/25",
+            (t.endsWith(":00") || t.endsWith(":30")) && "border-muted-foreground/40",
           )}
           style={{ top: i * ROW_PX, height: ROW_PX }}
         />
@@ -436,7 +459,7 @@ function GridColumn({
         </div>
       )}
 
-      {/* Occupied bookings */}
+      {/* Occupied bookings — read-only context (click passes through to picking) */}
       {blocks.map((b) => {
         const c = STATE_COLOR[b.order.status];
         return (
@@ -444,14 +467,14 @@ function GridColumn({
             key={b.order.id}
             data-occupied-order={b.order.id}
             className={cn(
-              "pointer-events-none absolute inset-x-1 truncate rounded border px-1 py-0.5 text-[10px]",
+              "pointer-events-none absolute inset-x-1 overflow-hidden rounded border px-1 py-0.5",
               c.bg,
               c.border,
               c.text,
             )}
             style={{ top: top(blockStartMin(b)) + 1, height: span(blockStartMin(b), blockEndMin(b)) - 2 }}
           >
-            {b.car.spz}
+            <BookingCardContent block={b} density="line" />
           </div>
         );
       })}

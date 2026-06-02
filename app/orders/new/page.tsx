@@ -30,6 +30,7 @@ export default async function NewOrderPage({
   // Optional client prefill (from a client detail page) → start at step 2 (Auto).
   let client: ClientRow | null = null;
   let cars: CarRow[] = [];
+  let sharedCarIds: string[] = [];
   let carId: string | null = null;
   let step = 0;
   if (params.clientId) {
@@ -37,6 +38,7 @@ export default async function NewOrderPage({
     if (data) {
       client = data.client;
       cars = data.cars;
+      sharedCarIds = data.sharedCarIds;
       carId = params.carId && data.cars.some((c) => c.id === params.carId) ? params.carId : null;
       step = 1;
     }
@@ -58,6 +60,7 @@ export default async function NewOrderPage({
           step,
           client,
           cars,
+          sharedCarIds,
           carId,
           selections: [],
           date: todayKey(new Date()),

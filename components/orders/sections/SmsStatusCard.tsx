@@ -26,7 +26,7 @@ export function SmsStatusCard({
   onResend: (smsId: string) => void;
 }) {
   return (
-    <section data-section="sms" className="space-y-2 rounded-lg border p-3">
+    <section data-section="sms" className="space-y-2 rounded-lg border p-4">
       <h2 className="text-sm font-medium">SMS</h2>
       <ul className="space-y-1 text-sm">
         {sms.length === 0 && (

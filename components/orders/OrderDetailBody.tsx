@@ -82,7 +82,7 @@ export function OrderDetailBody({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* §7 #2 Stav + meta */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <BookingStatusBadge status={order.status} />
@@ -94,7 +94,7 @@ export function OrderDetailBody({
       {/* §7 #3 Akcie (manager): Zmeniť čas (left) / Zmazať (right). Zmeniť čas
           opens the wizard edit flow (spec 16 §2.9). */}
       {isManager && (
-        <section className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+        <section className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-4">
           <Button asChild variant="outline" size="sm">
             <Link href={`/orders/${order.id}/edit`}>Zmeniť čas</Link>
           </Button>

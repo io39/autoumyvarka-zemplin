@@ -31,7 +31,7 @@ export function BookingWorkerCard({
 }) {
   const [selected, setSelected] = useState<string>("");
   return (
-    <section data-section="workers" className="space-y-2 rounded-lg border p-3">
+    <section data-section="workers" className="space-y-2 rounded-lg border p-4">
       <h2 className="text-sm font-medium">Pracovníci</h2>
       <ul className="space-y-1 text-sm">
         {workers.length === 0 && (
