@@ -3,11 +3,13 @@
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
 **Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Specs 12–16 are DONE +
-merged to `main`; spec 17 (Zákazníci merged master-detail) is the next step, then spec 18
-— to be done BEFORE the production deploy.** It restructures + reskins the working app to the reference prototype
+merged to `main`; spec 17 (Zákazníci merged master-detail) is DONE on branch
+`feat/spec-17-clients-master-detail` (committed `aa50cc3`, NOT yet merged — push/merge
+from your own terminal). Spec 18 is the last redesign step — to be done BEFORE the
+production deploy.** It restructures + reskins the working app to the reference prototype
 (`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action changes). After that:
 walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access) and the
-client's open questions. **Last updated:** 2026-06-01.
+client's open questions. **Last updated:** 2026-06-02.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -517,7 +519,9 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
 
 2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — IN PROGRESS, before deploy.**
    Restructure + reskin the working app to the reference prototype (`docs/UI-STRUCTURE.md`).
-   All seven specs are written. **Spec 12 DONE; specs 13–18 not implemented yet.**
+   All seven specs are written. **Specs 12–16 DONE + merged to `main`; spec 17 DONE on
+   branch `feat/spec-17-clients-master-detail` (commit `aa50cc3`, awaiting your merge);
+   spec 18 not implemented yet.**
 
    - **Spec 12 — DONE + merged to `main`** (commit `feat: implement spec 12 (app shell &
      navigation)` `6e4ef89`, merged via `284a60c`; branch `feat/spec-12-app-shell` deleted;
@@ -689,12 +693,41 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
        `pickAFreeSlot` clicks a `[data-quick-slot]`; `wizardGoToDate` navigates until the
        target `[data-day]` column appears (race fix). **166 unit + 92 e2e** on a clean reset;
        both views screenshot-verified vs the reference images.
-   - **Spec 17 — NEXT** (Zákazníci merged master-detail, UI-STRUCTURE §9): merge search + detail
-     into one `/clients?id=` master-detail page; keep `/clients/[id]` as a **redirect**.
-     Restructure the detail to §9: Klient blok (Nová rezervácia / +auto / Upraviť), per-car
-     **accordion** history with **Poradie**, expanded-order Pracovníci/Poznámka/box/€, row →
-     `/orders/[id]`. **No client/car/history action changes; no invented car fields.** New shadcn
-     primitive: `accordion`. Depends on 13/15/16. No "confirm in review" item flagged for 17.
+   - **Spec 17 — DONE on branch `feat/spec-17-clients-master-detail`** (commit `aa50cc3`;
+     **not yet merged — push/merge from your own terminal**, pushing is hook-blocked here).
+     Merged the client search page + detail into one **master-detail** `/clients?id=`:
+     `app/clients/page.tsx` (server reads `searchParams.id` → `getClientWithHistory`, renders
+     `ClientSearch` master + `ClientDetail` detail; side-by-side `sm:+`, stacked mobile; blank
+     prompt before selection, "Klient sa nenašiel" for an unresolved id).
+     `app/clients/[id]/page.tsx` reduced to `redirect('/clients?id=' + id)` (KEPT — order/wizard
+     links + `revalidatePath` target it). `client-search.tsx`: results **meno + telefón only**
+     (matchedSpz badge dropped), **sorted by meno**, active-row highlight, click → `?id=`,
+     "Nový zákazník" (all roles) **closes its dialog before same-route nav** (else the Radix
+     modal `aria-hide`s the new detail — a real bug found+fixed via e2e). `client-detail.tsx`
+     restructured: `ClientHeaderCard` (tel:/sms: links; **Nová rezervácia all-roles, available
+     with no cars**; Pridať auto all-roles; **Upraviť klienta manager-only**) + per-car
+     **accordion** (`CarRow`, manager-only **Upraviť auto**) with per-car **Poradie** + a
+     **nested** order accordion (`ServiceHistoryRow`) whose expanded view shows **box · total € ·
+     Pracovníci · Poznámka** + an **"Otvoriť objednávku →"** link to `/orders/[id]`. Status
+     badges use spec-13 `STATE_COLOR`/`STATE_LABEL`. New shadcn `accordion` primitive (unified
+     `radix-ui` import) + accordion keyframes in `globals.css`.
+     ⚠️ **One user-approved additive read-only extension** (spec §2.3 wants "box + total €" but
+     §1.3 non-goals + redesign rule 1 forbid action/helper changes — I STOPPED and asked, user
+     chose "extend read-only query"): `getClientWithHistory`'s **select** and the pure
+     `buildCarHistories` helper (`lib/clients/history.ts`) now carry `box`, `ends_at` (→`endsAt`,
+     for "čas od–do") and service `price_cents_snapshot` (→ per-order `totalCents` = sum of
+     **non-removed** lines). **Read-only/additive only — no schema/authz/mutation change.** New
+     pure `poradieFor` helper (oldest visit = 1). Tests: new `clients-master-detail.spec.ts`
+     (inline detail, `?id=` refresh/back, `/clients/[id]` redirect, Nová rezervácia→wizard step 2,
+     Poradie, worker create+add car); migrated `client-history`, `client-history-permissions`,
+     `clients-search`, `clients-permissions` e2e for the accordion (collapsed by default — tests
+     now expand) + `?id=` URL + label changes; `history-aggregation` unit extended with
+     box/total/endsAt + `poradieFor`. `support.createClientViaUI` updated for `?id=` + "Nový
+     zákazník". **169 unit + 97 e2e pass on a clean `pnpm supabase db reset`**;
+     typecheck/lint/build green; both views screenshot-verified (desktop side-by-side + mobile
+     stacked). Code-reviewer: **0 blockers**; applied 3 should-fix (`aria-current` boolean,
+     dropped the duplicate "Žiadne služby." in empty-car content, `hover:no-underline` on
+     badge-bearing accordion triggers). No "confirm in review" item was flagged for 17.
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server
