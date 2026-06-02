@@ -33,12 +33,13 @@ export async function createClientViaUI(
   opts: { phone: string; name?: string },
 ): Promise<string> {
   await page.goto("/clients");
-  await page.getByRole("button", { name: "Nový klient" }).click();
+  await page.getByRole("button", { name: "Nový zákazník" }).click();
   await page.getByLabel("Telefón").fill(opts.phone);
   if (opts.name) await page.getByLabel("Meno").fill(opts.name);
   await page.getByRole("button", { name: "Vytvoriť" }).click();
-  await page.waitForURL(/\/clients\/[0-9a-f-]{36}$/);
-  const m = page.url().match(/\/clients\/([0-9a-f-]{36})$/);
+  // Master-detail: a created client opens inline via ?id= (spec 17).
+  await page.waitForURL(/\/clients\?id=[0-9a-f-]{36}/);
+  const m = page.url().match(/[?&]id=([0-9a-f-]{36})/);
   expect(m).not.toBeNull();
   return m![1];
 }

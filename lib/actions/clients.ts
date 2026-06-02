@@ -152,7 +152,7 @@ export async function getClientWithHistory(
   const { data: orders, error: ordersError } = await db
     .from("orders")
     .select(
-      "id, car_id, starts_at, status, note, deleted_at, services:order_services(name_snapshot, quantity, removed_at), workers:order_staff(worker:worker_id(display_name))",
+      "id, car_id, starts_at, ends_at, status, note, box, deleted_at, services:order_services(name_snapshot, quantity, price_cents_snapshot, removed_at), workers:order_staff(worker:worker_id(display_name))",
     )
     .in("car_id", carIds);
   if (ordersError) throw ordersError;

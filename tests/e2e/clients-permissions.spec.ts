@@ -24,7 +24,7 @@ test.describe("manager", () => {
 
     const clientId = await createClientViaUI(page, { phone: oldPhone, name: "Phone Change" });
 
-    await page.getByRole("button", { name: "Upraviť" }).click();
+    await page.getByRole("button", { name: "Upraviť klienta" }).click();
     await page.getByLabel("Telefón").fill(newPhone);
     await page.getByRole("button", { name: "Uložiť" }).click();
     await expect(page.getByText(e164(newPhone))).toBeVisible();
@@ -60,7 +60,7 @@ test.describe("manager", () => {
     await createClientViaUI(page, { phone: takenPhone, name: "Owns Number" });
     const otherId = await createClientViaUI(page, { phone: otherPhone, name: "Wants Number" });
 
-    await page.getByRole("button", { name: "Upraviť" }).click();
+    await page.getByRole("button", { name: "Upraviť klienta" }).click();
     await page.getByLabel("Telefón").fill(takenPhone);
     await page.getByRole("button", { name: "Uložiť" }).click();
 
