@@ -816,6 +816,18 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      `searchClients`+`normalizePhone`, `data-dup-phone`) — `components/clients/client-search.tsx`
      (spec 17). Verified: typecheck/lint clean; `booking-wizard` (5/5), `client-history`,
      `clients-master-detail`, `clients-search` e2e green on clean prod builds.
+   - **Exceptions date picker — DONE + committed to `main`** (commit `fde175c`; spec 18
+     updated; push from your own terminal): the day-overrides (Výnimky) "Dátum" field now
+     uses a new shared **`DateField`** (`components/settings/date-field.tsx`) wrapping the
+     **same shadcn `Calendar` popover as the main calendar** (`DateNav`) — month + year
+     dropdowns, Slovak locale, Monday start — so all date pickers behave identically
+     (replaces the native `<input type="date">`). The Otvorenie/Zatvorenie **time** inputs
+     stay native `type="time"` + `lang="sk-SK"` (user's choice — native time inputs render
+     12h/24h per browser/OS locale and can't be reliably forced to 24h). New e2e helper
+     `fillOverrideDate()` drives the popover; `settings-audit`/`settings-permissions`
+     repointed. **Full suite green** on a clean `pnpm supabase db reset`: 170 unit + 100 e2e
+     (one `clients-search` full-run timeout that passes in isolation — load flake, not a
+     regression).
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server
