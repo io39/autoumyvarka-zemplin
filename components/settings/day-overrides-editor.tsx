@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import { upsertDayOverride, removeDayOverride } from "@/lib/actions/settings";
 import type { DayOverrideRow } from "@/lib/supabase/types";
@@ -85,10 +84,9 @@ export function DayOverridesEditor({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <Link href="/" className="text-sm underline underline-offset-4">
-          ← Späť
-        </Link>
-        <h1 className="text-xl font-semibold">Výnimky pre konkrétne dni</h1>
+        {/* h2: this editor only renders below OpeningHoursEditor on the merged
+            /settings/hours page (spec 18), which owns the single page <h1>. */}
+        <h2 className="text-xl font-semibold">Výnimky pre konkrétne dni</h2>
         <p className="text-sm text-muted-foreground">
           Dátum sviatku alebo skrátený deň — vyhrá nad týždenným rozvrhom.
         </p>

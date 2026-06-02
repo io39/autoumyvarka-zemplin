@@ -88,7 +88,7 @@ test.describe("audit filters & keyset pagination (spec 09 §4.3)", () => {
     expect(ids).toHaveLength(2);
   });
 
-  test("keyset pagination: no duplicates or gaps when a row is inserted between pages", async ({
+  test("◀ ▶ paging: replaces pages, no duplicates/gaps, disables at the ends", async ({
     page,
   }) => {
     const db = serviceClient();
@@ -111,6 +111,9 @@ test.describe("audit filters & keyset pagination (spec 09 §4.3)", () => {
     await page.goto(`/audit?orderId=${orderId}`);
     const page1 = await visibleIds(page);
     expect(page1).toHaveLength(50);
+    // ◀ disabled on page 1; ▶ enabled (a second page exists).
+    await expect(page.getByRole("button", { name: "Predošlé" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Ďalšie" })).toBeEnabled();
 
     // Insert a NEWER row between page loads — keyset must not duplicate or skip.
     const insertedId = randomUUID();
@@ -124,13 +127,31 @@ test.describe("audit filters & keyset pagination (spec 09 §4.3)", () => {
       created_at: new Date(base + 60_000).toISOString(),
     });
 
-    await page.getByRole("button", { name: "Načítať ďalšie" }).click();
-    await expect(page.locator('[data-section="audit"] tr[data-id]')).toHaveCount(51);
+    // ▶ goes to page 2 — the list is REPLACED (not appended): the 51st (oldest) row.
+    await page.getByRole("button", { name: "Ďalšie" }).click();
+    // Wait for the async re-render to land before snapshotting the rows.
+    await expect(page.locator('[data-section="audit"] tr[data-id]')).toHaveCount(1);
+    const page2 = await visibleIds(page);
+    expect(page2).toHaveLength(1);
+    // ▶ now disabled (last page), ◀ enabled.
+    await expect(page.getByRole("button", { name: "Ďalšie" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Predošlé" })).toBeEnabled();
 
-    const all = await visibleIds(page);
-    expect(new Set(all).size).toBe(all.length); // no duplicates
-    // All 51 originals present (no gap); the newer row is NOT pulled into page 2.
-    for (const id of originalIds) expect(all).toContain(id);
+    const all = [...page1, ...page2];
+    expect(new Set(all).size).toBe(all.length); // no duplicates across pages
+    for (const id of originalIds) expect(all).toContain(id); // no gap
+    // The newer row is anchored after page 1's cursor → never pulled into page 2.
     expect(all).not.toContain(insertedId);
+
+    // ◀ returns to page 1 (re-queried fresh, so it now also surfaces the newer
+    // row that was inserted mid-test — that's expected): a full 50-row page with
+    // ◀ disabled again and ▶ re-enabled (52 rows total now span two pages).
+    await page.getByRole("button", { name: "Predošlé" }).click();
+    await expect(page.locator('[data-section="audit"] tr[data-id]')).toHaveCount(50);
+    const back = await visibleIds(page);
+    expect(back).toHaveLength(50);
+    expect(back).toContain(insertedId); // fresh page 1 picks up the newer row
+    await expect(page.getByRole("button", { name: "Predošlé" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Ďalšie" })).toBeEnabled();
   });
 });

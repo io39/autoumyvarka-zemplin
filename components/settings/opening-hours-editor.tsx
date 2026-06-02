@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import { saveOpeningHours } from "@/lib/actions/settings";
 import type { OpeningHoursRow } from "@/lib/supabase/types";
@@ -84,9 +83,6 @@ export function OpeningHoursEditor({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <Link href="/" className="text-sm underline underline-offset-4">
-          ← Späť
-        </Link>
         <h1 className="text-xl font-semibold">Otváracie hodiny</h1>
         <p className="text-sm text-muted-foreground">
           Týždenný rozvrh. Pre konkrétny dátum nastavte výnimku v sekcii „Výnimky“.
