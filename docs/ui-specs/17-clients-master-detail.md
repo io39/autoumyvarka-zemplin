@@ -23,7 +23,11 @@ Pracovníci/Poznámka/box/€.
    selection is stored in the URL as **`?id=`** (refresh / back / bookmark work).
 3. Before searching: a **blank "type to search" prompt** (no list). Results **sorted by
    meno**; rows show **meno + telefón** only.
-4. **"+ Nový zákazník"** on the page — **all roles**.
+4. **"+ Nový zákazník"** on the page — **all roles**. Its dialog shows the same
+   **non-blocking duplicate-phone hint** as the wizard (spec 16): as the phone is typed, an
+   exact normalized-phone match (`searchClients` + `normalizePhone`) shows an amber note
+   naming the existing client (`data-dup-phone`); submitting a duplicate opens the existing
+   client (no new record — `clients.phone` is unique).
 5. Restructure the detail (§9): Klient blok (Nová rezervácia under the name · +Pridať auto ·
    Upraviť klienta) → Zoznam áut → **per-car** order history with **Poradie** (per car) →
    expanded order shows Pracovníci + Poznámka (+ box + total €) → row opens the **full order

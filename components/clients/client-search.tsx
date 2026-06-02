@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { searchClients, createClient, type ClientSuggestion } from "@/lib/actions/clients";
+import { normalizePhone } from "@/lib/clients/phone";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -155,6 +156,24 @@ function CreateClientDialog({
   onDuplicate: (existingClientId?: string) => void;
 }) {
   const [pending, startTransition] = useTransition();
+  // Non-blocking duplicate-phone hint (same as the wizard's new-client step):
+  // the existing client's name if this number is already in the system.
+  const [phone, setPhone] = useState("");
+  const [dupName, setDupName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const norm = normalizePhone(phone);
+      if (!norm) {
+        setDupName(null);
+        return;
+      }
+      const results = await searchClients({ query: phone });
+      const hit = results.find((r) => r.phone === norm);
+      setDupName(hit ? (hit.name ?? "bez mena") : null);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [phone]);
 
   function onSubmit(formData: FormData) {
     const phone = String(formData.get("phone") ?? "");
@@ -185,7 +204,23 @@ function CreateClientDialog({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="phone">Telefón</Label>
-              <Input id="phone" name="phone" type="tel" required placeholder="0905 123 456" />
+              <Input
+                id="phone"
+                name="phone"
+                type="tel"
+                required
+                placeholder="0905 123 456"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+              {dupName && (
+                <p
+                  data-dup-phone
+                  className="rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                >
+                  Klient s týmto číslom už existuje — {dupName}. Po vytvorení sa otvorí existujúci.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="name">Meno</Label>
