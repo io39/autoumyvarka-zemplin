@@ -801,6 +801,21 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      **Gotcha learned:** keep `pnpm dev` stopped during e2e — Playwright `reuseExistingServer`
      reuses port 3000, and a dev server's HMR websocket fails in the sandbox and **blocks
      hydration** (interaction tests then fail spuriously).
+   - **Client-history & order-flow tweaks — DONE + committed to `main`** (commits `cc0c2b2`,
+     `a842351`; specs 16/17 updated in place; push from your own terminal): **(1)** client
+     history now renders **each vehicle as its own grouped block** (own card + alternating
+     `bg-muted/30`↔`bg-muted/60` tint + spacing, `data-car-block`) instead of one shared
+     accordion — `components/clients/client-detail.tsx` (spec 17). **(2)** editing an order's
+     **time** and confirming now **redirects to the calendar** at the new date (`/?date=…`)
+     instead of back to the order detail — `BookingWizard` edit submit; e2e assertion
+     repointed (spec 16 §2.9/§4.4). **(3)** the **persistent-client-on-existing-phone**
+     requirement needed **no code** — `phoneSchema` normalizes and `clients.phone` is
+     `UNIQUE`, so `createClient` returns the existing client (the wizard/page selects it);
+     documented in spec 16 non-goals. **(4)** the Clients-page **Nový zákazník** dialog now
+     shows the same **non-blocking duplicate-phone hint** as the wizard (debounced
+     `searchClients`+`normalizePhone`, `data-dup-phone`) — `components/clients/client-search.tsx`
+     (spec 17). Verified: typecheck/lint clean; `booking-wizard` (5/5), `client-history`,
+     `clients-master-detail`, `clients-search` e2e green on clean prod builds.
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server
