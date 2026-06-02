@@ -177,8 +177,9 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
   Poznámka changed (the field is prefilled from the order's note via `EditContext.originalNote`
   / `initial.note`). The conflict check must exclude the order's **own** current slot so
   "same time" isn't a false conflict.
-- **Final label:** "Uložiť zmeny" (not "Vytvoriť rezerváciu"); on success → back to the
-  order (Sheet/page) + toast.
+- **Final label:** "Uložiť zmeny" (not "Vytvoriť rezerváciu"); on success → **redirect to
+  the calendar** at the (possibly new) date (`/?date=…`) + toast, **not** back to the order
+  detail — so the updated slot is immediately visible in its schedule context.
 - **Repoint spec 15:** replace `ChangeTimeDialog` wiring with a link/navigation to this
   edit entry. (This is why spec 16 depends on spec 15.)
 
@@ -251,7 +252,7 @@ grep -rn "return=/orders/new\|redirect(\"/clients" app/orders/new | wc -l
 - From an order's **Zmeniť čas** (manager): the wizard opens **prefilled** with that order's
   client/car (locked) on **step 3**; the manager adds/removes a service and picks a new slot;
   **"Uložiť zmeny"** applies the changes to the **same** order (no new order created) and
-  returns to the order.
+  **lands on the calendar** at the new date (`/?date=…`) — not back on the order detail.
 - Keeping the same time is **not** flagged as a conflict (own slot excluded).
 - prevádzka has no Zmeniť čas affordance (manager-only).
 

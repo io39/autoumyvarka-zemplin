@@ -15,6 +15,7 @@ import type {
 import type { CarHistory, HistoryEntry } from "@/lib/clients/history";
 import { poradieFor } from "@/lib/clients/history";
 import { STATE_COLOR, STATE_LABEL } from "@/types";
+import { cn } from "@/lib/utils";
 import { formatPriceCents } from "@/lib/services/format";
 import { bratislavaHHMM, bratislavaDateKey } from "@/lib/settings/availability";
 import { Button } from "@/components/ui/button";
@@ -90,16 +91,27 @@ export function ClientDetail({
             Žiadne autá
           </p>
         ) : (
-          <Accordion type="multiple" className="rounded-lg border px-4">
-            {histories.map((h) => (
-              <CarRow
+          <div className="space-y-3">
+            {histories.map((h, i) => (
+              // Each vehicle is its own grouped block with an alternating tint so
+              // it's immediately clear which orders belong to which car.
+              <Accordion
                 key={h.car.id}
-                history={h}
-                isManager={isManager}
-                onEditCar={() => setEditCar(h.car)}
-              />
+                type="multiple"
+                data-car-block={h.car.id}
+                className={cn(
+                  "overflow-hidden rounded-lg border px-4",
+                  i % 2 === 0 ? "bg-muted/30" : "bg-muted/60",
+                )}
+              >
+                <CarRow
+                  history={h}
+                  isManager={isManager}
+                  onEditCar={() => setEditCar(h.car)}
+                />
+              </Accordion>
             ))}
-          </Accordion>
+          </div>
         )}
       </section>
 

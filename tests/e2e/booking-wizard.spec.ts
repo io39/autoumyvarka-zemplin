@@ -95,7 +95,9 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
     await pickAFreeSlot(page);
     await page.getByRole("button", { name: "Uložiť zmeny" }).click();
     await expect(page.getByText("Zmeny uložené.")).toBeVisible();
-    await expect(page).toHaveURL(new RegExp(`/orders/${o.orderId}$`));
+    // After confirming a time edit, the user lands on the calendar (not back on
+    // the order detail) so the updated slot is visible in context.
+    await expect(page).toHaveURL(/\/\?date=\d{4}-\d{2}-\d{2}/);
 
     const { data: after } = await db
       .from("orders")

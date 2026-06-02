@@ -25,9 +25,10 @@ Pracovníci/Poznámka/box/€.
    meno**; rows show **meno + telefón** only.
 4. **"+ Nový zákazník"** on the page — **all roles**.
 5. Restructure the detail (§9): Klient blok (Nová rezervácia under the name · +Pridať auto ·
-   Upraviť klienta) → Zoznam áut → **per-car accordion** order history with **Poradie**
-   (per car) → expanded order shows Pracovníci + Poznámka (+ box + total €) → row opens the
-   **full order page** `/orders/[id]`.
+   Upraviť klienta) → Zoznam áut → **per-car** order history with **Poradie** (per car) →
+   expanded order shows Pracovníci + Poznámka (+ box + total €) → row opens the **full order
+   page** `/orders/[id]`. Each vehicle is a **visually distinct block** (own card +
+   alternating background tint + spacing) so its orders are clearly grouped.
 6. Keep `app/clients/[id]/page.tsx` as a **redirect** to `/clients?id=<id>` — never delete.
 
 ### 1.2 User stories (UI-STRUCTURE §9)
@@ -89,6 +90,10 @@ Pracovníci/Poznámka/box/€.
   (all roles), **Upraviť klienta** (manager only).
 - **Zoznam áut**: each car (ŠPZ · model · kategória) + **Upraviť auto** (manager only;
   reuses link/duplicate-ŠPZ confirm). A car with **no orders** shows **"Žiadne služby."**
+- **Per-car block** — each vehicle is its **own grouped block** (`data-car-block`): a
+  rounded, bordered card with an **alternating background tint** (`bg-muted/30` ↔
+  `bg-muted/60`) and `space-y-3` between blocks, so it's immediately obvious which orders
+  belong to which car. (Not one shared accordion list — distinct cards.)
 - **Per-car accordion** (`CarRow`, shadcn `accordion`, collapsed by default): expands to
   that car's order history. **Poradie** (1., 2., …) counted **per car**, shown next to the
   visit. Each `ServiceHistoryRow` (compact): dátum · čas od–do · poradie · služby (short) ·

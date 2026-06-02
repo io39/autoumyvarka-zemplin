@@ -196,7 +196,9 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
           if (!r.ok) return fail(r.message ?? "Uloženie poznámky zlyhalo.");
         }
         toast.success("Zmeny uložené.");
-        router.push(`/orders/${edit.orderId}`);
+        // Land on the calendar at the (possibly new) date so the updated slot is
+        // immediately visible in context, rather than back on the order detail.
+        router.push(`/?date=${picked.dateKey}`);
       });
       return;
     }
