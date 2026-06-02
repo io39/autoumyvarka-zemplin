@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { DateField } from "./date-field";
 
 function hhmm(t: string | null): string {
   if (!t) return "";
@@ -97,12 +98,7 @@ export function DayOverridesEditor({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="day">Dátum</Label>
-            <Input
-              id="day"
-              type="date"
-              value={day}
-              onChange={(e) => setDay(e.target.value)}
-            />
+            <DateField id="day" value={day} onChange={setDay} />
           </div>
           <div className="space-y-1">
             <Label htmlFor="label">Popis (voliteľný)</Label>

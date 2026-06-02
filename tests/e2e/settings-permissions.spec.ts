@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { accessHeaders, MANAGER_EMAIL, WORKER_EMAIL, serviceClient } from "./support";
+import { accessHeaders, MANAGER_EMAIL, WORKER_EMAIL, serviceClient, fillOverrideDate } from "./support";
 
 test.describe("manager — /settings/hours", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
@@ -60,7 +60,7 @@ test.describe("manager — /settings/exceptions", () => {
     const day = `2099-01-${String((Date.now() % 27) + 1).padStart(2, "0")}`;
 
     await page.goto("/settings/exceptions");
-    await page.getByLabel("Dátum").fill(day);
+    await fillOverrideDate(page, day);
     await page.getByLabel("Popis (voliteľný)").fill("E2E sviatok");
     // "Zatvorené celý deň" defaults to checked.
     await page.getByRole("button", { name: "Uložiť výnimku" }).click();

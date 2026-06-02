@@ -52,6 +52,20 @@ export async function addCarViaUI(page: Page, spz: string): Promise<void> {
 }
 
 /**
+ * Pick a date in the day-overrides `DateField` (shadcn Calendar popover): open
+ * the trigger, choose year + month from the dropdowns, then click the day cell.
+ * `iso` is "YYYY-MM-DD". Mirrors how the calendar-header popover is driven.
+ */
+export async function fillOverrideDate(page: Page, iso: string): Promise<void> {
+  const [y, m, d] = iso.split("-").map(Number);
+  await page.locator("[data-date-trigger]").click();
+  const combos = page.getByRole("combobox");
+  await combos.nth(1).selectOption(String(y)); // year
+  await combos.nth(0).selectOption(String(m - 1)); // month (0-based)
+  await page.getByRole("grid").getByText(String(d), { exact: true }).click();
+}
+
+/**
  * Service-role Supabase client for test-side DB assertions (e.g. reading
  * audit_log). Bypasses RLS by design — same as the app server.
  */

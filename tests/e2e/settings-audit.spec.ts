@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { accessHeaders, MANAGER_EMAIL, serviceClient } from "./support";
+import { accessHeaders, MANAGER_EMAIL, serviceClient, fillOverrideDate } from "./support";
 
 test.describe("audit log — settings", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
@@ -27,7 +27,7 @@ test.describe("audit log — settings", () => {
     const day = `2099-02-${String((Date.now() % 27) + 1).padStart(2, "0")}`;
 
     await page.goto("/settings/exceptions");
-    await page.getByLabel("Dátum").fill(day);
+    await fillOverrideDate(page, day);
     await page.getByRole("checkbox", { name: "Zatvorené celý deň" }).uncheck();
     const overrideForm = page.locator('[data-form="override"]');
     await overrideForm.getByLabel("Otvorenie").fill("09:00");
@@ -69,7 +69,7 @@ test.describe("audit log — settings", () => {
     const day = `2099-03-${String((Date.now() % 27) + 1).padStart(2, "0")}`;
 
     await page.goto("/settings/exceptions");
-    await page.getByLabel("Dátum").fill(day);
+    await fillOverrideDate(page, day);
     await page.getByRole("checkbox", { name: "Zatvorené celý deň" }).uncheck();
     const overrideForm = page.locator('[data-form="override"]');
     // 08:07 isn't on the 15-min grid; the schema rejects.

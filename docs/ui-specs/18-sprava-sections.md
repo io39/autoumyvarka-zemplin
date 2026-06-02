@@ -64,6 +64,12 @@ paged navigation.
   `OpeningHoursEditor` (top) **and** `DayOverridesEditor` (below) on one page, each in its
   own titled card ("Otváracie hodiny" / "Výnimky a sviatky"). Editors themselves are
   unchanged components.
+- **Date consistency:** the `DayOverridesEditor` "Dátum" field uses the shared
+  **`DateField`** (`components/settings/date-field.tsx`) — the **same** shadcn `Calendar`
+  popover as the main calendar (`DateNav`): month + year dropdowns, Slovak locale, Monday
+  start. (Replaces the native `<input type="date">`, so all date pickers behave identically.)
+  The Otvorenie/Zatvorenie **time** inputs stay native `<input type="time">` with
+  `lang="sk-SK"` + `step={900}` (24h where the browser honours the locale; not forced).
 - `app/settings/exceptions/page.tsx` → **`redirect('/settings/hours')`** (kept as a
   deep-link target, not deleted; UI-STRUCTURE §11). The nav already points only at
   `/settings/hours` (spec 12).
