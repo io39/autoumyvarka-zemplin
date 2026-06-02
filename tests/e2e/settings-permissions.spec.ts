@@ -34,7 +34,8 @@ test.describe("manager — /settings/hours", () => {
     await saturday.getByLabel("Otvorenie").fill("09:00");
     await saturday.getByLabel("Zatvorenie").fill("13:00");
 
-    await page.getByRole("button", { name: "Uložiť" }).click();
+    // Exact match: the merged page also has an "Uložiť výnimku" button (overrides).
+    await page.getByRole("button", { name: "Uložiť", exact: true }).click();
     await expect(page.getByText("Otváracie hodiny uložené.")).toBeVisible();
 
     // Verify in DB.
@@ -73,8 +74,11 @@ test.describe("manager — /settings/exceptions", () => {
     // Re-saving the same date edits the same row (idempotent upsert).
     await card.getByRole("button", { name: "Upraviť" }).click();
     await page.getByRole("checkbox", { name: "Zatvorené celý deň" }).uncheck();
-    await page.getByLabel("Otvorenie").fill("08:00");
-    await page.getByLabel("Zatvorenie").fill("12:00");
+    // Scope to the override form — the merged page's hours editor also has
+    // per-day "Otvorenie"/"Zatvorenie" inputs.
+    const overrideForm = page.locator('[data-form="override"]');
+    await overrideForm.getByLabel("Otvorenie").fill("08:00");
+    await overrideForm.getByLabel("Zatvorenie").fill("12:00");
     await page.getByRole("button", { name: "Uložiť výnimku" }).click();
     await expect(page.getByText("Výnimka uložená.")).toBeVisible();
     await expect(page.locator(`[data-override="${day}"]`).getByText("08:00–12:00")).toBeVisible();

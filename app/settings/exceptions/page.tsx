@@ -1,25 +1,11 @@
-import { getCurrentStaff } from "@/lib/auth/session";
-import { requireManager } from "@/lib/auth/require";
-import { isForbiddenError, isUnauthenticatedError } from "@/lib/auth/errors";
-import { getDayOverrides } from "@/lib/actions/settings";
-import { ForbiddenView, UnauthenticatedView } from "@/components/auth/auth-error-views";
-import { DayOverridesEditor } from "@/components/settings/day-overrides-editor";
+import { redirect } from "next/navigation";
 
-export default async function DayOverridesPage() {
-  try {
-    const actor = await getCurrentStaff();
-    requireManager(actor);
-  } catch (error) {
-    if (isForbiddenError(error)) return <ForbiddenView />;
-    if (isUnauthenticatedError(error)) return <UnauthenticatedView />;
-    throw error;
-  }
-
-  const overrides = await getDayOverrides();
-
-  return (
-    <div className="mx-auto max-w-2xl">
-      <DayOverridesEditor initialOverrides={overrides} />
-    </div>
-  );
+/**
+ * Otváracie hodiny + Výnimky are merged onto `/settings/hours` (spec 18 /
+ * UI-STRUCTURE §11). This route is kept as a deep-link target — the nav points
+ * only at `/settings/hours` (spec 12) — and now redirects there. Don't delete
+ * it, or any lingering `/settings/exceptions` bookmark/link would 404.
+ */
+export default async function DayOverridesRedirect() {
+  redirect("/settings/hours");
 }

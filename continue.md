@@ -2,14 +2,14 @@
 
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
-**Next up: the UI redesign — specs 12–18 in `docs/ui-specs/`. Specs 12–16 are DONE +
-merged to `main`; spec 17 (Zákazníci merged master-detail) is DONE on branch
-`feat/spec-17-clients-master-detail` (committed `aa50cc3`, NOT yet merged — push/merge
-from your own terminal). Spec 18 is the last redesign step — to be done BEFORE the
-production deploy.** It restructures + reskins the working app to the reference prototype
-(`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action changes). After that:
-walking-skeleton deploy (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access) and the
-client's open questions. **Last updated:** 2026-06-02.
+**The UI redesign (specs 12–18 in `docs/ui-specs/`) is COMPLETE. Specs 12–17 are DONE +
+merged to `main` (spec 17 commit `aa50cc3` + merge `e471932`); spec 18 (SPRÁVA sections)
+is DONE on branch `feat/spec-18-sprava-sections` (commit `694b779`, NOT yet merged —
+push/merge from your own terminal).** Next up: the **walking-skeleton production deploy**
+(Supabase Cloud EU + VPS + Cloudflare Tunnel/Access), picking the real SMS provider, and
+the client's open questions. The redesign restructured + reskinned the working app to the
+reference prototype (`docs/UI-STRUCTURE.md`); UI-layer only (no schema/Server-Action
+changes). **Last updated:** 2026-06-02.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -517,11 +517,11 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
    **merged to `main` locally** (push from your own terminal — pushing is hook-blocked
    here). The `feat/spec-11-accounts-workers` branch was merged then deleted.
 
-2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — IN PROGRESS, before deploy.**
+2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — COMPLETE.**
    Restructure + reskin the working app to the reference prototype (`docs/UI-STRUCTURE.md`).
-   All seven specs are written. **Specs 12–16 DONE + merged to `main`; spec 17 DONE on
-   branch `feat/spec-17-clients-master-detail` (commit `aa50cc3`, awaiting your merge);
-   spec 18 not implemented yet.**
+   All seven specs are written and implemented. **Specs 12–17 DONE + merged to `main`;
+   spec 18 DONE on branch `feat/spec-18-sprava-sections` (commit `694b779`, awaiting your
+   merge).**
 
    - **Spec 12 — DONE + merged to `main`** (commit `feat: implement spec 12 (app shell &
      navigation)` `6e4ef89`, merged via `284a60c`; branch `feat/spec-12-app-shell` deleted;
@@ -728,6 +728,37 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      stacked). Code-reviewer: **0 blockers**; applied 3 should-fix (`aria-current` boolean,
      dropped the duplicate "Žiadne služby." in empty-car content, `hover:no-underline` on
      badge-bearing accordion triggers). No "confirm in review" item was flagged for 17.
+   - **Spec 18 — DONE on branch `feat/spec-18-sprava-sections`** (commit `694b779`;
+     **not yet merged — push/merge from your own terminal**). The last redesign spec:
+     restyle the manager-only SPRÁVA sections + three structural changes (UI-STRUCTURE
+     §10/§11). **(1) Merged hours page** — `app/settings/hours/page.tsx` now `Promise.all`s
+     `getOpeningHours` + `getDayOverrides` and renders `OpeningHoursEditor` (top) +
+     `DayOverridesEditor` (below) on one page; `app/settings/exceptions/page.tsx` reduced to
+     `redirect('/settings/hours')` (KEPT as a deep-link; authz still enforced on the target).
+     Removed the two leftover "← Späť" back-links from both editors (pre-shell cruft the
+     spec-12 sweep missed because they live inside the editor components) + demoted the
+     overrides editor `<h1>`→`<h2>` so the merged page has a single page heading.
+     **(2) Services accordions** — `services-manager.tsx` wraps the existing Hlavné/Doplnkové
+     sections in a shadcn `Accordion` (type="multiple", **default-expanded**; Radix
+     `AccordionHeader` keeps the titles as real `<h3>` headings so existing
+     `getByRole("heading")` assertions still pass); border on the `Accordion` wrapper (not
+     per-item) per the shadcn divider pattern; `data-section="main"|"addon"`. CRUD +
+     soft-delete unchanged. **(3) Audit ◀ ▶ paging** — `audit-view.tsx` replaces the infinite
+     "Načítať ďalšie" append with prev/next arrows backed by a **client-side page-cursor
+     stack** (push on ▶, pop on ◀) over the **unchanged** `getAuditLog` keyset action; ◀
+     disabled on page 1, ▶ disabled at the last page, "Strana N" indicator, filters reset to
+     page 1. **(4) SMS šablóny** — no change needed (already restyled by the spec-13 global
+     theme; no back-link / no `/menu`) — task satisfied. **Confirm-in-review (user-confirmed):
+     hours nav label stays "Otváracie hodiny".** UI-only — no schema/Server-Action/authz
+     changes. Tests: new `sprava-sections.spec.ts`; migrated `audit-filters` (load-more → ◀▶
+     paging, incl. disabled-at-ends + back-nav + a race fix: await the row count before
+     snapshotting after a paged click) and `settings-permissions`/`settings-audit` (scoped
+     "Otvorenie/Zatvorenie" to `[data-form="override"]` and used **exact** "Uložiť" now that
+     both editors share the merged page). **169 unit + 100 e2e pass on a clean `pnpm supabase
+     db reset`**; typecheck/lint/build green; `/services` + `/settings/hours`
+     screenshot-verified. Code-reviewer: **0 blockers**, 2 should-fix (single page `<h1>`
+     applied; SMS task confirmed a no-op) + nits (accordion border on wrapper; precise test
+     trigger selector). Acceptance §4.2 greps: exceptions redirect = 1, `/menu` links = 0. ✅
 
    > **⚠️ RULES — read before touching any code (non-negotiable for this redesign):**
    > 1. **UI-layer only.** Do **not** change the database schema, migrations, Server

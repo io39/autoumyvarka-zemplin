@@ -10,7 +10,8 @@ test.describe("audit log — settings", () => {
 
     // 1. Trigger a hours save.
     await page.goto("/settings/hours");
-    await page.getByRole("button", { name: "Uložiť" }).click();
+    // Exact: the merged page also has an "Uložiť výnimku" button (overrides).
+    await page.getByRole("button", { name: "Uložiť", exact: true }).click();
     await expect(page.getByText("Otváracie hodiny uložené.")).toBeVisible();
 
     await expect.poll(async () => {
@@ -28,8 +29,9 @@ test.describe("audit log — settings", () => {
     await page.goto("/settings/exceptions");
     await page.getByLabel("Dátum").fill(day);
     await page.getByRole("checkbox", { name: "Zatvorené celý deň" }).uncheck();
-    await page.getByLabel("Otvorenie").fill("09:00");
-    await page.getByLabel("Zatvorenie").fill("12:00");
+    const overrideForm = page.locator('[data-form="override"]');
+    await overrideForm.getByLabel("Otvorenie").fill("09:00");
+    await overrideForm.getByLabel("Zatvorenie").fill("12:00");
     await page.getByRole("button", { name: "Uložiť výnimku" }).click();
     await expect(page.getByText("Výnimka uložená.")).toBeVisible();
 
@@ -69,9 +71,10 @@ test.describe("audit log — settings", () => {
     await page.goto("/settings/exceptions");
     await page.getByLabel("Dátum").fill(day);
     await page.getByRole("checkbox", { name: "Zatvorené celý deň" }).uncheck();
+    const overrideForm = page.locator('[data-form="override"]');
     // 08:07 isn't on the 15-min grid; the schema rejects.
-    await page.getByLabel("Otvorenie").fill("08:07");
-    await page.getByLabel("Zatvorenie").fill("12:00");
+    await overrideForm.getByLabel("Otvorenie").fill("08:07");
+    await overrideForm.getByLabel("Zatvorenie").fill("12:00");
     await page.getByRole("button", { name: "Uložiť výnimku" }).click();
 
     // The Slovak error toast appears (toast.error renders the message).

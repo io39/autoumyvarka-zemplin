@@ -61,8 +61,13 @@ export function AuditView({
 }) {
   const [filters, setFilters] = useState<Filters>(EMPTY);
   const [entries, setEntries] = useState<AuditLogRow[]>(initialEntries);
-  const [cursor, setCursor] = useState<string | null>(initialCursor);
+  const [nextCursor, setNextCursor] = useState<string | null>(initialCursor);
+  // Client-side stack of page-start cursors (spec 18 §2.4): one entry per page
+  // visited, `null` for page 1. Push on ▶, pop on ◀; length-1 = current page.
+  const [pageStack, setPageStack] = useState<(string | null)[]>([null]);
   const [pending, startTransition] = useTransition();
+
+  const pageIndex = pageStack.length - 1; // 0-based
 
   function buildArgs(f: Filters, cursor?: string) {
     return {
@@ -81,16 +86,33 @@ export function AuditView({
     startTransition(async () => {
       const res = await getAuditLog(buildArgs(next));
       setEntries(res.entries);
-      setCursor(res.nextCursor);
+      setNextCursor(res.nextCursor);
+      setPageStack([null]); // any filter change resets to page 1
     });
   }
 
-  function loadMore() {
-    if (!cursor) return;
+  // ▶ next page: replace the visible rows (no append) and remember this page's
+  // start cursor so ◀ can return to it.
+  function nextPage() {
+    if (!nextCursor) return;
+    const start = nextCursor;
     startTransition(async () => {
-      const res = await getAuditLog(buildArgs(filters, cursor));
-      setEntries((prev) => [...prev, ...res.entries]);
-      setCursor(res.nextCursor);
+      const res = await getAuditLog(buildArgs(filters, start));
+      setEntries(res.entries);
+      setNextCursor(res.nextCursor);
+      setPageStack((s) => [...s, start]);
+    });
+  }
+
+  // ◀ previous page: re-fetch the prior page from its remembered start cursor.
+  function prevPage() {
+    if (pageStack.length <= 1) return;
+    const target = pageStack[pageStack.length - 2];
+    startTransition(async () => {
+      const res = await getAuditLog(buildArgs(filters, target ?? undefined));
+      setEntries(res.entries);
+      setNextCursor(res.nextCursor);
+      setPageStack((s) => s.slice(0, -1));
     });
   }
 
@@ -264,10 +286,24 @@ export function AuditView({
         )}
       </ul>
 
-      {cursor && (
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={loadMore} disabled={pending}>
-            {pending ? "Načítavam…" : "Načítať ďalšie"}
+      {(pageIndex > 0 || nextCursor) && (
+        <div className="flex items-center justify-center gap-3" data-section="audit-pager">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={prevPage}
+            disabled={pending || pageIndex === 0}
+          >
+            ← Predošlé
+          </Button>
+          <span className="text-sm text-muted-foreground">Strana {pageIndex + 1}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={nextPage}
+            disabled={pending || !nextCursor}
+          >
+            Ďalšie →
           </Button>
         </div>
       )}

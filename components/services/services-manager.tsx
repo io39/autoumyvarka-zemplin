@@ -16,6 +16,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -75,8 +81,12 @@ export function ServicesManager({
         <Button onClick={() => setAdding(true)}>Pridať službu</Button>
       </div>
 
-      <Section title="Hlavné služby" items={mains} pending={pending} onToggle={toggleActive} />
-      <Section title="Doplnkové služby" items={addons} pending={pending} onToggle={toggleActive} />
+      {/* Hlavné / Doplnkové wrapped in expandable accordions (spec 18 §2.1),
+          default-expanded so the catalog is visible at a glance. */}
+      <Accordion type="multiple" defaultValue={["main", "addon"]} className="rounded-lg border px-4">
+        <Section value="main" title="Hlavné služby" items={mains} pending={pending} onToggle={toggleActive} />
+        <Section value="addon" title="Doplnkové služby" items={addons} pending={pending} onToggle={toggleActive} />
+      </Accordion>
 
       <NewServiceDialog
         open={adding}
@@ -91,33 +101,39 @@ export function ServicesManager({
 }
 
 function Section({
+  value,
   title,
   items,
   pending,
   onToggle,
 }: {
+  value: string;
   title: string;
   items: ServiceWithPrices[];
   pending: boolean;
   onToggle: (item: ServiceWithPrices) => void;
 }) {
-  if (items.length === 0) {
-    return (
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
-        <p className="text-sm text-muted-foreground">Žiadne služby.</p>
-      </section>
-    );
-  }
+  // Radix AccordionHeader renders an <h3>, so `title` stays a real heading.
   return (
-    <section className="space-y-3">
-      <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
-      <div className="space-y-2">
-        {items.map((item) => (
-          <ServiceCard key={item.service.id} item={item} pending={pending} onToggle={onToggle} />
-        ))}
-      </div>
-    </section>
+    <AccordionItem value={value} data-section={value}>
+      <AccordionTrigger className="text-sm font-medium hover:no-underline">
+        <span className="flex items-center gap-2">
+          {title}
+          <span className="text-xs font-normal text-muted-foreground">{items.length}</span>
+        </span>
+      </AccordionTrigger>
+      <AccordionContent>
+        {items.length === 0 ? (
+          <p className="pb-2 text-sm text-muted-foreground">Žiadne služby.</p>
+        ) : (
+          <div className="space-y-2">
+            {items.map((item) => (
+              <ServiceCard key={item.service.id} item={item} pending={pending} onToggle={onToggle} />
+            ))}
+          </div>
+        )}
+      </AccordionContent>
+    </AccordionItem>
   );
 }
 
