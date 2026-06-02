@@ -1,37 +1,17 @@
-import { notFound } from "next/navigation";
-import { getCurrentStaff } from "@/lib/auth/session";
-import { isUnauthenticatedError } from "@/lib/auth/errors";
-import { getClientWithHistory } from "@/lib/actions/clients";
-import { UnauthenticatedView } from "@/components/auth/auth-error-views";
-import { ClientDetail } from "@/components/clients/client-detail";
+import { redirect } from "next/navigation";
 
-export default async function ClientDetailPage({
+/**
+ * Deep-link entry kept for backwards compatibility (spec 17 / UI-STRUCTURE §9):
+ * order detail, the booking wizard, and `revalidatePath("/clients/[id]")` all
+ * target this route. It now redirects to the merged master-detail page
+ * `/clients?id=<id>` — never delete it, or those links 404 and revalidation
+ * goes stale.
+ */
+export default async function ClientDetailRedirect({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
-  let role;
-  try {
-    const actor = await getCurrentStaff();
-    role = actor.role;
-  } catch (error) {
-    if (isUnauthenticatedError(error)) return <UnauthenticatedView />;
-    throw error;
-  }
-
-  const detail = await getClientWithHistory(id);
-  if (!detail) notFound();
-
-  return (
-    <div className="mx-auto max-w-2xl">
-      <ClientDetail
-        client={detail.client}
-        cars={detail.cars.map((c) => c.car)}
-        histories={detail.cars}
-        role={role}
-      />
-    </div>
-  );
+  redirect(`/clients?id=${id}`);
 }

@@ -10,10 +10,10 @@ import {
   serviceClient,
 } from "./support";
 
-test.describe("client service history (spec 08)", () => {
+test.describe("client service history (spec 08 / 17)", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
 
-  test("search by phone → cars + full chronological history incl. no-show, links to order", async ({
+  test("search by phone → inline detail; expand car → history incl. no-show; open order", async ({
     page,
   }) => {
     const db = serviceClient();
@@ -23,13 +23,13 @@ test.describe("client service history (spec 08)", () => {
 
     const clientId = await createClientViaUI(page, { phone, name: "Histor Klient" });
     await addCarViaUI(page, spz);
-    // ŠPZ now shows in both the "Autá" list and the history section header.
+    // ŠPZ now shows in the per-car accordion header.
     await expect(page.getByText(spz, { exact: true }).first()).toBeVisible();
 
     const { data: car } = await db.from("cars").select("id").eq("spz", spz).single();
 
     // Two performed orders on this car: one paid (with an assigned worker), one no-show.
-    await seedOrderFor({
+    const paid = await seedOrderFor({
       clientId,
       carId: car!.id,
       status: "zaplatena",
@@ -37,23 +37,30 @@ test.describe("client service history (spec 08)", () => {
     });
     await seedOrderFor({ clientId, carId: car!.id, status: "nedostavil_sa" });
 
-    // Reach the client via the unified search.
+    // Reach the client via the unified search → inline detail (no page nav), ?id= set.
     await page.goto("/clients");
     await page.getByLabel("Hľadať klienta").fill(phone.slice(2, 8));
     await page.getByText(expectedE164).click();
-    await page.waitForURL(/\/clients\/[0-9a-f-]{36}$/);
+    await page.waitForURL(/\/clients\?id=[0-9a-f-]{36}/);
 
     const history = page.locator('[data-section="history"]');
     await expect(history).toBeVisible();
-    await expect(history.getByText(spz, { exact: true })).toBeVisible();
-    // Both statuses are visible, incl. the grey no-show badge.
-    await expect(history.getByText("Zaplatená")).toBeVisible();
-    await expect(history.getByText("Nedostavil sa")).toBeVisible();
-    // The assigned worker shows on the paid order.
-    await expect(history.getByText(/Peter/)).toBeVisible();
 
-    // Clicking an entry navigates to the order detail.
-    await history.locator("a").first().click();
+    const carCard = history.locator(`[data-car-id="${car!.id}"]`);
+    await expect(carCard.getByText(spz, { exact: true })).toBeVisible();
+
+    // Accordion is collapsed by default — expand the car to reveal its visits.
+    await carCard.getByRole("button").first().click();
+    await expect(carCard.getByText("Zaplatená")).toBeVisible();
+    await expect(carCard.getByText("Nedostavil sa")).toBeVisible();
+
+    // Expand the paid order → the assigned worker (Pracovníci) shows.
+    const paidRow = carCard.locator(`[data-order-id="${paid.orderId}"]`);
+    await paidRow.getByRole("button").first().click();
+    await expect(paidRow.getByText(/Peter/)).toBeVisible();
+
+    // Opening the full order navigates to the order detail page.
+    await paidRow.getByRole("link", { name: /Otvoriť objednávku/ }).click();
     await page.waitForURL(/\/orders\/[0-9a-f-]{36}$/);
   });
 
@@ -82,12 +89,17 @@ test.describe("client service history (spec 08)", () => {
     await seedOrderFor({ clientId: clientA, carId: car!.id, status: "zaplatena" });
     await seedOrderFor({ clientId: clientB, carId: car!.id, status: "hotova" });
 
-    // Each client's page shows BOTH orders for the shared car + the hint.
+    // Each client's page (via the kept /clients/[id] deep-link → ?id= redirect)
+    // shows BOTH orders for the shared car + the hint.
     for (const id of [clientA, clientB]) {
       await page.goto(`/clients/${id}`);
+      await page.waitForURL(/\/clients\?id=[0-9a-f-]{36}/);
       const carCard = page.locator(`[data-car-id="${car!.id}"]`);
+      // The "zdieľané auto" hint shows in the (collapsed) accordion header.
       await expect(carCard.getByText("zdieľané auto")).toBeVisible();
-      await expect(carCard.locator("ul > li")).toHaveCount(2);
+      // Expand → both visits listed.
+      await carCard.getByRole("button").first().click();
+      await expect(carCard.locator("[data-order-id]")).toHaveCount(2);
     }
   });
 });

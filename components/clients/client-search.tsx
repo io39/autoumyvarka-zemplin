@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { searchClients, createClient, type ClientSuggestion } from "@/lib/actions/clients";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -20,12 +20,17 @@ import {
 
 export function ClientSearch() {
   const router = useRouter();
+  const selectedId = useSearchParams().get("id");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ClientSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   // Sequence guard: ignore out-of-order (stale) responses.
   const seq = useRef(0);
+
+  function select(clientId: string) {
+    router.push(`/clients?id=${clientId}`);
+  }
 
   useEffect(() => {
     const q = query.trim();
@@ -47,7 +52,11 @@ export function ClientSearch() {
       setLoading(true);
       try {
         const r = await searchClients({ query: q });
-        if (id === seq.current) setResults(r);
+        // Results sorted by meno (UI-STRUCTURE §9); nameless rows sort last.
+        const sorted = [...r].sort((a, b) =>
+          (a.name ?? "￿").localeCompare(b.name ?? "￿", "sk"),
+        );
+        if (id === seq.current) setResults(sorted);
       } catch {
         if (id === seq.current) setResults([]);
       } finally {
@@ -60,8 +69,8 @@ export function ClientSearch() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Klienti</h1>
-        <Button onClick={() => setCreateOpen(true)}>Nový klient</Button>
+        <h1 className="text-xl font-semibold">Zákazníci</h1>
+        <Button onClick={() => setCreateOpen(true)}>Nový zákazník</Button>
       </div>
 
       <Input
@@ -96,14 +105,17 @@ export function ClientSearch() {
               <li key={r.clientId}>
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-accent"
-                  onClick={() => router.push(`/clients/${r.clientId}`)}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-accent",
+                    r.clientId === selectedId && "bg-accent",
+                  )}
+                  aria-current={r.clientId === selectedId || undefined}
+                  onClick={() => select(r.clientId)}
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{r.name ?? "(bez mena)"}</span>
                     <span className="block text-sm text-muted-foreground">{r.phone}</span>
                   </span>
-                  {r.matchedSpz && <Badge variant="secondary">{r.matchedSpz}</Badge>}
                 </button>
               </li>
             ))}
@@ -114,8 +126,18 @@ export function ClientSearch() {
       <CreateClientDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={(id) => router.push(`/clients/${id}`)}
-        onDuplicate={(id) => id && router.push(`/clients/${id}`)}
+        onCreated={(id) => {
+          // Close the dialog before navigating: we land on the same route
+          // (/clients?id=…), so the page's client tree (incl. this Dialog)
+          // persists — a still-open modal would aria-hide the new detail.
+          setCreateOpen(false);
+          select(id);
+        }}
+        onDuplicate={(id) => {
+          if (!id) return;
+          setCreateOpen(false);
+          select(id);
+        }}
       />
     </div>
   );
@@ -157,7 +179,7 @@ function CreateClientDialog({
       <DialogContent className="sm:max-w-md">
         <form action={onSubmit}>
           <DialogHeader>
-            <DialogTitle>Nový klient</DialogTitle>
+            <DialogTitle>Nový zákazník</DialogTitle>
             <DialogDescription>Telefónne číslo je povinné; meno a poznámka voliteľné.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

@@ -29,8 +29,17 @@ export interface HistoryOrderService {
 export interface HistoryEntry {
   orderId: string;
   startsAt: string;
+  endsAt: string;
   status: OrderStatus;
   note: string | null;
+  /** Wash box (1 or 2) the order was booked into. */
+  box: number;
+  /**
+   * Order total in cents — sum of the **non-removed** service lines'
+   * `price_cents_snapshot`, matching the live order total (which drops removed
+   * lines). Removed lines are still listed in `services`, marked.
+   */
+  totalCents: number;
   services: HistoryOrderService[];
   workers: string[];
 }
@@ -46,12 +55,15 @@ export interface HistoryOrderInput {
   id: string;
   car_id: string;
   starts_at: string;
+  ends_at: string;
   status: OrderStatus;
   note: string | null;
+  box: number;
   deleted_at: string | null;
   services: Array<{
     name_snapshot: string;
     quantity: number;
+    price_cents_snapshot: number;
     removed_at: string | null;
   }>;
   workers: Array<{ worker: { display_name: string } | null }>;
@@ -61,8 +73,13 @@ function toEntry(o: HistoryOrderInput): HistoryEntry {
   return {
     orderId: o.id,
     startsAt: o.starts_at,
+    endsAt: o.ends_at,
     status: o.status,
     note: o.note,
+    box: o.box,
+    totalCents: o.services
+      .filter((s) => s.removed_at === null)
+      .reduce((a, s) => a + s.price_cents_snapshot, 0),
     services: o.services.map((s) => ({
       name: s.name_snapshot,
       quantity: s.quantity,
@@ -93,4 +110,14 @@ export function buildCarHistories(
     );
     return { car, shared: sharedCarIds.has(car.id), entries };
   });
+}
+
+/**
+ * Per-car visit number (Poradie) for an entry, counted **per car**: the oldest
+ * visit is 1, the newest is N. `entries` are newest-first (as `buildCarHistories`
+ * returns them), so the entry at index 0 is the Nth (latest) visit and the last
+ * is the 1st. Display as `${poradie}.`.
+ */
+export function poradieFor(entries: HistoryEntry[], index: number): number {
+  return entries.length - index;
 }

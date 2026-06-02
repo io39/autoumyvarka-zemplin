@@ -35,9 +35,9 @@ test.describe("unified fuzzy search", () => {
     await search.fill(phone.slice(2, 8));
     await expect(page.getByText(expectedE164)).toBeVisible();
 
-    // ŠPZ match → the plate badge shows in the suggestion.
+    // ŠPZ match → the client surfaces (rows show meno + telefón only now, spec 17).
     await search.fill(spz.slice(0, 4));
-    await expect(page.getByText(spz, { exact: true })).toBeVisible();
+    await expect(page.getByText(expectedE164)).toBeVisible();
 
     // Non-matching query → empty state.
     await search.fill("qzxqzx");

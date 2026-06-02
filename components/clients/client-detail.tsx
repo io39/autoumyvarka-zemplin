@@ -12,13 +12,21 @@ import type {
   PricingCategory,
   StaffRole,
 } from "@/lib/supabase/types";
-import type { CarHistory } from "@/lib/clients/history";
+import type { CarHistory, HistoryEntry } from "@/lib/clients/history";
+import { poradieFor } from "@/lib/clients/history";
 import { STATE_COLOR, STATE_LABEL } from "@/types";
+import { formatPriceCents } from "@/lib/services/format";
 import { bratislavaHHMM, bratislavaDateKey } from "@/lib/settings/availability";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Dialog,
   DialogContent,
@@ -46,14 +54,17 @@ const CATEGORY_LABEL: Record<PricingCategory, string> = {
 
 const CATEGORIES = Object.keys(CATEGORY_LABEL) as PricingCategory[];
 
+/** Digits-only phone for tel:/sms: hrefs (keeps a leading +). */
+function telHref(phone: string): string {
+  return phone.replace(/[^\d+]/g, "");
+}
+
 export function ClientDetail({
   client,
-  cars,
   histories,
   role,
 }: {
   client: ClientRow;
-  cars: CarRow[];
   histories: CarHistory[];
   role: StaffRole;
 }) {
@@ -65,73 +76,30 @@ export function ClientDetail({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h1 className="text-xl font-semibold">{client.name ?? "(bez mena)"}</h1>
-            <p className="text-sm text-muted-foreground">{client.phone}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {cars.length > 0 && (
-              <Button size="sm" asChild>
-                <Link href={`/orders/new?clientId=${client.id}`}>
-                  Nová rezervácia
-                </Link>
-              </Button>
-            )}
-            {isManager && (
-              <Button variant="ghost" size="sm" onClick={() => setEditClientOpen(true)}>
-                Upraviť
-              </Button>
-            )}
-          </div>
-        </div>
-        {client.note && <p className="mt-3 text-sm">{client.note}</p>}
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-medium">Autá</h2>
-          <Button size="sm" onClick={() => setAddCarOpen(true)}>
-            Pridať auto
-          </Button>
-        </div>
-        <div className="rounded-lg border">
-          {cars.length === 0 ? (
-            <p className="p-4 text-center text-sm text-muted-foreground">Žiadne autá</p>
-          ) : (
-            <ul className="divide-y">
-              {cars.map((car) => (
-                <li key={car.id} className="flex items-center justify-between gap-2 px-4 py-3">
-                  <div className="min-w-0">
-                    <span className="font-medium">{car.spz}</span>
-                    {car.model && (
-                      <span className="ml-2 text-sm text-muted-foreground">{car.model}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{CATEGORY_LABEL[car.pricing_category]}</Badge>
-                    {isManager && (
-                      <Button variant="ghost" size="sm" onClick={() => setEditCar(car)}>
-                        Upraviť
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
+      <ClientHeaderCard
+        client={client}
+        isManager={isManager}
+        onEdit={() => setEditClientOpen(true)}
+        onAddCar={() => setAddCarOpen(true)}
+      />
 
       <section className="space-y-3" data-section="history">
-        <h2 className="text-lg font-medium">História návštev</h2>
+        <h2 className="text-lg font-medium">Autá a história</h2>
         {histories.length === 0 ? (
           <p className="rounded-lg border p-4 text-center text-sm text-muted-foreground">
             Žiadne autá
           </p>
         ) : (
-          histories.map((h) => <CarHistorySection key={h.car.id} history={h} />)
+          <Accordion type="multiple" className="rounded-lg border px-4">
+            {histories.map((h) => (
+              <CarRow
+                key={h.car.id}
+                history={h}
+                isManager={isManager}
+                onEditCar={() => setEditCar(h.car)}
+              />
+            ))}
+          </Accordion>
         )}
       </section>
 
@@ -171,72 +139,160 @@ export function ClientDetail({
   );
 }
 
-function CarHistorySection({ history }: { history: CarHistory }) {
-  const { car, shared, entries } = history;
+function ClientHeaderCard({
+  client,
+  isManager,
+  onEdit,
+  onAddCar,
+}: {
+  client: ClientRow;
+  isManager: boolean;
+  onEdit: () => void;
+  onAddCar: () => void;
+}) {
   return (
-    <div className="rounded-lg border" data-car-id={car.id}>
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <span className="font-medium">{car.spz}</span>
-        {car.model && (
-          <span className="text-sm text-muted-foreground">{car.model}</span>
-        )}
-        {shared && (
-          <Badge variant="outline" title="Auto je zdieľané s iným klientom">
-            zdieľané auto
-          </Badge>
+    <section className="rounded-lg border p-4" data-section="client">
+      <h1 className="text-xl font-semibold">{client.name ?? "(bez mena)"}</h1>
+      <p className="mt-0.5 text-sm">
+        <a href={`tel:${telHref(client.phone)}`} className="text-primary hover:underline">
+          {client.phone}
+        </a>
+        <span className="mx-2 text-muted-foreground">·</span>
+        <a href={`sms:${telHref(client.phone)}`} className="text-primary hover:underline">
+          SMS
+        </a>
+      </p>
+      {client.note && <p className="mt-3 text-sm">{client.note}</p>}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {/* All roles — available even with no cars (the wizard can add one). */}
+        <Button size="sm" asChild>
+          <Link href={`/orders/new?clientId=${client.id}`}>Nová rezervácia</Link>
+        </Button>
+        <Button variant="outline" size="sm" onClick={onAddCar}>
+          Pridať auto
+        </Button>
+        {isManager && (
+          <Button variant="ghost" size="sm" onClick={onEdit}>
+            Upraviť klienta
+          </Button>
         )}
       </div>
-      {entries.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-          Zatiaľ žiadna história
-        </p>
-      ) : (
-        <ul className="divide-y">
-          {entries.map((e) => {
-            const date = new Date(e.startsAt);
-            const style = STATE_COLOR[e.status];
-            return (
-              <li key={e.orderId}>
-                <Link
-                  href={`/orders/${e.orderId}`}
-                  className="block px-4 py-3 hover:bg-muted/50"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-sm font-medium">
-                      {bratislavaDateKey(date)} · {bratislavaHHMM(date)}
-                    </span>
-                    {/* nedostavil_sa renders plain gray here — STATE_COLOR no
-                        longer carries the calendar's strike-through/opacity. */}
-                    <Badge className={`border ${style.bg} ${style.border} ${style.text}`}>
-                      {STATE_LABEL[e.status]}
-                    </Badge>
-                  </div>
-                  {e.services.length > 0 && (
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      {e.services.map((s, i) => (
-                        <span key={i}>
-                          {i > 0 && ", "}
-                          <span className={s.removed ? "line-through" : ""}>
-                            {s.name}
-                            {s.quantity > 1 && ` ×${s.quantity}`}
-                          </span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {e.workers.length > 0 && (
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Pracovníci: {e.workers.join(", ")}
-                    </div>
-                  )}
-                  {e.note && <div className="mt-1 text-sm">{e.note}</div>}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+    </section>
+  );
+}
+
+function CarRow({
+  history,
+  isManager,
+  onEditCar,
+}: {
+  history: CarHistory;
+  isManager: boolean;
+  onEditCar: () => void;
+}) {
+  const { car, shared, entries } = history;
+  return (
+    <AccordionItem value={car.id} data-car-id={car.id}>
+      <div className="flex items-center gap-2">
+        <AccordionTrigger className="flex-1 hover:no-underline">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-medium">{car.spz}</span>
+            {car.model && <span className="text-muted-foreground">{car.model}</span>}
+            <Badge variant="secondary">{CATEGORY_LABEL[car.pricing_category]}</Badge>
+            {shared && (
+              <Badge variant="outline" title="Auto je zdieľané s iným klientom">
+                zdieľané auto
+              </Badge>
+            )}
+            <span className="text-xs font-normal text-muted-foreground">
+              {entries.length === 0 ? "Žiadne služby." : `${entries.length}×`}
+            </span>
+          </span>
+        </AccordionTrigger>
+        {isManager && (
+          <Button variant="ghost" size="sm" onClick={onEditCar}>
+            Upraviť auto
+          </Button>
+        )}
+      </div>
+      {/* The "Žiadne služby." hint already shows in the trigger above; the
+          expanded content only lists visits when there are any. */}
+      {entries.length > 0 && (
+        <AccordionContent>
+          <Accordion type="multiple" className="border-t">
+            {entries.map((e, i) => (
+              <ServiceHistoryRow
+                key={e.orderId}
+                entry={e}
+                poradie={poradieFor(entries, i)}
+              />
+            ))}
+          </Accordion>
+        </AccordionContent>
       )}
-    </div>
+    </AccordionItem>
+  );
+}
+
+function ServiceHistoryRow({ entry, poradie }: { entry: HistoryEntry; poradie: number }) {
+  const start = new Date(entry.startsAt);
+  const end = new Date(entry.endsAt);
+  const style = STATE_COLOR[entry.status];
+  return (
+    <AccordionItem value={entry.orderId} data-order-id={entry.orderId}>
+      <AccordionTrigger className="py-3 hover:no-underline">
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-medium">
+              {poradie}. · {bratislavaDateKey(start)} · {bratislavaHHMM(start)}–
+              {bratislavaHHMM(end)}
+            </span>
+            {/* nedostavil_sa renders plain gray — STATE_COLOR carries no
+                strike-through/opacity here (spec 13). */}
+            <Badge className={`border ${style.bg} ${style.border} ${style.text}`}>
+              {STATE_LABEL[entry.status]}
+            </Badge>
+          </span>
+          {entry.services.length > 0 && (
+            <span className="text-sm font-normal text-muted-foreground">
+              {entry.services.map((s, i) => (
+                <span key={i}>
+                  {i > 0 && ", "}
+                  <span className={s.removed ? "line-through" : ""}>
+                    {s.name}
+                    {s.quantity > 1 && ` ×${s.quantity}`}
+                  </span>
+                </span>
+              ))}
+            </span>
+          )}
+        </span>
+      </AccordionTrigger>
+      <AccordionContent>
+        <div className="space-y-2 pb-1 text-sm">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+            <span>Box {entry.box}</span>
+            <span>Cena spolu: {formatPriceCents(entry.totalCents)}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Pracovníci: </span>
+            {entry.workers.length > 0 ? entry.workers.join(", ") : "—"}
+          </div>
+          {entry.note && (
+            <div>
+              <span className="text-muted-foreground">Poznámka: </span>
+              {entry.note}
+            </div>
+          )}
+          <Link
+            href={`/orders/${entry.orderId}`}
+            className="inline-block font-medium text-primary hover:underline"
+          >
+            Otvoriť objednávku →
+          </Link>
+        </div>
+      </AccordionContent>
+    </AccordionItem>
   );
 }
 
