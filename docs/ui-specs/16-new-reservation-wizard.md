@@ -1,6 +1,6 @@
 # Spec 16 — Nová rezervácia: 4-step wizard
 
-> **Status:** draft · **PRD refs:** §4 (client key), §5 (booking flow, conflicts) ·
+> **Status:** done · **PRD refs:** §4 (client key), §5 (booking flow, conflicts) ·
 > **Depends on:** spec 13 (theme), spec 14 (calendar date controls / slot header),
 > spec 15 (the Zmeniť-čas button this repoints — §2.9) ·
 > **UI-redesign refs:** `../UI-STRUCTURE.md` §8 (wizard) · **Baseline refs:**
@@ -23,18 +23,27 @@ picker whose header mirrors the calendar (§4).
 1. Replace `BookingForm` with a **`BookingWizard`**: `BookingStepper` (4-step progress) +
    per-step components + `WizardActions` (Späť / Ďalej, final **"Vytvoriť rezerváciu"**).
 2. **Step 1 Klient** — fuzzy search (telefón/meno, reusing spec-02 unified search) to pick
-   an existing client, or **"Pridať nového zákazníka"** (meno + telefón) via a Dialog.
-3. **Step 2 Auto** — pick one of the client's cars, or **"+ nové auto"** (ŠPZ, model, typ,
-   farba).
-4. **Step 3 Služby** — checkbox list of **active** services in **Hlavné / Doplnkové**
-   groups (exists), with a running **total minutes + €**; the total sets the slot length.
+   an existing client, or **"Pridať nového zákazníka"** (meno + telefón) via a Dialog. The
+   new-client dialog shows a **non-blocking duplicate-phone hint** (the existing client's
+   name) as the phone is typed.
+3. **Step 2 Auto** — pick one of the client's cars (a **"zdieľané auto"** badge marks cars
+   shared with another client), or **"+ nové auto"** (ŠPZ, model, kategória). The new-car
+   dialog shows a **non-blocking duplicate-vehicle hint** (the client the ŠPZ is found under).
+4. **Step 3 Služby** — **active** services with a running **Σ min + €**: **Hlavné** always
+   shown; **Doplnkové** in a **collapsible accordion** (collapsed by default; auto-open +
+   count when any add-on is selected) grouped under **Tepovanie / Čistenie / Ostatné**
+   sub-headers. Also an optional **Poznámka** to attach a note to the order.
 5. **Step 4 Termín** — **Deň / 3 dni** switch, the **Calendar popover** date control
    (shared with §4) + ◀ ▶ + **Dnes / Späť na dnes**, **quick slots per box** (one-tap), and
    a **full slot picker** with a **MINULOSŤ** past-time overlay; **box is implicit** (set by
-   the picked slot); enforce **no box+time overlap** (rule #2).
+   the picked slot); enforce **no box+time overlap** (rule #2). Occupied bookings render as
+   one-line cards; the **3-dni** grid fits the desktop width (no horizontal scroll) and each
+   box column shows its reservation count.
 6. **Entry points:** nav "Nová rezervácia" and the calendar **+** → blank wizard at step 1;
    from a **client detail** page → client prefilled, **skip to step 2**.
 7. On success: toast + return to the calendar on the chosen date with the new order visible.
+8. The **stepper** shows the selected **client name** under Klient and **car brand** under
+   Auto.
 
 ### 1.2 User stories (UI-STRUCTURE §8)
 
@@ -45,11 +54,13 @@ picker whose header mirrors the calendar (§4).
 
 ### 1.3 Non-goals
 
-- **No change to the create/availability Server Actions** — `createOrder`, `suggestSlots`,
-  `resolveServicePrice`, `bratislavaLocalToISO`, and the box-overlap constraint are reused
-  unchanged (specs 03/05).
-- **No duplicate-phone hardening** beyond what spec 02 already does (telefón = key); any
-  extra dedupe is out of scope.
+- **No change to the create/availability Server Actions** — `createOrder` (which already
+  accepts an optional `note`), `suggestSlots`, `resolveServicePrice`, `bratislavaLocalToISO`,
+  and the box-overlap constraint are reused unchanged (specs 03/05). `getClientWithCars`
+  gains a **read-only** `sharedCarIds` field (additive, like spec 17).
+- **Duplicate hints are advisory, not enforcement** — the phone/vehicle warnings are
+  non-blocking; `createClient`/`addCarToClient` remain the authoritative de-dupe/link on
+  submit (telefón = key, shared-ŠPZ link — spec 02). No hard block on duplicates.
 - **Edit mode is in scope** (§2.9): this spec wires **Zmeniť čas** to reuse the wizard
   (prefilled, services + slot editable) and repoints spec 15's button. It does **not**
   allow changing the order's client/car (those stay locked in edit mode).
@@ -67,8 +78,10 @@ picker whose header mirrors the calendar (§4).
 - `BookingWizard` (client) holds wizard state: `{ clientId, carId, selections[],
   durationOverride?, view: 'day'|'3day', date, pickedSlot }` and the current step.
 - `BookingStepper` — 4 labelled steps (Klient · Auto · Služby · Termín), current/done
-  states. `WizardActions` — **Späť** / **Ďalej** (disabled until the step is valid) and, on
+  states, with an optional **subtitle** per step (client name under Klient, car brand under
+  Auto). `WizardActions` — **Späť** / **Ďalej** (disabled until the step is valid) and, on
   step 4, **"Vytvoriť rezerváciu"**.
+- Wizard state also carries `note` (the order note, shared by create + edit).
 - Step validity gates: 1 needs a `clientId`; 2 a `carId`; 3 ≥1 service; 4 a `pickedSlot`.
 
 ### 2.2 Step 1 — Klient (`Step1Client`)
@@ -76,21 +89,35 @@ picker whose header mirrors the calendar (§4).
 - Reuse the **spec-02 unified search** action (phone/name) in an autocomplete; selecting a
   result sets `clientId` and loads the client's cars.
 - **"Pridať nového zákazníka"** Dialog (meno + telefón) → `createClient` → select the new
-  client. Telefón is the key (rule #1).
+  client. Telefón is the key (rule #1). As the phone is typed (debounced), an **exact
+  normalized-phone** match via `searchClients` shows a **non-blocking** amber hint naming the
+  existing client (`data-dup-phone`); submit stays enabled (`createClient` de-dupes).
 - Replaces today's `/clients?return=/orders/new` redirect — the page no longer bounces.
 
 ### 2.3 Step 2 — Auto (`Step2Car`)
 
-- List the client's cars (ŠPZ — model (kategória)); pick one → `carId`. The car's
+- List the client's cars (ŠPZ — model (kategória)); pick one → `carId`. A **"zdieľané
+  auto"** `Badge` (same style as the history view) marks cars in `sharedCarIds` — cars linked
+  to >1 client. `getClientWithCars` returns `sharedCarIds` (one extra read-only query),
+  threaded through `/orders/new` + `/orders/[id]/edit` + `BookingWizard`. The car's
   `pricing_category` drives step-3 pricing (as today).
-- **"+ nové auto"** Dialog (ŠPZ, model, typ/kategória, farba) → `addCar` (spec 02) → select.
+- **"+ nové auto"** Dialog (ŠPZ, model, kategória) → `addCarToClient` (spec 02) → select. As
+  the ŠPZ is typed, an exact normalized-ŠPZ match (on `searchClients`' `matchedSpz`) shows a
+  **non-blocking** hint naming the client the vehicle is found under (`data-dup-vehicle`);
+  submit stays enabled (the action links the shared ŠPZ).
 
 ### 2.4 Step 3 — Služby (`Step3Services`)
 
-- Reuse the existing `ServiceGroup` (Hlavné/Doplnkové, per-unit qty, availability dimming).
-- Running summary: **Σ min** and **Σ €** via `resolveServicePrice` (as today). Keep the
-  optional **manual duration override** as an advanced field; the effective duration sets
-  the step-4 slot length.
+- Reuse `ServiceGroup` (per-unit qty, availability dimming). **Hlavné** renders directly;
+  **Doplnkové** is wrapped in a shadcn `Accordion` (**collapsed by default**; `value` forced
+  open + an `N vybraté` count badge when `addonSelectedCount > 0`). Inside, add-ons are split
+  into **Tepovanie / Čistenie / Ostatné** — each a reused `ServiceGroup` — via the pure
+  `addonGroup(name)` helper (`lib/orders/booking.ts`, name-prefix heuristic; unknown →
+  Ostatné; unit-tested).
+- Running summary: **Σ min** and **Σ €** via `resolveServicePrice`. Keep the optional
+  **manual duration override** (create-only). The effective duration sets the step-4 slot
+  length.
+- **Poznámka (voliteľné)** textarea at the bottom (`data-order-note`) → wizard `note` state.
 
 ### 2.5 Step 4 — Termín (`Step4TimeSlot`) — the new part
 
@@ -102,9 +129,13 @@ picker whose header mirrors the calendar (§4).
   orders + the open interval (reuse `lib/orders/slots.ts` + `getOpenInterval`), with a
   **MINULOSŤ** overlay over past times. Tapping a free range sets `pickedSlot` (box
   implicit). Enforce no overlap with the chosen duration (the DB constraint is the backstop;
-  the picker pre-filters).
+  the picker pre-filters). Occupied bookings render with the shared `BookingCardContent`
+  **line** density (time + brand). The grid uses a **fixed** `ROW_PX` (its click maps Y→time,
+  so rows stay uniform — unlike the Day view's dynamic rows). The **3-dni** column template
+  shrinks to `minmax(0,1fr)` on desktop (`useMediaQuery`) so it fits without horizontal
+  scroll; each box column has a header row showing `Box N` + the reservation count.
 - **Submit:** `bratislavaLocalToISO(date, pickedSlot.localStart)` → `createOrder({ clientId,
-  carId, box, startsAt, services, durationOverrideMin? })` → toast → `/?date={date}`.
+  carId, box, startsAt, services, durationOverrideMin?, note? })` → toast → `/?date={date}`.
 
 ### 2.6 Page & entry points
 
@@ -141,9 +172,11 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
   the same quick-slots + interactive picker. Steps 1–2 are visible/back-navigable but not
   the point.
 - **Apply on finish** (not `createOrder`): persist the diff against the existing order using
-  the **existing actions** — `addOrderService`/`removeOrderService` for the service changes
-  and `moveOrder({ id, box, startsAt })` for the new slot (spec 06). The conflict check
-  must exclude the order's **own** current slot so "same time" isn't a false conflict.
+  the **existing actions** — `addOrderService`/`removeOrderService` for the service changes,
+  `moveOrder({ id, box, startsAt })` for the new slot (spec 06), and `setNote` when the
+  Poznámka changed (the field is prefilled from the order's note via `EditContext.originalNote`
+  / `initial.note`). The conflict check must exclude the order's **own** current slot so
+  "same time" isn't a false conflict.
 - **Final label:** "Uložiť zmeny" (not "Vytvoriť rezerváciu"); on success → back to the
   order (Sheet/page) + toast.
 - **Repoint spec 15:** replace `ChangeTimeDialog` wiring with a link/navigation to this
@@ -167,10 +200,15 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
    wizard (locked client/car, open on step 3); apply-diff on finish (service add/remove +
    `moveOrder`, self-slot excluded from conflict); **repoint spec-15 Zmeniť čas** to it.
    (dep: 5, spec 15)
-8. **(M)** Tests: e2e (blank flow creates an order end-to-end; client-prefill starts at
+8. **(M)** Refinements: Step-1 dup-phone + Step-2 dup-vehicle hints (debounced
+   `searchClients`); `getClientWithCars.sharedCarIds` + Step-2 **zdieľané auto** badge;
+   Step-3 **Doplnkové accordion** + `addonGroup` sub-headers + **Poznámka** field (→
+   `createOrder.note` / edit `setNote`); `BookingStepper` subtitles; Step-4 line cards +
+   3-dni desktop no-scroll + box-header counts. (dep: 5, 7)
+9. **(M)** Tests: e2e (blank flow creates an order end-to-end; client-prefill starts at
    step 2; quick slot + full picker pick; conflict rejected; per-unit qty; **edit mode**:
    Zmeniť čas opens prefilled at step 3, change a service + move the slot, saves) + unit
-   (range/finish math). (dep: 5, 6, 7)
+   (range/finish math, `addonGroup`). (dep: 5, 6, 7, 8)
 
 ---
 
@@ -186,11 +224,16 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build   # all exit 0
 
 - From nav/calendar **+**: wizard opens at **step 1** (Klient); search selects an existing
   client; **Pridať zákazníka** creates+selects a new one.
-- Step 2 picks/creates a car; step 3 selects services and shows Σ min + Σ €; step 4 picks a
-  free slot (quick or full picker) and **"Vytvoriť rezerváciu"** creates the order and lands
-  on the calendar for that date with the order visible.
+- Step 2 picks/creates a car (shared cars show the **zdieľané auto** badge); step 3 selects
+  services — **Doplnkové** collapsed by default, auto-opening with a count when an add-on is
+  picked, sub-grouped Tepovanie/Čistenie/Ostatné — shows Σ min + Σ €, and an optional
+  **Poznámka**; step 4 picks a free slot and **"Vytvoriť rezerváciu"** creates the order
+  (with the note) and lands on the calendar for that date.
 - From a client page (`?clientId=`): wizard starts at **step 2** (client prefilled).
 - Picking a slot that overlaps an existing order in that box is rejected (Slovak error).
+- New-client / new-car dialogs show the non-blocking duplicate hints (`data-dup-phone`,
+  `data-dup-vehicle`) but still allow submit.
+- The stepper shows the client name (Klient) and car brand (Auto).
 
 ```bash
 pnpm test e2e/booking-wizard         # exits 0

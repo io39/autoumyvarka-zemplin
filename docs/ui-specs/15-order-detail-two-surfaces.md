@@ -1,6 +1,6 @@
 # Spec 15 — Order detail: popup Sheet + full page + shared cards
 
-> **Status:** draft · **PRD refs:** §6 (lifecycle), §7 (notes), §8 (SMS log), §9.3, §11 ·
+> **Status:** done · **PRD refs:** §6 (lifecycle), §7 (notes), §8 (SMS log), §9.3, §11 ·
 > **Depends on:** spec 13 (theme), spec 14 (calendar blocks) ·
 > **UI-redesign refs:** `../UI-STRUCTURE.md` §7 (order detail — two surfaces), §6 (tree) ·
 > **Baseline refs:** `../zemplin-baseline.md` (order-detail.tsx ~770 lines)
@@ -88,14 +88,22 @@ A single component rendering the cards in **§7 order**, given
 
 Reordering vs. today: **Akcie (Zmeniť čas / Zmazať)** moves to **just under the status
 badge** (was bottom); **status-advance buttons** move to the **bottom** (was mid); note
-moves below services/workers. Same components, new order.
+moves below services/workers. Same components, new order. **This order is fixed** — later
+refinements adjust spacing only, not the sequence.
+
+Spacing/readability: sections use `space-y-5`, each card `p-4`, with section labels
+`mb-1 tracking-wide`; long values (client name/phone, ŠPZ/model, notes) `break-words`
+(notes also `whitespace-pre-wrap`) so they wrap inside the card instead of overflowing.
 
 ### 2.3 The Sheet (`BookingDetailSheet`)
 
 - Add shadcn **`sheet`** primitive (not installed).
-- **Responsive side:** bottom sheet on mobile, right side-sheet on `sm:+` (choose `side`
-  via a small `useMediaQuery`, or render two `Sheet`s gated by Tailwind — implementer's
-  choice; bottom-on-mobile is the requirement).
+- **Responsive side:** bottom sheet on mobile, right side-sheet on `sm:+` (`side` chosen via
+  a small `useMediaQuery`; bottom-on-mobile is the requirement).
+- **Desktop width & height:** a **comfortable reading width** of ~450–600px —
+  `sm:max-w-lg` (512px) widening to `xl:max-w-xl` (576px) — and **full height**
+  (`sm:max-h-none`, no `90dvh` cap, which otherwise cut the panel off). It never covers the
+  whole screen. The mobile bottom sheet keeps `max-h-[90dvh]`.
 - Opened from `BookingBlock` (calendar): the block becomes a button that sets the selected
   order id and opens the Sheet (replacing the spec-14 `Link`). The **full page** stays the
   client-history entry point.

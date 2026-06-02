@@ -78,8 +78,9 @@ export default async function EditOrderPage({
           selections,
           date: currentSlot.dateKey,
           picked: currentSlot,
+          note: order.note,
         }}
-        edit={{ orderId: id, originalLines, currentSlot }}
+        edit={{ orderId: id, originalLines, currentSlot, originalNote: order.note }}
       />
     </div>
   );

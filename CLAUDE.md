@@ -81,7 +81,8 @@ Commit messages follow conventional commits.
 
 ## Working with Claude Code
 
-- **Spec-driven.** Every new feature gets a spec in `docs/specs/<NN>-<name>.md` before any implementation. Specs follow Requirements → Design → Tasks → Acceptance Criteria with checkable shell commands.
+- **Spec-driven.** A genuinely new feature area gets a spec in `docs/specs/<NN>-<name>.md` (or `docs/ui-specs/`) before implementation, following Requirements → Design → Tasks → Acceptance Criteria with checkable shell commands.
+- **Specs are the single source of truth — update, don't proliferate.** When a change touches an existing feature, **update and merge** the new behavior into the existing spec(s) rather than creating a new versioned spec file or a duplicate section. Revise/remove outdated requirements that conflict, keep each feature's definition in **one** authoritative place, preserve numbering/structure/formatting, and if a change spans several specs update all of them so they stay consistent. Specs must describe the **current** intended behavior, not the historical evolution. Only create a brand-new spec file for a feature area that genuinely has no existing home. Before finishing, scan the affected specs for contradictions, duplicates, and obsolete acceptance criteria.
 - **Subagents** in `.claude/agents/`:
   - `spec-writer` — drafts new feature specs in the format established by the first spec
   - `code-reviewer` — reviews code against this file and the relevant spec after meaningful changes

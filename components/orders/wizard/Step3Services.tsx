@@ -40,9 +40,11 @@ export function Step3Services({
   selections,
   overrideMin,
   allowOverride = true,
+  note,
   onToggle,
   onQty,
   onOverrideChange,
+  onNoteChange,
 }: {
   services: ServiceWithPrices[];
   category: PricingCategory | null;
@@ -50,9 +52,11 @@ export function Step3Services({
   overrideMin: string;
   /** The manual duration override is create-only; in edit mode it isn't persisted. */
   allowOverride?: boolean;
+  note: string;
   onToggle: (id: string) => void;
   onQty: (id: string, qty: number) => void;
   onOverrideChange: (value: string) => void;
+  onNoteChange: (value: string) => void;
 }) {
   const lines = useMemo(
     () => resolveSelectionLines(selections, services, category),
@@ -149,6 +153,19 @@ export function Step3Services({
         <div data-summary-price>
           Cena spolu: <span className="font-medium">{formatPriceCents(price)}</span>
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="order-note">Poznámka (voliteľné)</Label>
+        <textarea
+          id="order-note"
+          data-order-note
+          className="w-full rounded-md border bg-background p-2 text-sm"
+          rows={2}
+          value={note}
+          onChange={(e) => onNoteChange(e.target.value)}
+          placeholder="Poznámka k objednávke…"
+        />
       </div>
     </section>
   );

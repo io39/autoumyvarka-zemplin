@@ -8,6 +8,7 @@ import {
   createOrder,
   moveOrder,
   removeOrderService,
+  setNote,
 } from "@/lib/actions/orders";
 import { getClientWithCars } from "@/lib/actions/clients";
 import type { ServiceWithPrices } from "@/lib/actions/services";
@@ -32,6 +33,7 @@ export interface EditContext {
   orderId: string;
   originalLines: Array<{ orderServiceId: string; serviceId: string; quantity: number }>;
   currentSlot: PickedSlot;
+  originalNote: string | null;
 }
 
 export interface BookingWizardProps {
@@ -48,6 +50,7 @@ export interface BookingWizardProps {
     selections: Selection[];
     date: string;
     picked: PickedSlot | null;
+    note?: string | null;
   };
   edit?: EditContext;
 }
@@ -70,6 +73,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
   const [carId, setCarId] = useState<string | null>(initial.carId);
   const [selections, setSelections] = useState<Selection[]>(initial.selections);
   const [overrideMin, setOverrideMin] = useState("");
+  const [note, setNoteValue] = useState(initial.note ?? "");
   const [view, setView] = useState<SlotView>("day");
   const [date, setDate] = useState(initial.date);
   const [picked, setPicked] = useState<PickedSlot | null>(initial.picked);
@@ -186,6 +190,11 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
           const r = await moveOrder({ id: edit.orderId, box: picked.box, startsAt });
           if (!r.ok) return fail(r.message);
         }
+        // 3) Note diff (only when it actually changed).
+        if (note.trim() !== (edit.originalNote ?? "").trim()) {
+          const r = await setNote({ id: edit.orderId, note: note.trim() || null });
+          if (!r.ok) return fail(r.message ?? "Uloženie poznámky zlyhalo.");
+        }
         toast.success("Zmeny uložené.");
         router.push(`/orders/${edit.orderId}`);
       });
@@ -201,6 +210,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
         startsAt,
         services: selections,
         durationOverrideMin: overrideArg,
+        note: note.trim() || undefined,
       });
       if (r.ok) {
         toast.success("Objednávka vytvorená.");
@@ -247,9 +257,11 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
           selections={selections}
           overrideMin={overrideMin}
           allowOverride={!isEdit}
+          note={note}
           onToggle={toggleService}
           onQty={setQty}
           onOverrideChange={setOverrideMin}
+          onNoteChange={setNoteValue}
         />
       )}
       {step === 3 && (

@@ -32,6 +32,8 @@ page-content changes beyond reconciling each page's outer container with the new
    outer container/padding (the shell now owns `<main>`), keeping any intentional inner
    content width.
 7. **Remove** the `/menu` hub page and the calendar header's "Menu" link.
+8. Surface the manager **overdue-unpaid badge** in the **desktop sidebar** (above SPRÁVA),
+   since the calendar header is mobile-only (spec 14 §2.6).
 
 ### 1.2 User stories (from PRD §3, UI-STRUCTURE §0/§2)
 
@@ -73,9 +75,10 @@ page-content changes beyond reconciling each page's outer container with the new
 - **`components/navigation/AppShell.tsx`** is a **server component**. It resolves the
   current actor and decides chrome:
   - Call `getCurrentStaff()` inside a `try/catch`.
-  - **On success** → render the full shell: `<Sidebar role={staff.role} staffName=… />`
-    (desktop), `<main>` with the page, and `<BottomNav role={staff.role} />` (mobile).
-    `role` drives SPRÁVA visibility (manager-only).
+  - **On success** → render the full shell: `<Sidebar role staffName unpaidCount realtimeJwt
+    />` (desktop), `<main>` with the page, and `<BottomNav role />` (mobile). `role` drives
+    SPRÁVA visibility (manager-only). For managers it also mints the Realtime JWT
+    (`mintRealtimeToken(getIdentity())`) + `getUnpaidCount()` for the sidebar `UnpaidBadge`.
   - **On throw** (`Unauthenticated`/`Forbidden` — authenticated by Cloudflare but not a
     provisioned active staff row) → render a **bare passthrough**: just `{children}`, no
     sidebar/bottom-nav, so the page's own 401/403 view fills the screen.
@@ -140,8 +143,12 @@ icon):
 - **`components/navigation/Sidebar.tsx`** (`"use client"` — needs `usePathname` for active
   state) — desktop only (`hidden md:flex`), fixed 240px. Renders the PREVÁDZKA items
   (icon + label, active state via `usePathname`). At the bottom: the logged-in staff name
-  + role, and — **manager only** — the **SPRÁVA burger**: a `Settings`-icon button opening
-  a **shadcn `DropdownMenu`** of the SPRÁVA items (text-only). Props: `{ role, staffName }`.
+  + role; and — **manager only** — the overdue **`UnpaidBadge`** (live, → `/unpaid`, hidden
+  at 0) **above** the **SPRÁVA burger** (a `Settings`-icon button opening a shadcn
+  `DropdownMenu` of the SPRÁVA items, text-only). Props: `{ role, staffName, unpaidCount,
+  realtimeJwt }` — `AppShell` mints the Realtime JWT + `getUnpaidCount` for managers and
+  passes them in. (The calendar header is mobile-only, so on desktop this sidebar badge is
+  the only unpaid affordance — see spec 14 §2.6.)
 - **`components/navigation/BottomNav.tsx`** (`"use client"`) — mobile only
   (`md:hidden`), fixed to the bottom, `env(safe-area-inset-bottom)` padding. Four slots:
   the three PREVÁDZKA items (icon + short label) and — **manager only** — a fourth

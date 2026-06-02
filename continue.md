@@ -3,17 +3,19 @@
 **Project:** Autoumyváreň Zemplín — internal reservation system for a single car wash.
 **Phase:** Implementation, spec-driven. **All feature specs (01–11) are done.**
 **The UI redesign (specs 12–18 in `docs/ui-specs/`) is COMPLETE and all merged to `main`.**
-**Spec 19 (calendar & booking refinements — `docs/ui-specs/19-…`) is DONE + committed to
-`main` locally** (push from your own terminal — pushing is hook-blocked here). Next up: the
-**walking-skeleton production deploy** (Supabase Cloud EU + VPS + Cloudflare Tunnel/Access),
-picking the real SMS provider, and the client's open questions. The redesign restructured +
-reskinned the working app to the reference prototype (`docs/UI-STRUCTURE.md`); UI-layer only
-(spec 19 added one **read-only** additive field, `getClientWithCars.sharedCarIds`).
-**Last updated:** 2026-06-02.
+A round of **post-redesign refinements** (calendar dynamic-height cards + axis/spacing,
+order-detail panel width, header-mobile-only + sidebar unpaid badge, wizard duplicate hints
+/ shared badge / Doplnkové accordion / step-3 note / stepper subtitles) is **done + committed
+to `main` locally** and **merged into the specs it touches — 12/14/15/16** (no separate spec
+file, per the single-source-of-truth rule in `CLAUDE.md`). Push from your own terminal —
+pushing is hook-blocked here. Next up: the **walking-skeleton production deploy** (Supabase
+Cloud EU + VPS + Cloudflare Tunnel/Access), picking the real SMS provider, and the client's
+open questions. The redesign is UI-layer only (the one back-end touch was a **read-only**
+additive field, `getClientWithCars.sharedCarIds`). **Last updated:** 2026-06-02.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
-(features 01–11), `docs/ui-specs/README.md` (redesign 12–19) + `docs/UI-STRUCTURE.md`.
+(features 01–11), `docs/ui-specs/README.md` (redesign 12–18) + `docs/UI-STRUCTURE.md`.
 
 ---
 
@@ -519,9 +521,9 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
 
 2. **UI REDESIGN — specs 12–18 in `docs/ui-specs/` — COMPLETE + all merged to `main`.**
    Restructure + reskin the working app to the reference prototype (`docs/UI-STRUCTURE.md`).
-   All seven specs written, implemented, and merged. **A follow-up — spec 19 (calendar &
-   booking refinements) — is DONE + committed to `main` locally** (see its entry below;
-   push from your own terminal).
+   All seven specs written, implemented, and merged. A round of **post-redesign refinements**
+   (done + committed to `main` locally) was **folded into specs 12/14/15/16** rather than a
+   new spec file — see those specs + the "post-redesign refinements" recap below.
 
    - **Spec 12 — DONE + merged to `main`** (commit `feat: implement spec 12 (app shell &
      navigation)` `6e4ef89`, merged via `284a60c`; branch `feat/spec-12-app-shell` deleted;
@@ -758,8 +760,9 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      screenshot-verified. Code-reviewer: **0 blockers**, 2 should-fix (single page `<h1>`
      applied; SMS task confirmed a no-op) + nits (accordion border on wrapper; precise test
      trigger selector). Acceptance §4.2 greps: exceptions redirect = 1, `/menu` links = 0. ✅
-   - **Spec 19 — DONE + committed to `main`** (post-redesign refinements;
-     `docs/ui-specs/19-calendar-and-booking-refinements.md`; push from your own terminal).
+   - **Post-redesign refinements — DONE + committed to `main`** (folded into specs
+     **12/14/15/16**, not a separate file; push from your own terminal). Recap of what
+     changed:
      **Calendar:** axis labels only at `:00`/`:30` but **all** 15-min lines kept at higher
      contrast (`/25` vs `/40`); `ROW_PX` compressed to **20**; new shared
      **`components/calendar/BookingCard.tsx`** (densities **rich**/**compact**/**line**, +
@@ -787,7 +790,9 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
      `BookingWizard`); **Doplnkové** wrapped in a shadcn `Accordion` (**collapsed by default**,
      force-open + `N vybraté` badge when any add-on selected) with **Tepovanie/Čistenie/
      Ostatné** sub-headers via the pure `addonGroup` helper (`lib/orders/booking.ts`, name-
-     prefix heuristic, unit-tested); `BookingStepper` shows the **client name** under Klient
+     prefix heuristic, unit-tested); a **Poznámka** field at the bottom of step 3 →
+     `createOrder.note` (create) / `setNote` (edit, via `EditContext.originalNote`);
+     `BookingStepper` shows the **client name** under Klient
      and **car brand** under Auto. **170 unit + e2e green** (`calendar-header`,
      `calendar-sheet`, `calendar-week-view`, `navigation`, `unpaid-*`, `booking-wizard`, order
      suites) on a clean `pnpm supabase db reset`; typecheck/lint/build clean. E2e touched:
