@@ -80,9 +80,13 @@ confirmed). It carries the pricing category that drives durations/prices.
 | --- | --- | --- |
 | `id` | uuid pk | |
 | `spz` | text **unique not null** | license plate; the shared key |
+| `brand` | text null | optional make/značka (migration `0011`); UI offers a curated dropdown + "Iné" free text |
 | `model` | text null | optional descriptive model |
 | `pricing_category` | `pricing_category` not null | drives service duration + price |
 | `created_at` | timestamptz not null default now() | |
+
+Brand + model are combined for display as `"Škoda Octavia"` (`lib/cars/format.ts`
+`formatCarLabel`).
 
 **Indexes:** unique on `spz`; **trigram GIN** on `spz` (`gin_trgm_ops`) for fuzzy
 search (spec 02). A car is never duplicated per owner; ownership is the M:N link below.

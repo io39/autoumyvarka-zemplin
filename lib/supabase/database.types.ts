@@ -55,6 +55,7 @@ export type Database = {
       }
       cars: {
         Row: {
+          brand: string | null
           created_at: string
           id: string
           model: string | null
@@ -62,6 +63,7 @@ export type Database = {
           spz: string
         }
         Insert: {
+          brand?: string | null
           created_at?: string
           id?: string
           model?: string | null
@@ -69,6 +71,7 @@ export type Database = {
           spz: string
         }
         Update: {
+          brand?: string | null
           created_at?: string
           id?: string
           model?: string | null

@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { CalendarBlock } from "@/lib/actions/orders";
 import { bratislavaHHMM } from "@/lib/settings/availability";
+import { formatCarLabel } from "@/lib/cars/format";
 import { CATEGORY_BADGE, STATE_COLOR } from "@/types";
 import { cn } from "@/lib/utils";
 import { useOpenOrderSheet } from "./order-sheet-context";
@@ -29,17 +30,16 @@ export function BookingCardContent({
 }) {
   const start = bratislavaHHMM(new Date(block.order.starts_at));
   const end = bratislavaHHMM(new Date(block.order.ends_at));
+  const carLabel = formatCarLabel(block.car.brand, block.car.model);
 
   if (density === "line") {
-    // Step-4 picker context: time + car brand on a single row, nothing else.
+    // Step-4 picker context: time + car (brand + model) on a single row.
     return (
       <div className="flex h-full items-center justify-center gap-1.5 overflow-hidden leading-tight">
         <span className="shrink-0 font-mono text-[13px]">
           {start}–{end}
         </span>
-        {block.car.model && (
-          <span className="truncate text-[13px] font-medium">{block.car.model}</span>
-        )}
+        {carLabel && <span className="truncate text-[13px] font-medium">{carLabel}</span>}
       </div>
     );
   }
@@ -50,9 +50,7 @@ export function BookingCardContent({
         <span className="truncate font-mono text-[10px]">
           {start}–{end}
         </span>
-        {block.car.model && (
-          <span className="truncate text-[10px] opacity-80">{block.car.model}</span>
-        )}
+        {carLabel && <span className="truncate text-[10px] opacity-80">{carLabel}</span>}
       </div>
     );
   }
@@ -78,7 +76,7 @@ export function BookingCardContent({
             {CATEGORY_BADGE[block.car.pricing_category]}
           </span>
           <span className="truncate text-[20px] leading-tight">
-            <span className="font-semibold">{block.car.model ?? "—"}</span>
+            <span className="font-semibold">{carLabel || "—"}</span>
             {services.length > 0 && (
               <span className="font-normal opacity-80"> – {services.join(", ")}</span>
             )}

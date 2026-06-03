@@ -19,6 +19,7 @@ import {
   type Selection,
 } from "@/lib/orders/booking";
 import { bratislavaLocalToISO } from "@/lib/time/bratislava";
+import { formatCarLabel } from "@/lib/cars/format";
 import { BookingStepper } from "./BookingStepper";
 import { WizardActions } from "./WizardActions";
 import { Step1Client } from "./Step1Client";
@@ -238,7 +239,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
             client?.name ?? undefined,
             (() => {
               const c = cars.find((x) => x.id === carId);
-              return c ? (c.model ?? c.spz) : undefined;
+              return c ? formatCarLabel(c.brand, c.model) || c.spz : undefined;
             })(),
           ]}
         />

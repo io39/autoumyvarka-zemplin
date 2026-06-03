@@ -60,7 +60,12 @@ export async function addCarToClient(input: unknown): Promise<AddCarResult> {
     // No such ŠPZ → create the car and link it.
     const { data: car, error: carErr } = await db
       .from("cars")
-      .insert({ spz: data.spz, model: data.model ?? null, pricing_category: data.pricingCategory })
+      .insert({
+        spz: data.spz,
+        brand: data.brand ?? null,
+        model: data.model ?? null,
+        pricing_category: data.pricingCategory,
+      })
       .select("id")
       .single();
 
@@ -79,6 +84,7 @@ export async function addCarToClient(input: unknown): Promise<AddCarResult> {
 
     await writeAudit(actor, "car.create", "car", car.id, {
       spz: data.spz,
+      brand: data.brand ?? null,
       model: data.model ?? null,
       pricing_category: data.pricingCategory,
       client_id: data.clientId,
@@ -125,7 +131,7 @@ export async function updateCar(input: unknown): Promise<ActionResult> {
 
     const { data: before, error: beforeErr } = await db
       .from("cars")
-      .select("model, pricing_category")
+      .select("brand, model, pricing_category")
       .eq("id", data.id)
       .maybeSingle();
     if (beforeErr) throw beforeErr;
@@ -133,13 +139,13 @@ export async function updateCar(input: unknown): Promise<ActionResult> {
 
     const { error } = await db
       .from("cars")
-      .update({ model: data.model ?? null, pricing_category: data.pricingCategory })
+      .update({ brand: data.brand ?? null, model: data.model ?? null, pricing_category: data.pricingCategory })
       .eq("id", data.id);
     if (error) throw error;
 
     await writeAudit(actor, "car.update", "car", data.id, {
-      from: { model: before.model, pricing_category: before.pricing_category },
-      to: { model: data.model ?? null, pricing_category: data.pricingCategory },
+      from: { brand: before.brand, model: before.model, pricing_category: before.pricing_category },
+      to: { brand: data.brand ?? null, model: data.model ?? null, pricing_category: data.pricingCategory },
     });
 
     // A car may be linked to several clients (shared ŠPZ); purge every client

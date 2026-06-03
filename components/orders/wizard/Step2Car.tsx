@@ -5,8 +5,10 @@ import { toast } from "sonner";
 import { addCarToClient, linkExistingCar } from "@/lib/actions/cars";
 import { searchClients } from "@/lib/actions/clients";
 import { normalizeSpz } from "@/lib/cars/spz";
+import { formatCarLabel } from "@/lib/cars/format";
 import type { CarRow, PricingCategory } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
+import { BrandField } from "@/components/cars/brand-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,7 +93,7 @@ export function Step2Car({
                 )}
               </span>
               <span className="truncate text-muted-foreground">
-                {c.model ? `${c.model} · ` : ""}
+                {formatCarLabel(c.brand, c.model) ? `${formatCarLabel(c.brand, c.model)} · ` : ""}
                 {CATEGORY_LABEL[c.pricing_category]}
               </span>
             </button>
@@ -113,6 +115,7 @@ function NewCarDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [spz, setSpz] = useState("");
+  const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [category, setCategory] = useState<PricingCategory>("os");
   const [pending, start] = useTransition();
@@ -138,6 +141,7 @@ function NewCarDialog({
       const r = await addCarToClient({
         clientId,
         spz,
+        brand: brand.trim() || undefined,
         model: model.trim() || undefined,
         pricingCategory: category,
       });
@@ -188,6 +192,7 @@ function NewCarDialog({
               </p>
             )}
           </div>
+          <BrandField id="new-car-brand" onChange={setBrand} />
           <div className="space-y-1">
             <Label htmlFor="new-car-model">Model</Label>
             <Input id="new-car-model" value={model} onChange={(e) => setModel(e.target.value)} />

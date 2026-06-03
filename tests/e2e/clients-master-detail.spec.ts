@@ -80,6 +80,34 @@ test.describe("clients master-detail (spec 17)", () => {
     await expect(carCard.getByText(/1\. ·/)).toBeVisible();
     await expect(carCard.getByText(/2\. ·/)).toBeVisible();
   });
+
+  test("add a car with a brand (dropdown + Iné free-text) shows 'Značka Model'", async ({
+    page,
+  }) => {
+    const clientId = await createClientViaUI(page, { phone: uniquePhone(), name: "Brand Klient" });
+    await page.goto(`/clients?id=${clientId}`);
+
+    // A listed brand from the dropdown.
+    await page.getByRole("button", { name: "Pridať auto" }).click();
+    const add = page.getByRole("dialog");
+    await add.getByLabel("ŠPZ").fill(uniqueSpz());
+    await add.getByLabel("Značka").click();
+    await page.getByRole("option", { name: "Škoda" }).click();
+    await add.getByLabel("Model").fill("Octavia");
+    await add.getByRole("button", { name: "Pridať", exact: true }).click();
+    await expect(page.getByText("Škoda Octavia").first()).toBeVisible();
+
+    // A brand not in the list via "Iné…" → free-text box.
+    await page.getByRole("button", { name: "Pridať auto" }).click();
+    const other = page.getByRole("dialog");
+    await other.getByLabel("ŠPZ").fill(uniqueSpz());
+    await other.getByLabel("Značka").click();
+    await page.getByRole("option", { name: "Iné…" }).click();
+    await other.getByLabel("Iná značka").fill("Tesla");
+    await other.getByLabel("Model").fill("Model 3");
+    await other.getByRole("button", { name: "Pridať", exact: true }).click();
+    await expect(page.getByText("Tesla Model 3").first()).toBeVisible();
+  });
 });
 
 test.describe("clients master-detail — worker (spec 17)", () => {

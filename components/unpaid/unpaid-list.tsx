@@ -6,6 +6,7 @@ import { getUnpaidOrders, type UnpaidOrderRow } from "@/lib/actions/orders";
 import { createBrowserRealtimeClient } from "@/lib/realtime/browser";
 import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
 import { formatPriceCents } from "@/lib/services/format";
+import { formatCarLabel } from "@/lib/cars/format";
 import { skPlural } from "@/lib/intl/sk";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -123,7 +124,11 @@ export function UnpaidList({
                     </TableCell>
                     <TableCell className="text-sm">
                       <span className="font-medium">{o.spz}</span>
-                      {o.model && <span className="ml-1 text-muted-foreground">{o.model}</span>}
+                      {formatCarLabel(o.brand, o.model) && (
+                        <span className="ml-1 text-muted-foreground">
+                          {formatCarLabel(o.brand, o.model)}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {o.serviceNames.join(", ")}

@@ -65,7 +65,7 @@ const SERVICE_LINE_PERFORMED_MESSAGE =
 export interface CalendarBlock {
   order: OrderRow;
   client: Pick<ClientRow, "id" | "name" | "phone">;
-  car: Pick<CarRow, "id" | "spz" | "model" | "pricing_category">;
+  car: Pick<CarRow, "id" | "spz" | "brand" | "model" | "pricing_category">;
   services: OrderServiceRow[];
 }
 
@@ -82,7 +82,7 @@ export async function getCalendar(input: unknown): Promise<CalendarBlock[]> {
   let q = db
     .from("orders")
     .select(
-      "*, client:client_id(id,name,phone), car:car_id(id,spz,model,pricing_category), services:order_services(*)",
+      "*, client:client_id(id,name,phone), car:car_id(id,spz,brand,model,pricing_category), services:order_services(*)",
     )
     .gte("starts_at", start.toISOString())
     .lt("starts_at", end.toISOString())
@@ -1035,6 +1035,7 @@ export interface UnpaidOrderRow {
   clientName: string | null;
   clientPhone: string;
   spz: string;
+  brand: string | null;
   model: string | null;
   serviceNames: string[];
   unpaidAmountCents: number;
@@ -1052,7 +1053,7 @@ interface UnpaidCandidate {
   status: OrderRow["status"];
   deleted_at: string | null;
   client: Pick<ClientRow, "name" | "phone"> | null;
-  car: Pick<CarRow, "spz" | "model"> | null;
+  car: Pick<CarRow, "spz" | "brand" | "model"> | null;
   services: Array<
     Pick<OrderServiceRow, "paid" | "removed_at" | "price_cents_snapshot" | "name_snapshot">
   >;
@@ -1069,7 +1070,7 @@ async function fetchUnpaidCandidates(): Promise<UnpaidCandidate[]> {
   const { data, error } = await getServiceClient()
     .from("orders")
     .select(
-      "id, starts_at, status, deleted_at, client:client_id(name, phone), car:car_id(spz, model), services:order_services(paid, removed_at, price_cents_snapshot, name_snapshot)",
+      "id, starts_at, status, deleted_at, client:client_id(name, phone), car:car_id(spz, brand, model), services:order_services(paid, removed_at, price_cents_snapshot, name_snapshot)",
     )
     .is("deleted_at", null)
     .in("status", ["hotova", "zaplatena"]);
@@ -1098,6 +1099,7 @@ export async function getUnpaidOrders(input?: unknown): Promise<UnpaidOrdersResu
       clientName: c.client?.name ?? null,
       clientPhone: c.client?.phone ?? "",
       spz: c.car?.spz ?? "",
+      brand: c.car?.brand ?? null,
       model: c.car?.model ?? null,
       serviceNames: c.services
         .filter((l) => l.removed_at === null)

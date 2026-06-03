@@ -27,7 +27,8 @@ picker whose header mirrors the calendar (§4).
    new-client dialog shows a **non-blocking duplicate-phone hint** (the existing client's
    name) as the phone is typed.
 3. **Step 2 Auto** — pick one of the client's cars (a **"zdieľané auto"** badge marks cars
-   shared with another client), or **"+ nové auto"** (ŠPZ, model, kategória). The new-car
+   shared with another client; rows show the combined **značka + model**), or **"+ nové auto"**
+   (ŠPZ, **značka** [curated dropdown + "Iné" free text], model, kategória). The new-car
    dialog shows a **non-blocking duplicate-vehicle hint** (the client the ŠPZ is found under).
 4. **Step 3 Služby** — **active** services with a running **Σ min + €**: **Hlavné** always
    shown; **Doplnkové** in a **collapsible accordion** (collapsed by default; auto-open +

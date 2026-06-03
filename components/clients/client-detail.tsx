@@ -14,6 +14,8 @@ import type {
 } from "@/lib/supabase/types";
 import type { CarHistory, HistoryEntry } from "@/lib/clients/history";
 import { poradieFor } from "@/lib/clients/history";
+import { formatCarLabel } from "@/lib/cars/format";
+import { BrandField } from "@/components/cars/brand-field";
 import { STATE_COLOR, STATE_LABEL } from "@/types";
 import { cn } from "@/lib/utils";
 import { formatPriceCents } from "@/lib/services/format";
@@ -208,7 +210,9 @@ function CarRow({
         <AccordionTrigger className="flex-1 hover:no-underline">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-medium">{car.spz}</span>
-            {car.model && <span className="text-muted-foreground">{car.model}</span>}
+            {formatCarLabel(car.brand, car.model) && (
+              <span className="text-muted-foreground">{formatCarLabel(car.brand, car.model)}</span>
+            )}
             <Badge variant="secondary">{CATEGORY_LABEL[car.pricing_category]}</Badge>
             {shared && (
               <Badge variant="outline" title="Auto je zdieľané s iným klientom">
@@ -403,12 +407,14 @@ function AddCarDialog({
 
   function onSubmit(formData: FormData) {
     const spz = String(formData.get("spz") ?? "");
+    const brand = String(formData.get("brand") ?? "");
     const model = String(formData.get("model") ?? "");
     const pricingCategory = String(formData.get("pricingCategory") ?? "os") as PricingCategory;
     startTransition(async () => {
       const result = await addCarToClient({
         clientId,
         spz,
+        brand: brand || undefined,
         model: model || undefined,
         pricingCategory,
       });
@@ -484,6 +490,7 @@ function AddCarDialog({
                 <Label htmlFor="spz">ŠPZ</Label>
                 <Input id="spz" name="spz" required placeholder="BV123AB" />
               </div>
+              <BrandField id="add-car-brand" name="brand" />
               <div className="space-y-2">
                 <Label htmlFor="model">Model</Label>
                 <Input id="model" name="model" />
@@ -520,10 +527,16 @@ function EditCarDialog({
   const [pending, startTransition] = useTransition();
 
   function onSubmit(formData: FormData) {
+    const brand = String(formData.get("brand") ?? "");
     const model = String(formData.get("model") ?? "");
     const pricingCategory = String(formData.get("pricingCategory") ?? "os") as PricingCategory;
     startTransition(async () => {
-      const result = await updateCar({ id: car.id, model: model || undefined, pricingCategory });
+      const result = await updateCar({
+        id: car.id,
+        brand: brand || undefined,
+        model: model || undefined,
+        pricingCategory,
+      });
       if (result.ok) {
         toast.success("Zmeny uložené.");
         onSaved();
@@ -539,9 +552,10 @@ function EditCarDialog({
         <form action={onSubmit}>
           <DialogHeader>
             <DialogTitle>Upraviť auto {car.spz}</DialogTitle>
-            <DialogDescription>ŠPZ sa nedá zmeniť; upravte model a kategóriu.</DialogDescription>
+            <DialogDescription>ŠPZ sa nedá zmeniť; upravte značku, model a kategóriu.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <BrandField id="edit-car-brand" name="brand" initial={car.brand ?? ""} />
             <div className="space-y-2">
               <Label htmlFor="model">Model</Label>
               <Input id="model" name="model" defaultValue={car.model ?? ""} />

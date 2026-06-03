@@ -18,8 +18,10 @@ that the booking flow (spec 05) and history (spec 08) depend on.
 ### 1.1 What this feature does
 
 1. **Clients** keyed by phone (E.164-normalized, unique), with an optional name.
-2. **Cars** keyed by ŠPZ (unique), with optional model and a required
-   `pricing_category` (`os | suv | van | dod | motorka | stavba`).
+2. **Cars** keyed by ŠPZ (unique), with an optional **brand** (značka — a curated
+   dropdown plus an "Iné" free-text fallback), an optional model, and a required
+   `pricing_category` (`os | suv | van | dod | motorka | stavba`). Brand + model display
+   combined as "Škoda Octavia" (`formatCarLabel`).
 3. **Many-to-many** client↔car: a car may belong to several clients; a client may
    have several cars (PRD §13#1).
 4. **Shared-ŠPZ duplicate detection:** adding a car whose ŠPZ already exists links the
@@ -97,9 +99,9 @@ All validate with zod; all that mutate write `audit_log`.
 | `searchClients` | `{ query, limit? }` | both | — (read; unified fuzzy autocomplete) |
 | `createClient` | `{ phone, name? }` | both | `client.create` |
 | `updateClient` | `{ id, phone?, name? }` | **manager** | `client.update` (or `client.phone_change`) |
-| `addCarToClient` | `{ clientId, spz, model?, pricingCategory }` | both | `car.create` or `car.link` |
+| `addCarToClient` | `{ clientId, spz, brand?, model?, pricingCategory }` | both | `car.create` or `car.link` |
 | `linkExistingCar` | `{ clientId, carId }` | both | `car.link` |
-| `updateCar` | `{ id, model?, pricingCategory }` | **manager** | `car.update` |
+| `updateCar` | `{ id, brand?, model?, pricingCategory }` | **manager** | `car.update` |
 
 - `createClient`: unique-phone violation → friendly Slovak error (no crash); offer to
   open the existing client.
