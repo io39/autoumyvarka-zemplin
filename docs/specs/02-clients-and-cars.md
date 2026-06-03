@@ -18,10 +18,10 @@ that the booking flow (spec 05) and history (spec 08) depend on.
 ### 1.1 What this feature does
 
 1. **Clients** keyed by phone (E.164-normalized, unique), with an optional name.
-2. **Cars** keyed by ŠPZ (unique), with an optional **brand** (značka — a curated
-   dropdown plus an "Iné" free-text fallback), an optional model, and a required
-   `pricing_category` (`os | suv | van | dod | motorka | stavba`). Brand + model display
-   combined as "Škoda Octavia" (`formatCarLabel`).
+2. **Cars** keyed by ŠPZ (unique), with an optional **brand** (značka — a fuzzy
+   type-to-filter combobox over a curated brand list, free text allowed), an optional
+   model, and a required `pricing_category` (`os | suv | van | dod | motorka | stavba`).
+   Brand + model display combined as "Škoda Octavia" (`formatCarLabel`).
 3. **Many-to-many** client↔car: a car may belong to several clients; a client may
    have several cars (PRD §13#1).
 4. **Shared-ŠPZ duplicate detection:** adding a car whose ŠPZ already exists links the

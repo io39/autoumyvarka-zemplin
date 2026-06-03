@@ -81,32 +81,30 @@ test.describe("clients master-detail (spec 17)", () => {
     await expect(carCard.getByText(/2\. ·/)).toBeVisible();
   });
 
-  test("add a car with a brand (dropdown + Iné free-text) shows 'Značka Model'", async ({
+  test("add a car with a brand (fuzzy-type + pick, and free-text) shows 'Značka Model'", async ({
     page,
   }) => {
     const clientId = await createClientViaUI(page, { phone: uniquePhone(), name: "Brand Klient" });
     await page.goto(`/clients?id=${clientId}`);
 
-    // A listed brand from the dropdown.
+    // Fuzzy type without diacritics → pick the suggested brand.
     await page.getByRole("button", { name: "Pridať auto" }).click();
     const add = page.getByRole("dialog");
     await add.getByLabel("ŠPZ").fill(uniqueSpz());
-    await add.getByLabel("Značka").click();
+    await add.getByLabel("Značka").fill("skod");
     await page.getByRole("option", { name: "Škoda" }).click();
     await add.getByLabel("Model").fill("Octavia");
     await add.getByRole("button", { name: "Pridať", exact: true }).click();
     await expect(page.getByText("Škoda Octavia").first()).toBeVisible();
 
-    // A brand not in the list via "Iné…" → free-text box.
+    // A brand not in the list → just typed as free text.
     await page.getByRole("button", { name: "Pridať auto" }).click();
     const other = page.getByRole("dialog");
     await other.getByLabel("ŠPZ").fill(uniqueSpz());
-    await other.getByLabel("Značka").click();
-    await page.getByRole("option", { name: "Iné…" }).click();
-    await other.getByLabel("Iná značka").fill("Tesla");
-    await other.getByLabel("Model").fill("Model 3");
+    await other.getByLabel("Značka").fill("Cupra");
+    await other.getByLabel("Model").fill("Born");
     await other.getByRole("button", { name: "Pridať", exact: true }).click();
-    await expect(page.getByText("Tesla Model 3").first()).toBeVisible();
+    await expect(page.getByText("Cupra Born").first()).toBeVisible();
   });
 });
 

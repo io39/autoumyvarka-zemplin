@@ -80,7 +80,7 @@ confirmed). It carries the pricing category that drives durations/prices.
 | --- | --- | --- |
 | `id` | uuid pk | |
 | `spz` | text **unique not null** | license plate; the shared key |
-| `brand` | text null | optional make/značka (migration `0011`); UI offers a curated dropdown + "Iné" free text |
+| `brand` | text null | optional make/značka (migration `0011`); UI is a fuzzy type-to-filter combobox over a curated list, free text allowed |
 | `model` | text null | optional descriptive model |
 | `pricing_category` | `pricing_category` not null | drives service duration + price |
 | `created_at` | timestamptz not null default now() | |
