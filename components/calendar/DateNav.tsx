@@ -67,7 +67,7 @@ export function DateNav({
   const coversToday = viewCoversToday(view, date, new Date());
 
   return (
-    <div className="flex flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 md:flex-col">
+    <div className="flex w-full items-center justify-between gap-2 md:w-auto md:flex-col md:justify-center md:gap-1">
       <div className="flex items-center gap-1">
         <Button
           size="icon"

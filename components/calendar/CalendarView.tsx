@@ -176,8 +176,8 @@ export function CalendarView({
         realtimeJwt={realtimeJwt}
       />
 
-      {/* Mobile: toggle + date + DNES on one line; desktop: centered stack. */}
-      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 md:flex-col md:gap-2">
+      {/* Mobile: toggle on top, then date (left) + DNES (right); desktop: centered stack. */}
+      <div className="flex flex-col items-center gap-2">
         <div className="inline-flex rounded-md border">
           <Button
             size="sm"

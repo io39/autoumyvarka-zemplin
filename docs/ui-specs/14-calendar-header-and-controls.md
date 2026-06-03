@@ -83,10 +83,10 @@ desktop the sidebar covers it). Top→bottom:
 4. **Today state** — `DNES` if the current view covers today, else a **`Späť na dnes`**
    button (§2.3).
    - **Layout:** on **desktop** items 2–4 are a centered vertical stack (toggle → date →
-     today state). On **mobile** they collapse onto **one row** — `[Deň/Týždeň] [◀ date ▶]
-     [DNES/Späť]` — via a `flex … md:flex-col` wrapper (`DateNav` is `flex-row … md:flex-col`
-     so its nav-row and today state sit side-by-side); the date label uses a smaller font on
-     mobile (`text-sm md:text-base`) and the row wraps if space is tight.
+     today state). On **mobile** the toggle stays centered on top and items 3–4 share the row
+     below it with the **date on the left** and the **DNES/Späť na dnes on the right**
+     (`DateNav` is a full-width `justify-between` row on mobile, `md:flex-col` centered on
+     desktop); the date label uses a smaller font on mobile (`text-sm md:text-base`).
 5. **Legenda (left) + Box filter (right)** — one row directly above the grid (§2.4–2.5).
 
 ### 2.2 Date picker — shadcn `Calendar` popover
