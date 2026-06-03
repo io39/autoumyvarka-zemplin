@@ -478,15 +478,13 @@ function GridColumn({
         </div>
       )}
 
-      {/* Free VOĽNÉ zones */}
+      {/* Free zones — green overlay only, no label */}
       {freeZones.map((z) => (
         <div
           key={z.startMin}
-          className="pointer-events-none absolute inset-x-1 flex items-center justify-center rounded border border-dashed border-green-500/60 bg-green-50/50 text-[10px] uppercase tracking-wide text-green-700 dark:bg-green-950/40 dark:text-green-400"
+          className="pointer-events-none absolute inset-x-1 rounded border border-dashed border-green-500/60 bg-green-50/50 dark:bg-green-950/40"
           style={{ top: top(z.startMin) + 1, height: span(z.startMin, z.endMin) - 2 }}
-        >
-          {span(z.startMin, z.endMin) >= 30 && z.endMin - z.startMin >= durationMin ? "Voľné" : ""}
-        </div>
+        />
       ))}
 
       {/* Past (MINULOSŤ) overlay: today up to the cutoff, or a whole past day */}

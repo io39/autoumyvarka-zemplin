@@ -131,8 +131,9 @@ picker whose header mirrors the calendar (§4).
 - **Quick slots:** call `suggestSlots({ date, durationMin })` → nearest free slots **per
   box** as one-tap buttons; picking one sets `pickedSlot = { box, localStart }`.
 - **Full picker:** for each visible day × box, render free ranges computed from existing
-  orders + the open interval (reuse `lib/orders/slots.ts` + `getOpenInterval`), with a
-  **MINULOSŤ** overlay over past times. Tapping a free range sets `pickedSlot` (box
+  orders + the open interval (reuse `lib/orders/slots.ts` + `getOpenInterval`) as an
+  **unlabeled dashed-green overlay** (no "Voľné" text), with a **MINULOSŤ** overlay over past
+  times. Tapping a free range sets `pickedSlot` (box
   implicit). Enforce no overlap with the chosen duration (the DB constraint is the backstop;
   the picker pre-filters). Occupied bookings render with the shared `BookingCardContent`
   **line** density (time + brand). The grid uses a **fixed** `ROW_PX` (its click maps Y→time,
