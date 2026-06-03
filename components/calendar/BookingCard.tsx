@@ -33,7 +33,7 @@ export function BookingCardContent({
   if (density === "line") {
     // Step-4 picker context: time + car brand on a single row, nothing else.
     return (
-      <div className="flex h-full items-center gap-1.5 overflow-hidden leading-tight">
+      <div className="flex h-full items-center justify-center gap-1.5 overflow-hidden leading-tight">
         <span className="shrink-0 font-mono text-[13px]">
           {start}–{end}
         </span>

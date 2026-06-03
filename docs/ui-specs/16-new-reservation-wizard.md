@@ -136,7 +136,7 @@ picker whose header mirrors the calendar (§4).
   times. Tapping a free range sets `pickedSlot` (box
   implicit). Enforce no overlap with the chosen duration (the DB constraint is the backstop;
   the picker pre-filters). Occupied bookings render with the shared `BookingCardContent`
-  **line** density (time + brand). The grid uses a **fixed** `ROW_PX` (its click maps Y→time,
+  **line** density (time + brand, **centered** — like the chosen-slot box). The grid uses a **fixed** `ROW_PX` (its click maps Y→time,
   so rows stay uniform — unlike the Day view's dynamic rows). The **3-dni** column template
   shrinks to `minmax(0,1fr)` on desktop (`useMediaQuery`) so it fits without horizontal
   scroll; each box column has a header row showing `Box N` + the reservation count. The
