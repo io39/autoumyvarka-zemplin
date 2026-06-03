@@ -81,7 +81,8 @@ desktop the sidebar covers it). Top→bottom:
 3. **Date + ◀ ▶** — date label; clicking it opens the **Calendar popover** (§2.2). ◀ ▶
    step one day (Day) / one week (Week). Week shows the week range.
 4. **Today state** — `DNES` if the current view covers today, else a **`Späť na dnes`**
-   button (§2.3).
+   button (§2.3). Wrapped in a **fixed-width reserve** (`w-28`) so the layout doesn't reflow
+   when the short `DNES` pill swaps to the wider button.
    - **Layout:** on **desktop** items 2–4 are a centered vertical stack (toggle → date →
      today state). On **mobile** the toggle stays centered on top and items 3–4 share the row
      below it with the **date on the left** and the **DNES/Späť na dnes on the right**

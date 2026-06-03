@@ -67,7 +67,7 @@ export function DateNav({
   const coversToday = viewCoversToday(view, date, new Date());
 
   return (
-    <div className="flex w-full items-center justify-between gap-2 md:w-auto md:flex-col md:justify-center md:gap-1">
+    <div className="flex items-center justify-between gap-10 md:flex-col md:justify-center md:gap-1">
       <div className="flex items-center gap-1">
         <Button
           size="icon"
@@ -112,18 +112,19 @@ export function DateNav({
           <ChevronRight className="size-4" />
         </Button>
       </div>
-
-      <div className="flex h-7 items-center gap-2">
-        {coversToday ? (
-          <span className="text-xs font-medium text-muted-foreground" data-today-pill>
-            DNES
-          </span>
-        ) : (
-          <Button size="sm" variant="outline" onClick={onToday} data-today-button>
-            Späť na dnes
-          </Button>
-        )}
-        {pending && <span className="text-xs text-muted-foreground">Načítavam…</span>}
+      <div className="flex items-center w-28 justify-center">
+        <div className="flex h-7 items-center gap-2">
+          {coversToday ? (
+            <span className="text-xs font-medium text-muted-foreground" data-today-pill>
+              DNES
+            </span>
+          ) : (
+            <Button size="sm" variant="outline" onClick={onToday} data-today-button>
+              Späť na dnes
+            </Button>
+          )}
+          {pending && <span className="text-xs text-muted-foreground">Načítavam…</span>}
+        </div>
       </div>
     </div>
   );
