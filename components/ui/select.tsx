@@ -53,8 +53,11 @@ function SelectTrigger({
 function SelectContent({
   className,
   children,
-  position = "item-aligned",
-  align = "center",
+  // `popper` anchors the panel below the trigger and scrolls inside it. The
+  // Radix default (`item-aligned`) re-centers the selected item over the
+  // trigger, which makes a mid-list selection jump the panel on open.
+  position = "popper",
+  align = "start",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
   return (
