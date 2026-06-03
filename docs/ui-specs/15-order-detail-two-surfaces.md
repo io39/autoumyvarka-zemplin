@@ -70,7 +70,7 @@ Move each existing inline section into `components/orders/sections/`, props-only
 | --- | --- | --- |
 | `BookingStatusBadge` | header `Badge` | — |
 | `BookingStatusActions` | "Stav" section buttons | advance: all; Nedostavil sa: manager |
-| `BookingClientCard` | Klient block + history link | — |
+| `BookingClientCard` | Klient block (name + phone; history lives in the História klienta box) | — |
 | `BookingCarCard` | Auto block | — |
 | `BookingServicesList` | `ServicesSection` | add/remove/paid: manager |
 | `BookingWorkerCard` | `WorkersSection` | add/remove: all roles |
