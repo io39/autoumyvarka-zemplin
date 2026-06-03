@@ -65,13 +65,13 @@ should see it too" — but since workers can't act on payment, default manager-o
 | Surface | Access | Purpose |
 | --- | --- | --- |
 | Header **badge/banner** | manager | overdue count; click → the list |
-| `/unpaid` | manager | list of unpaid orders, overdue first |
+| `/unpaid` | manager | list of unpaid orders, newest first |
 
 - Badge shows the **overdue** count (0 → no badge, or a calm "0"); a banner appears only
   when overdue > 0 ("Pozor: {n} nezaplatených objednávok z minulých dní").
 - `/unpaid` list: order date, client (name/phone), car (ŠPZ + model), services + unpaid
   amount (display-only cents sum of unpaid lines), status, and an **overdue** marker;
-  sorted overdue-first then by date. Each row → `/orders/[id]` (spec 06) to mark paid.
+  sorted newest-first (overdue still marked with the "Po termíne" badge). Each row → `/orders/[id]` (spec 06) to mark paid.
 - shadcn/ui: `Badge`, `Alert`/banner, `Table`. Mobile-first ≥360px; Slovak copy;
   empty-state "Žiadne nezaplatené objednávky".
 
@@ -168,7 +168,7 @@ pnpm test orders/unpaid   # exits 0
 ### 4.3 Badge, list & live update (e2e, must pass)
 
 - Seed one overdue + one today-unpaid order → header badge shows the **overdue** count;
-  banner text mentions previous-day unpaid; `/unpaid` lists both, overdue first, with the
+  banner text mentions previous-day unpaid; `/unpaid` lists both, newest first, with the
   unpaid-amount sum and a link to each order.
 - Marking the overdue order `zaplatena` (or its lines paid) removes it from the list and
   decrements the badge **without refresh**.
@@ -190,6 +190,6 @@ pnpm test e2e/unpaid-permissions   # exits 0
 ### 4.5 Manual checks
 
 - [ ] Header badge/banner visible to the manager when overdue > 0; absent at 0.
-- [ ] `/unpaid` readable at 360px; overdue clearly marked, overdue-first ordering.
+- [ ] `/unpaid` readable at 360px; overdue clearly marked; newest-first ordering.
 - [ ] All visible strings Slovak; amounts render as `… €` (display only).
 - [ ] Rows link to `/orders/[id]`; paying there clears the alert live.

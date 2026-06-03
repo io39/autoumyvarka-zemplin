@@ -10,7 +10,7 @@ import {
 test.describe("unpaid alerts — badge, list, live update (spec 10 §4.3)", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
 
-  test("overdue + today orders surface in the badge, banner and list (overdue first)", async ({
+  test("overdue + today orders surface in the badge, banner and list (newest first)", async ({
     page,
   }) => {
     // Overdue: hotova two days ago. Today: hotova today (unpaid, not overdue).
@@ -25,7 +25,7 @@ test.describe("unpaid alerts — badge, list, live update (spec 10 §4.3)", () =
     await expect(badge).toBeVisible();
     expect(Number(await badge.getAttribute("data-count"))).toBeGreaterThanOrEqual(1);
 
-    // /unpaid lists both, banner mentions previous-day unpaid, overdue row first.
+    // /unpaid lists both, banner mentions previous-day unpaid, newest row first.
     await badge.click();
     await page.waitForURL(/\/unpaid$/);
     await expect(page.locator('[data-banner="overdue"]')).toContainText("z minulých dní");
@@ -44,11 +44,11 @@ test.describe("unpaid alerts — badge, list, live update (spec 10 §4.3)", () =
       `/orders/${overdue.orderId}`,
     );
 
-    // Overdue sorts before today in the table body.
+    // Newest first: today's order sorts before the older overdue one.
     const spzOrder = await page
       .locator('[data-section="unpaid"] tbody tr[data-spz]')
       .evaluateAll((rows) => rows.map((r) => r.getAttribute("data-spz")));
-    expect(spzOrder.indexOf(overdue.spz)).toBeLessThan(spzOrder.indexOf(todayOrder.spz));
+    expect(spzOrder.indexOf(todayOrder.spz)).toBeLessThan(spzOrder.indexOf(overdue.spz));
   });
 
   test("paying an order's line removes it from the list and decrements the count live", async ({

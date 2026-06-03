@@ -1204,11 +1204,8 @@ export async function getUnpaidOrders(input?: unknown): Promise<UnpaidOrdersResu
   const overdueCount = rows.filter((r) => r.overdue).length;
   const todayCount = rows.length - overdueCount;
 
-  // Overdue first, then oldest first (chase the longest-outstanding payment).
-  rows.sort((a, b) => {
-    if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
-    return a.startsAt.localeCompare(b.startsAt);
-  });
+  // Newest first (most recent unpaid order at the top).
+  rows.sort((a, b) => b.startsAt.localeCompare(a.startsAt));
 
   const orders = scope === "overdue" ? rows.filter((r) => r.overdue) : rows;
   return { orders, overdueCount, todayCount };

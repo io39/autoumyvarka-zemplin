@@ -36,11 +36,11 @@ export const ACTION_LABEL: Record<string, string> = {
   "service.update": "Úprava služby",
   "service.price_update": "Úprava ceny",
   "service.price_delete": "Zmazanie ceny",
-  // staff (spec 01)
-  "staff.create": "Vytvorenie zamestnanca",
-  "staff.update": "Úprava zamestnanca",
-  "staff.activate": "Aktivácia zamestnanca",
-  "staff.deactivate": "Deaktivácia zamestnanca",
+  // staff = login accounts (Účty, spec 01/11) — distinct from workers below
+  "staff.create": "Vytvorenie účtu",
+  "staff.update": "Úprava účtu",
+  "staff.activate": "Aktivácia účtu",
+  "staff.deactivate": "Deaktivácia účtu",
   // workers (spec 11)
   "worker.create": "Vytvorenie zamestnanca",
   "worker.update": "Úprava zamestnanca",
@@ -61,7 +61,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   client: "Klient",
   car: "Auto",
   service: "Služba",
-  staff: "Zamestnanec",
+  staff: "Účet",
   worker: "Zamestnanec",
   settings: "Nastavenia",
   sms_template: "SMS šablóna",

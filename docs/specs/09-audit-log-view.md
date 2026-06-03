@@ -64,7 +64,9 @@ the 403 view; the read action also asserts `requireManager()`.
 - Action codes → Slovak labels via a small map (`order.status_change` → "Zmena stavu",
   `order.note_edit` → "Úprava poznámky", `order.assign`/`unassign` → "Priradenie/
   odobratie pracovníka", `order.delete` → "Vymazanie objednávky", `staff.*`, `service.*`,
-  `settings.*`, `sms.resend`, …).
+  `settings.*`, `sms.resend`, …). **Labels are unique** so the Akcia/Objekt filter dropdowns
+  show no duplicates: `staff.*` (login accounts) use **"…účtu"** / entity **"Účet"**, while
+  `worker.*` use **"…zamestnanca"** / entity **"Zamestnanec"** (Účty vs Zamestnanci, spec 11).
 - shadcn/ui: `Table`, `DateRangePicker`/`Calendar`, `Select`, `Badge`, pagination.
   Mobile-first ≥360px (table collapses to stacked rows); Slovak copy.
 
