@@ -100,6 +100,9 @@ export function ClientDetail({
               <Accordion
                 key={h.car.id}
                 type="multiple"
+                // Open every car block by default so the visit list shows
+                // immediately; the user can collapse any block they don't need.
+                defaultValue={[h.car.id]}
                 data-car-block={h.car.id}
                 className={cn(
                   "overflow-hidden rounded-lg border px-4",

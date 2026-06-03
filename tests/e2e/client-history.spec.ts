@@ -49,8 +49,7 @@ test.describe("client service history (spec 08 / 17)", () => {
     const carCard = history.locator(`[data-car-id="${car!.id}"]`);
     await expect(carCard.getByText(spz, { exact: true })).toBeVisible();
 
-    // Accordion is collapsed by default — expand the car to reveal its visits.
-    await carCard.getByRole("button").first().click();
+    // Car blocks are expanded by default — its visits are visible immediately.
     await expect(carCard.getByText("Zaplatená")).toBeVisible();
     await expect(carCard.getByText("Nedostavil sa")).toBeVisible();
 
@@ -95,10 +94,9 @@ test.describe("client service history (spec 08 / 17)", () => {
       await page.goto(`/clients/${id}`);
       await page.waitForURL(/\/clients\?id=[0-9a-f-]{36}/);
       const carCard = page.locator(`[data-car-id="${car!.id}"]`);
-      // The "zdieľané auto" hint shows in the (collapsed) accordion header.
+      // The "zdieľané auto" hint shows in the accordion header.
       await expect(carCard.getByText("zdieľané auto")).toBeVisible();
-      // Expand → both visits listed.
-      await carCard.getByRole("button").first().click();
+      // Car blocks are expanded by default → both visits listed without a click.
       await expect(carCard.locator("[data-order-id]")).toHaveCount(2);
     }
   });

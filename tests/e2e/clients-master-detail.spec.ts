@@ -74,7 +74,7 @@ test.describe("clients master-detail (spec 17)", () => {
 
     await page.goto(`/clients?id=${clientId}`);
     const carCard = page.locator(`[data-section="history"] [data-car-id="${car!.id}"]`);
-    await carCard.getByRole("button").first().click();
+    // Car blocks are expanded by default — visits are visible without a click.
     await expect(carCard.locator("[data-order-id]")).toHaveCount(2);
     // Both per-car visit numbers are shown.
     await expect(carCard.getByText(/1\. ·/)).toBeVisible();

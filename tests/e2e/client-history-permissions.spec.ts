@@ -28,9 +28,8 @@ test.describe("client history — authorization (spec 08 / 17)", () => {
       const history = page.locator('[data-section="history"]');
       await expect(history).toBeVisible();
 
-      // Expand the car → its visit history.
+      // Car blocks are expanded by default → its visit history shows immediately.
       const carCard = history.locator(`[data-car-id="${carId}"]`);
-      await carCard.getByRole("button").first().click();
       await expect(carCard.getByText("Zaplatená")).toBeVisible();
 
       // Expand the order → read-only: a link to the full order, no edit controls.

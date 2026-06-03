@@ -98,8 +98,9 @@ Pracovníci/Poznámka/box/€.
   rounded, bordered card with an **alternating background tint** (`bg-muted/30` ↔
   `bg-muted/60`) and `space-y-3` between blocks, so it's immediately obvious which orders
   belong to which car. (Not one shared accordion list — distinct cards.)
-- **Per-car accordion** (`CarRow`, shadcn `accordion`, collapsed by default): expands to
-  that car's order history. **Poradie** (1., 2., …) counted **per car**, shown next to the
+- **Per-car accordion** (`CarRow`, shadcn `accordion`, **expanded by default** via
+  `defaultValue={[car.id]}` — every car's visit list shows on open; the user can collapse
+  any block): shows that car's order history. **Poradie** (1., 2., …) counted **per car**, shown next to the
   visit. Each `ServiceHistoryRow` (compact): dátum · čas od–do · poradie · služby (short) ·
   **stav** badge (`STATE_COLOR`/`STATE_LABEL` — retire the local `HISTORY_STATUS_BADGE`).
 - **Expanded order**: a dropdown showing **Pracovníci** + **Poznámka** (+ box + total €).
