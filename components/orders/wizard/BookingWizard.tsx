@@ -223,21 +223,28 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
     });
   }
 
+  // Step 4 (the Termín calendar) spans the full window width; the form-based
+  // steps stay at a readable column width.
+  const stepFullWidth = step === 3;
+
   return (
     <div className="space-y-4">
-      <BookingStepper
-        current={step}
-        maxReached={maxReached}
-        onStepClick={(i) => setStep(i)}
-        subtitles={[
-          client?.name ?? undefined,
-          (() => {
-            const c = cars.find((x) => x.id === carId);
-            return c ? (c.model ?? c.spz) : undefined;
-          })(),
-        ]}
-      />
+      <div className="mx-auto max-w-4xl">
+        <BookingStepper
+          current={step}
+          maxReached={maxReached}
+          onStepClick={(i) => setStep(i)}
+          subtitles={[
+            client?.name ?? undefined,
+            (() => {
+              const c = cars.find((x) => x.id === carId);
+              return c ? (c.model ?? c.spz) : undefined;
+            })(),
+          ]}
+        />
+      </div>
 
+      <div className={stepFullWidth ? "w-full" : "mx-auto max-w-4xl"}>
       {step === 0 && (
         <Step1Client selectedClient={client} locked={isEdit} onSelect={selectClient} />
       )}
@@ -280,17 +287,20 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
           onPick={setPicked}
         />
       )}
+      </div>
 
-      <WizardActions
-        isFirst={step === 0}
-        isLast={step === 3}
-        nextDisabled={!stepValid[step]}
-        pending={pending}
-        finalLabel={isEdit ? "Uložiť zmeny" : "Vytvoriť rezerváciu"}
-        onBack={() => setStep((s) => Math.max(0, s - 1))}
-        onNext={() => goTo(step + 1)}
-        onFinish={submit}
-      />
+      <div className="mx-auto max-w-4xl">
+        <WizardActions
+          isFirst={step === 0}
+          isLast={step === 3}
+          nextDisabled={!stepValid[step]}
+          pending={pending}
+          finalLabel={isEdit ? "Uložiť zmeny" : "Vytvoriť rezerváciu"}
+          onBack={() => setStep((s) => Math.max(0, s - 1))}
+          onNext={() => goTo(step + 1)}
+          onFinish={submit}
+        />
+      </div>
     </div>
   );
 }

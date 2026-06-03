@@ -8,6 +8,10 @@ import { TimeAxis } from "./TimeAxis";
 
 const WEEKDAY_SHORT = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"];
 
+// Divider + gutter marking the start of a new day so adjacent days are easy to
+// tell apart on the shared time axis.
+const DAY_DIVIDER = "ml-1 border-l-2 border-foreground/15 pl-1";
+
 /**
  * Week view (spec 14 §2.7): 7 days × 2 boxes on a shared time axis, horizontally
  * scrollable; per-day closed zones greyed. Behavior unchanged from `WeekGrid`.
@@ -32,18 +36,24 @@ export function WeekView({
         style={{ gridTemplateColumns: `60px repeat(${weekDays.length}, minmax(120px, 1fr))` }}
       >
         <div />
-        {weekDays.map((dk) => (
-          <DayHeader key={`h-${dk}`} dateKey={dk} closed={dayIntervals.get(dk) === null} />
+        {weekDays.map((dk, i) => (
+          <DayHeader
+            key={`h-${dk}`}
+            dateKey={dk}
+            closed={dayIntervals.get(dk) === null}
+            dayStart={i > 0}
+          />
         ))}
 
         <TimeAxis rows={rows} />
-        {weekDays.map((dk) => (
+        {weekDays.map((dk, i) => (
           <DayCell
             key={`c-${dk}`}
             dateKey={dk}
             rows={rows}
             gridInterval={interval}
             dayInterval={dayIntervals.get(dk) ?? null}
+            dayStart={i > 0}
             blocks={blocks.filter((b) => bratislavaDateKey(new Date(b.order.starts_at)) === dk)}
           />
         ))}
@@ -52,7 +62,15 @@ export function WeekView({
   );
 }
 
-function DayHeader({ dateKey, closed }: { dateKey: string; closed: boolean }) {
+function DayHeader({
+  dateKey,
+  closed,
+  dayStart,
+}: {
+  dateKey: string;
+  closed: boolean;
+  dayStart: boolean;
+}) {
   const [y, m, d] = dateKey.split("-").map(Number);
   const probe = new Date(Date.UTC(y, m - 1, d, 12));
   const dow = (probe.getUTCDay() + 6) % 7;
@@ -60,7 +78,7 @@ function DayHeader({ dateKey, closed }: { dateKey: string; closed: boolean }) {
   return (
     <Link
       href={`/?view=day&date=${dateKey}`}
-      className="text-center text-xs font-medium hover:underline"
+      className={cn("text-center text-xs font-medium hover:underline", dayStart && DAY_DIVIDER)}
     >
       <div>{label}</div>
       <div className="text-[10px] text-muted-foreground">Box 1 · Box 2</div>
@@ -74,12 +92,14 @@ function DayCell({
   rows,
   gridInterval,
   dayInterval,
+  dayStart,
   blocks,
 }: {
   dateKey: string;
   rows: string[];
   gridInterval: Interval;
   dayInterval: Interval | null;
+  dayStart: boolean;
   blocks: CalendarBlock[];
 }) {
   const heightPx = rows.length * ROW_PX;
@@ -92,7 +112,11 @@ function DayCell({
     : 0;
 
   return (
-    <div className="grid grid-cols-2 gap-0.5" data-day={dateKey} style={{ height: heightPx }}>
+    <div
+      className={cn("grid grid-cols-2 gap-0.5", dayStart && DAY_DIVIDER)}
+      data-day={dateKey}
+      style={{ height: heightPx }}
+    >
       {[1, 2].map((box) => (
         <div key={box} className="relative rounded border bg-muted/30" data-box={box}>
           {rows.map((t, i) => (

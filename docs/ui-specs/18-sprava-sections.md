@@ -36,7 +36,11 @@ paged navigation.
 - **Audit pagination = ◀ ▶ paged navigation** (prev/next arrows), **replacing** the current
   infinite "Načítať ďalšie" (no endless scroll). Reuses the existing keyset cursor
   (`lib/audit/cursor.ts`, `PAGE_SIZE`) and `getAuditLog` action; only the client paging
-  changes. This resolves the §13 open question.
+  changes. This resolves the §13 open question. **`PAGE_SIZE = 20`** rows per page — both the
+  initial server fetch in `app/audit/page.tsx` and the client `PAGE_SIZE` in `audit-view.tsx`
+  use 20 (kept in sync by a comment; the constant is **not** imported across the
+  server/client boundary because a value exported from a `"use client"` module resolves to a
+  client-reference proxy on the server, not the number).
 
 ### 1.3 Non-goals
 
@@ -57,6 +61,11 @@ paged navigation.
   (reuse the primitive added in spec 17), default-expanded or collapsed (collapsed keeps a
   long catalog scannable). Create/edit dialogs and soft-delete (activate/deactivate)
   unchanged. Restyle to spec-13 tokens.
+- **Hide-inactive toggle** (mirrors `worker-manager.tsx`, spec 11): a header **"Zobraziť
+  neaktívne" / "Skryť neaktívne"** button filters out deactivated (soft-deleted) services
+  client-side. **Default: inactive hidden**; the action still returns active + inactive, so
+  the toggle is a pure `useMemo` filter over the loaded rows. After deactivating a service it
+  disappears from the default view (reveal it again with the toggle).
 
 ### 2.2 Otváracie hodiny + Výnimky — merged (`/settings/hours`)
 

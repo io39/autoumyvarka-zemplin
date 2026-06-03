@@ -82,7 +82,10 @@ page-content changes beyond reconciling each page's outer container with the new
   - **On throw** (`Unauthenticated`/`Forbidden` — authenticated by Cloudflare but not a
     provisioned active staff row) → render a **bare passthrough**: just `{children}`, no
     sidebar/bottom-nav, so the page's own 401/403 view fills the screen.
-- The **shell owns the only `<main>`**: `max-w-7xl mx-auto`, padding `p-3 sm:p-6`,
+- The **shell owns the only `<main>`**, rendered **full-width with no `max-w` cap** so
+  wide content (the calendar) can fill the space; pages that should stay narrow set their
+  own `mx-auto max-w-*` (every page except the calendar does). Side gutter `mx-auto md:mx-10`
+  (centered on mobile, 40px margins on desktop), padding `p-3 sm:px-4 sm:pt-4` (kept tight),
   `min-w-0 overflow-x-hidden`, plus bottom padding for the mobile nav +
   `env(safe-area-inset-bottom)`. Desktop reserves the 240px sidebar gutter
   (`md:pl-60` or a flex/grid two-column layout).

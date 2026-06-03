@@ -69,7 +69,9 @@ badge (spec 12); the header is **mobile-only**. Clicking a block opens the popup
 
 ### 2.1 Header layout (§4)
 
-`CalendarView` owns the header. The **actions row is `md:hidden`** (mobile-only — on
+`CalendarView` owns the header. The calendar spans the **full window width** — `app/page.tsx`
+renders `<CalendarView />` directly with no `max-w-*` wrapper, so the day/week grid uses all
+available space inside the shell. The **actions row is `md:hidden`** (mobile-only — on
 desktop the sidebar covers it). Top→bottom:
 
 1. **Actions row (mobile only)** — the **identity chip** (`{display_name} • {ROLE_LABEL}`)
@@ -159,7 +161,10 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
   the axis label moves with it, and slots above/below stay put. Mobile single-box via
   `useMediaQuery` (SSR-safe); `data-box` preserved.
 - **`WeekView`** keeps absolute-positioned **compact** cards on a fixed `ROW_PX` grid (14
-  box-columns sharing an axis make per-row growth impractical).
+  box-columns sharing an axis make per-row growth impractical). Each day's two box columns
+  are grouped: the start of every new day (header + cell) carries a **left divider + gutter**
+  (`ml-1 border-l-2 border-foreground/15 pl-1`) so adjacent days are easy to tell apart on
+  the shared axis.
 
 ### 2.8 Error handling & states
 

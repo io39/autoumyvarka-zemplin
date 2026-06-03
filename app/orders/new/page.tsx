@@ -45,8 +45,8 @@ export default async function NewOrderPage({
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
-      <header className="space-y-1">
+    <div className="space-y-4">
+      <header className="mx-auto max-w-4xl space-y-1">
         <Link href="/" className="text-sm underline underline-offset-4">
           ← Späť na kalendár
         </Link>

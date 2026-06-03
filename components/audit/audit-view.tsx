@@ -32,7 +32,8 @@ import {
 } from "@/components/ui/table";
 
 const ALL = "all"; // Select needs a non-empty value for the "no filter" option.
-const PAGE_SIZE = 50;
+// Rows per page. Keep in sync with the initial server fetch in app/audit/page.tsx.
+const PAGE_SIZE = 20;
 
 const ACTION_OPTIONS = Object.entries(ACTION_LABEL).sort((a, b) =>
   a[1].localeCompare(b[1], "sk"),

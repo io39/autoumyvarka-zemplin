@@ -34,11 +34,11 @@ export function BookingCardContent({
     // Step-4 picker context: time + car brand on a single row, nothing else.
     return (
       <div className="flex h-full items-center gap-1.5 overflow-hidden leading-tight">
-        <span className="shrink-0 font-mono text-[11px]">
+        <span className="shrink-0 font-mono text-[13px]">
           {start}–{end}
         </span>
         {block.car.model && (
-          <span className="truncate text-[11px] font-medium">{block.car.model}</span>
+          <span className="truncate text-[13px] font-medium">{block.car.model}</span>
         )}
       </div>
     );

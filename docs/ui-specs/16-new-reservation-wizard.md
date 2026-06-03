@@ -83,6 +83,11 @@ picker whose header mirrors the calendar (§4).
   step 4, **"Vytvoriť rezerváciu"**.
 - Wizard state also carries `note` (the order note, shared by create + edit).
 - Step validity gates: 1 needs a `clientId`; 2 a `carId`; 3 ≥1 service; 4 a `pickedSlot`.
+- **Width:** the wizard pages (`/orders/new`, `/orders/[id]/edit`) have **no page-level
+  `max-w-*`**; inside `BookingWizard` the header, stepper, the form-based steps (1–3) and
+  `WizardActions` are **centered** at a readable width (`mx-auto max-w-4xl`), while **Step 4
+  (Termín) spans the full window width** so the slot grid has room
+  — `step === 3 ? "w-full" : "mx-auto max-w-4xl"`.
 
 ### 2.2 Step 1 — Klient (`Step1Client`)
 
@@ -133,7 +138,14 @@ picker whose header mirrors the calendar (§4).
   **line** density (time + brand). The grid uses a **fixed** `ROW_PX` (its click maps Y→time,
   so rows stay uniform — unlike the Day view's dynamic rows). The **3-dni** column template
   shrinks to `minmax(0,1fr)` on desktop (`useMediaQuery`) so it fits without horizontal
-  scroll; each box column has a header row showing `Box N` + the reservation count.
+  scroll; each box column has a header row showing `Box N` + the reservation count. The
+  occupied-booking **line** cards use a slightly larger **13px** font (`text-[13px]`) for
+  legibility in the wider grid. In **3 dni**, the first box column of each subsequent day
+  carries a **left divider + gutter** (`ml-2 border-l-2 border-foreground/15`, applied to the
+  box-header, quick-slot, and grid cells) so the two boxes of one day stay grouped and
+  adjacent days are easy to tell apart.
+- The **selected slot** ghost shows the **start–end** range (`HH:MM–HH:MM`), not just the
+  start.
 - **Submit:** `bratislavaLocalToISO(date, pickedSlot.localStart)` → `createOrder({ clientId,
   carId, box, startsAt, services, durationOverrideMin?, note? })` → toast → `/?date={date}`.
 

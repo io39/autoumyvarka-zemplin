@@ -51,18 +51,16 @@ export default async function HomePage({
   const unpaidCount = staff.role === "manazer" ? await getUnpaidCount() : 0;
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <CalendarView
-        initialBlocks={blocks}
-        hours={hours}
-        overrides={overrides}
-        date={date}
-        view={view}
-        realtimeJwt={realtimeJwt}
-        staffName={staff.display_name}
-        role={staff.role}
-        unpaidCount={unpaidCount}
-      />
-    </div>
+    <CalendarView
+      initialBlocks={blocks}
+      hours={hours}
+      overrides={overrides}
+      date={date}
+      view={view}
+      realtimeJwt={realtimeJwt}
+      staffName={staff.display_name}
+      role={staff.role}
+      unpaidCount={unpaidCount}
+    />
   );
 }

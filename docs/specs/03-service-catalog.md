@@ -65,6 +65,10 @@ Reading the catalog (for booking) is available to **both roles**.
 - `prevadzka` navigating to `/services` gets the 403 view (spec 01).
 - List groups by `kind` (main vs add-on), shows `active` badge, per-category price/
   duration grid. shadcn/ui `Table`, `Dialog`, `Input`, `Switch`, `Badge`. Mobile-first.
+- **Inactive services are hidden by default**; a header **"Zobraziť neaktívne" / "Skryť
+  neaktívne"** toggle (mirrors `worker-manager.tsx`, spec 11) reveals them greyed. The action
+  still returns active + inactive (`listServices` is unchanged); the toggle is a client-side
+  `useMemo` filter. See spec 18 §2.1.
 - Editing a service shows up to 6 category rows (os/suv/van/dod/motorka/stavba); add-
   ons may have a single category-independent (`NULL`) row.
 
@@ -228,7 +232,8 @@ pnpm test e2e/services-audit   # exits 0
 
 - [ ] `/services` per-category price/duration grid is readable at 360px.
 - [ ] All visible strings are Slovak; prices render as `18,90 €`.
-- [ ] A deactivated service no longer appears in the (spec 05) booking picker but is
-      still visible (greyed) in `/services` with `includeInactive`.
+- [ ] A deactivated service no longer appears in the (spec 05) booking picker; it is hidden
+      from the default `/services` view but reappears (greyed) once "Zobraziť neaktívne" is
+      toggled on.
 - [ ] Seeded values spot-checked against `docs/services.md` (a few main services + one
       `price_from` and one `is_per_unit` add-on).

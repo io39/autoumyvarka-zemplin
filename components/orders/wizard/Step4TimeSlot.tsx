@@ -165,6 +165,12 @@ export function Step4TimeSlot({
     () => days.flatMap((day) => [{ day, box: 1 as const }, { day, box: 2 as const }]),
     [days],
   );
+  // In the 3-day view, the first box column of each subsequent day starts a new
+  // day — mark it with a left divider + gutter so adjacent days are easy to tell
+  // apart (the two boxes of one day stay visually grouped).
+  const DAY_DIVIDER = "ml-2 border-l-2 border-foreground/15";
+  const isDayStart = (day: string, box: 1 | 2) =>
+    view !== "day" && box === 1 && day !== days[0];
   // Deň fills the width (2 boxes). 3 dni gives each of the 6 box-columns a wide
   // tap-friendly minimum on mobile (the grid side-scrolls there); on desktop the
   // columns shrink to fit the container so there is no horizontal scroll.
@@ -217,7 +223,10 @@ export function Step4TimeSlot({
               return (
                 <div
                   key={`bh-${day}-${box}`}
-                  className="flex items-baseline justify-between gap-1 border-b pb-1"
+                  className={cn(
+                    "flex items-baseline justify-between gap-1 border-b pb-1",
+                    isDayStart(day, box) && DAY_DIVIDER,
+                  )}
                 >
                   <span className="text-sm font-semibold">Box {box}</span>
                   <span className="text-[11px] text-muted-foreground">
@@ -245,7 +254,10 @@ export function Step4TimeSlot({
               const selMin =
                 picked && picked.dateKey === day && picked.box === box ? hhmmToMin(picked.localStart) : null;
               return (
-                <div key={`q-${day}-${box}`} className="space-y-1">
+                <div
+                  key={`q-${day}-${box}`}
+                  className={cn("space-y-1", isDayStart(day, box) && DAY_DIVIDER)}
+                >
                   <div className="flex flex-wrap gap-1.5">
                     {quick.length === 0 ? (
                       <span className="text-xs text-muted-foreground">—</span>
@@ -285,6 +297,7 @@ export function Step4TimeSlot({
                   key={`g-${day}-${box}`}
                   day={day}
                   box={box}
+                  className={isDayStart(day, box) ? DAY_DIVIDER : undefined}
                   rows={rows}
                   gridOpenMin={grid.openMin}
                   dayInterval={dd?.interval ?? null}
@@ -332,6 +345,7 @@ function TimeAxis({ rows }: { rows: string[] }) {
 function GridColumn({
   day,
   box,
+  className,
   rows,
   gridOpenMin,
   dayInterval,
@@ -346,6 +360,7 @@ function GridColumn({
 }: {
   day: string;
   box: 1 | 2;
+  className?: string;
   rows: string[];
   gridOpenMin: number;
   dayInterval: Interval | null;
@@ -409,7 +424,10 @@ function GridColumn({
         const near = nearestFreeStarts(dayOpenMin, dayCloseMin, durationMin, busy, fromMin, 1)[0];
         if (near !== undefined) onPick({ dateKey: day, box, localStart: minToHHMM(near) });
       }}
-      className="relative cursor-pointer select-none overflow-hidden rounded-md border bg-muted/20"
+      className={cn(
+        "relative cursor-pointer select-none overflow-hidden rounded-md border bg-muted/20",
+        className,
+      )}
       style={{ height: heightPx }}
     >
       {/* 15-min row guides */}
@@ -499,10 +517,10 @@ function GridColumn({
       {selMin !== null && (
         <div
           data-selected-slot={`${day}-${box}-${minToHHMM(selMin)}`}
-          className="pointer-events-none absolute inset-x-1 flex items-center justify-center rounded border-2 border-primary bg-primary/20 text-[10px] font-medium text-primary"
+          className="pointer-events-none absolute inset-x-1 flex items-center justify-center whitespace-nowrap rounded border-2 border-primary bg-primary/20 px-0.5 text-[10px] font-medium text-primary"
           style={{ top: top(selMin) + 1, height: span(selMin, selMin + durationMin) - 2 }}
         >
-          {minToHHMM(selMin)}
+          {minToHHMM(selMin)}–{minToHHMM(selMin + durationMin)}
         </div>
       )}
     </div>

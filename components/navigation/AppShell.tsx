@@ -50,11 +50,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         realtimeJwt={realtimeJwt}
       />
       <div className="md:pl-60">
-        {/* Bottom padding clears the mobile BottomNav (visible until md). Keep
-            the bottom inset for the whole 0–md range — only `sm:px-6 sm:pt-6`
-            bumps the other sides, so the bottom clearance isn't lost at the sm
-            breakpoint where the nav is still on screen. */}
-        <main className="mx-auto min-w-0 max-w-7xl overflow-x-hidden p-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 md:pb-6">
+        {/* Full-width main (no max-w cap): pages that should stay narrow set
+            their own `mx-auto max-w-*`; the calendar (app/page.tsx) has none, so
+            it fills the width. `mx-3.5` is a small side gutter. The bottom inset
+            clears the mobile BottomNav across the whole 0–md range (only the
+            top/side padding is bumped at sm), so the clearance isn't lost at sm. */}
+        <main className="mx-auto md:mx-10 min-w-0 overflow-x-hidden p-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 sm:pt-4 md:pb-6">
           {children}
         </main>
       </div>

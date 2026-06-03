@@ -94,9 +94,9 @@ test.describe("audit filters & keyset pagination (spec 09 §4.3)", () => {
     const db = serviceClient();
     const orderId = randomUUID();
 
-    // 51 rows (> one 50-row page), strictly decreasing created_at so order is stable.
+    // 21 rows (> one 20-row page), strictly decreasing created_at so order is stable.
     const base = Date.now();
-    const rows = Array.from({ length: 51 }, (_, i) => ({
+    const rows = Array.from({ length: 21 }, (_, i) => ({
       id: randomUUID(),
       actor_email: MANAGER_EMAIL,
       action: "order.status_change",
@@ -110,7 +110,7 @@ test.describe("audit filters & keyset pagination (spec 09 §4.3)", () => {
 
     await page.goto(`/audit?orderId=${orderId}`);
     const page1 = await visibleIds(page);
-    expect(page1).toHaveLength(50);
+    expect(page1).toHaveLength(20);
     // ◀ disabled on page 1; ▶ enabled (a second page exists).
     await expect(page.getByRole("button", { name: "Predošlé" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Ďalšie" })).toBeEnabled();
@@ -127,7 +127,7 @@ test.describe("audit filters & keyset pagination (spec 09 §4.3)", () => {
       created_at: new Date(base + 60_000).toISOString(),
     });
 
-    // ▶ goes to page 2 — the list is REPLACED (not appended): the 51st (oldest) row.
+    // ▶ goes to page 2 — the list is REPLACED (not appended): the 21st (oldest) row.
     await page.getByRole("button", { name: "Ďalšie" }).click();
     // Wait for the async re-render to land before snapshotting the rows.
     await expect(page.locator('[data-section="audit"] tr[data-id]')).toHaveCount(1);
@@ -144,12 +144,12 @@ test.describe("audit filters & keyset pagination (spec 09 §4.3)", () => {
     expect(all).not.toContain(insertedId);
 
     // ◀ returns to page 1 (re-queried fresh, so it now also surfaces the newer
-    // row that was inserted mid-test — that's expected): a full 50-row page with
-    // ◀ disabled again and ▶ re-enabled (52 rows total now span two pages).
+    // row that was inserted mid-test — that's expected): a full 20-row page with
+    // ◀ disabled again and ▶ re-enabled (22 rows total now span two pages).
     await page.getByRole("button", { name: "Predošlé" }).click();
-    await expect(page.locator('[data-section="audit"] tr[data-id]')).toHaveCount(50);
+    await expect(page.locator('[data-section="audit"] tr[data-id]')).toHaveCount(20);
     const back = await visibleIds(page);
-    expect(back).toHaveLength(50);
+    expect(back).toHaveLength(20);
     expect(back).toContain(insertedId); // fresh page 1 picks up the newer row
     await expect(page.getByRole("button", { name: "Predošlé" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Ďalšie" })).toBeEnabled();

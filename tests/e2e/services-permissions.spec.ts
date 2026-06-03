@@ -29,6 +29,8 @@ test.describe("manager — /services catalog", () => {
     await expect(card.getByText("Aktívna")).toBeVisible();
 
     await card.getByRole("button", { name: "Deaktivovať" }).click();
+    // Inactive services are hidden by default; reveal them to see the card again.
+    await page.getByRole("button", { name: "Zobraziť neaktívne" }).click();
     await expect(card.getByText("Neaktívna")).toBeVisible();
   });
 });

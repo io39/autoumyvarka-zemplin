@@ -5,6 +5,9 @@ import { getAuditLog } from "@/lib/actions/audit";
 import { ForbiddenView, UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { AuditView } from "@/components/audit/audit-view";
 
+// First page size; keep in sync with PAGE_SIZE in components/audit/audit-view.tsx.
+const PAGE_SIZE = 20;
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function AuditPage({
@@ -27,7 +30,7 @@ export default async function AuditPage({
   // throw an uncaught error: an invalid filter simply shows the unfiltered log.
   const { orderId: rawOrderId } = await searchParams;
   const orderId = rawOrderId && UUID_RE.test(rawOrderId) ? rawOrderId : null;
-  const initial = await getAuditLog(orderId ? { orderId } : {});
+  const initial = await getAuditLog(orderId ? { orderId, limit: PAGE_SIZE } : { limit: PAGE_SIZE });
 
   return (
     <div className="mx-auto max-w-4xl">

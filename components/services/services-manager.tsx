@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -54,10 +54,15 @@ export function ServicesManager({
 }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const mains = initialServices.filter((s) => s.service.kind === "main");
-  const addons = initialServices.filter((s) => s.service.kind === "addon");
+  const visible = useMemo(
+    () => (showInactive ? initialServices : initialServices.filter((s) => s.service.active)),
+    [initialServices, showInactive],
+  );
+  const mains = visible.filter((s) => s.service.kind === "main");
+  const addons = visible.filter((s) => s.service.kind === "addon");
 
   function toggleActive(item: ServiceWithPrices) {
     startTransition(async () => {
@@ -78,7 +83,12 @@ export function ServicesManager({
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Katalóg služieb</h1>
-        <Button onClick={() => setAdding(true)}>Pridať službu</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowInactive((v) => !v)}>
+            {showInactive ? "Skryť neaktívne" : "Zobraziť neaktívne"}
+          </Button>
+          <Button onClick={() => setAdding(true)}>Pridať službu</Button>
+        </div>
       </div>
 
       {/* Hlavné / Doplnkové wrapped in expandable accordions (spec 18 §2.1),
