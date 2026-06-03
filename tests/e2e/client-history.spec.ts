@@ -53,9 +53,8 @@ test.describe("client service history (spec 08 / 17)", () => {
     await expect(carCard.getByText("Zaplatená")).toBeVisible();
     await expect(carCard.getByText("Nedostavil sa")).toBeVisible();
 
-    // Expand the paid order → the assigned worker (Pracovníci) shows.
+    // Order detail is expanded by default → the assigned worker (Pracovníci) shows.
     const paidRow = carCard.locator(`[data-order-id="${paid.orderId}"]`);
-    await paidRow.getByRole("button").first().click();
     await expect(paidRow.getByText(/Peter/)).toBeVisible();
 
     // Opening the full order navigates to the order detail page.

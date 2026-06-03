@@ -237,7 +237,13 @@ function CarRow({
           expanded content only lists visits when there are any. */}
       {entries.length > 0 && (
         <AccordionContent>
-          <Accordion type="multiple" className="border-t">
+          {/* Open every visit's detail by default too, so order info (box, total,
+              workers, note) shows without an extra click; collapsible per visit. */}
+          <Accordion
+            type="multiple"
+            defaultValue={entries.map((e) => e.orderId)}
+            className="border-t"
+          >
             {entries.map((e, i) => (
               <ServiceHistoryRow
                 key={e.orderId}

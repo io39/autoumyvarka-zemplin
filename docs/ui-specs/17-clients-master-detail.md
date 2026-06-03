@@ -103,7 +103,9 @@ Pracovníci/Poznámka/box/€.
   any block): shows that car's order history. **Poradie** (1., 2., …) counted **per car**, shown next to the
   visit. Each `ServiceHistoryRow` (compact): dátum · čas od–do · poradie · služby (short) ·
   **stav** badge (`STATE_COLOR`/`STATE_LABEL` — retire the local `HISTORY_STATUS_BADGE`).
-- **Expanded order**: a dropdown showing **Pracovníci** + **Poznámka** (+ box + total €).
+- **Expanded order**: each visit's detail (**Pracovníci** + **Poznámka** + box + total €)
+  is **also expanded by default** (`defaultValue` = all order ids), so the full history is
+  visible on open; each visit stays individually collapsible.
 - **Open full order**: the row links to `/orders/[id]` (spec 15 detailed surface).
 
 ### 2.4 Components (§9)

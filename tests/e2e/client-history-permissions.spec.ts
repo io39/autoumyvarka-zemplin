@@ -32,9 +32,9 @@ test.describe("client history — authorization (spec 08 / 17)", () => {
       const carCard = history.locator(`[data-car-id="${carId}"]`);
       await expect(carCard.getByText("Zaplatená")).toBeVisible();
 
-      // Expand the order → read-only: a link to the full order, no edit controls.
+      // Order detail is expanded by default → read-only: a link to the full
+      // order, no edit controls.
       const orderRow = carCard.locator(`[data-order-id="${orderId}"]`);
-      await orderRow.getByRole("button").first().click();
       await expect(orderRow.getByRole("link", { name: /Otvoriť objednávku/ })).toBeVisible();
       await expect(
         orderRow.getByRole("button", { name: /Upraviť|Odstrániť|Uložiť|Zmeniť|Pridať/ }),
