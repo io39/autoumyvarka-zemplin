@@ -35,7 +35,6 @@ const spzSchema = z
   });
 
 const nameSchema = z.string().trim().max(120, "Meno je príliš dlhé.").optional();
-const noteSchema = z.string().trim().max(2000, "Poznámka je príliš dlhá.").optional();
 const modelSchema = z.string().trim().max(120, "Model je príliš dlhý.").optional();
 const idSchema = z.string().uuid("Neplatný identifikátor.");
 const categorySchema = z.enum(["os", "suv", "van", "dod", "motorka", "stavba"], {
@@ -52,14 +51,12 @@ export const searchClientsSchema = z.object({
 export const createClientSchema = z.object({
   phone: phoneSchema,
   name: nameSchema,
-  note: noteSchema,
 });
 
 export const updateClientSchema = z.object({
   id: idSchema,
   phone: phoneSchema.optional(),
   name: nameSchema,
-  note: noteSchema,
 });
 
 export const addCarToClientSchema = z.object({

@@ -178,9 +178,8 @@ function CreateClientDialog({
   function onSubmit(formData: FormData) {
     const phone = String(formData.get("phone") ?? "");
     const name = String(formData.get("name") ?? "");
-    const note = String(formData.get("note") ?? "");
     startTransition(async () => {
-      const result = await createClient({ phone, name: name || undefined, note: note || undefined });
+      const result = await createClient({ phone, name: name || undefined });
       if (result.ok) {
         toast.success("Klient vytvorený.");
         onCreated(result.id);
@@ -199,7 +198,7 @@ function CreateClientDialog({
         <form action={onSubmit}>
           <DialogHeader>
             <DialogTitle>Nový zákazník</DialogTitle>
-            <DialogDescription>Telefónne číslo je povinné; meno a poznámka voliteľné.</DialogDescription>
+            <DialogDescription>Telefónne číslo je povinné; meno voliteľné.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -225,10 +224,6 @@ function CreateClientDialog({
             <div className="space-y-2">
               <Label htmlFor="name">Meno</Label>
               <Input id="name" name="name" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="note">Poznámka</Label>
-              <Input id="note" name="note" />
             </div>
           </div>
           <DialogFooter>

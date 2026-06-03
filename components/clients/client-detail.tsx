@@ -174,7 +174,6 @@ function ClientHeaderCard({
           SMS
         </a>
       </p>
-      {client.note && <p className="mt-3 text-sm">{client.note}</p>}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {/* All roles — available even with no cars (the wizard can add one). */}
         <Button size="sm" asChild>
@@ -324,13 +323,11 @@ function EditClientDialog({
   function onSubmit(formData: FormData) {
     const phone = String(formData.get("phone") ?? "");
     const name = String(formData.get("name") ?? "");
-    const note = String(formData.get("note") ?? "");
     startTransition(async () => {
       const result = await updateClient({
         id: client.id,
         phone,
         name: name || undefined,
-        note: note || undefined,
       });
       if (result.ok) {
         toast.success("Zmeny uložené.");
@@ -357,10 +354,6 @@ function EditClientDialog({
             <div className="space-y-2">
               <Label htmlFor="name">Meno</Label>
               <Input id="name" name="name" defaultValue={client.name ?? ""} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="note">Poznámka</Label>
-              <Input id="note" name="note" defaultValue={client.note ?? ""} />
             </div>
           </div>
           <DialogFooter>

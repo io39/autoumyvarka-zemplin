@@ -17,7 +17,7 @@ that the booking flow (spec 05) and history (spec 08) depend on.
 
 ### 1.1 What this feature does
 
-1. **Clients** keyed by phone (E.164-normalized, unique), with optional name and note.
+1. **Clients** keyed by phone (E.164-normalized, unique), with an optional name.
 2. **Cars** keyed by ŠPZ (unique), with optional model and a required
    `pricing_category` (`os | suv | van | dod | motorka | stavba`).
 3. **Many-to-many** client↔car: a car may belong to several clients; a client may
@@ -95,8 +95,8 @@ All validate with zod; all that mutate write `audit_log`.
 | --- | --- | --- | --- |
 | `findClientByPhone` | `{ phone }` | both | — (read; exact, used by the booking flow) |
 | `searchClients` | `{ query, limit? }` | both | — (read; unified fuzzy autocomplete) |
-| `createClient` | `{ phone, name?, note? }` | both | `client.create` |
-| `updateClient` | `{ id, phone?, name?, note? }` | **manager** | `client.update` (or `client.phone_change`) |
+| `createClient` | `{ phone, name? }` | both | `client.create` |
+| `updateClient` | `{ id, phone?, name? }` | **manager** | `client.update` (or `client.phone_change`) |
 | `addCarToClient` | `{ clientId, spz, model?, pricingCategory }` | both | `car.create` or `car.link` |
 | `linkExistingCar` | `{ clientId, carId }` | both | `car.link` |
 | `updateCar` | `{ id, model?, pricingCategory }` | **manager** | `car.update` |

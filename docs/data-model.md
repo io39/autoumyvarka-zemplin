@@ -62,8 +62,10 @@ Identified by phone number (PRD §4).
 | `id` | uuid pk | |
 | `phone` | text **unique not null** | the client key; normalized (E.164) before insert |
 | `name` | text null | optional (PRD §4 step 1) |
-| `note` | text null | optional free note (PRD §10) |
 | `created_at` | timestamptz not null default now() | |
+
+> The client-level free note was removed (migration `0010_drop_client_note.sql`) — not
+> needed. Per-order notes (`orders.note`) are unaffected.
 
 **Indexes:** unique on `phone` (identity); **trigram GIN** on `name` and `phone`
 (`gin_trgm_ops`) for fuzzy autocomplete search (spec 02 — requires the `pg_trgm`

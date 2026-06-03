@@ -218,7 +218,7 @@ export async function createClient(input: unknown): Promise<CreateClientResult> 
 
     const { data: row, error } = await db
       .from("clients")
-      .insert({ phone: data.phone, name: data.name ?? null, note: data.note ?? null })
+      .insert({ phone: data.phone, name: data.name ?? null })
       .select("id")
       .single();
 
@@ -256,20 +256,19 @@ export async function updateClient(input: unknown): Promise<UpdateClientResult> 
 
     const { data: before, error: beforeError } = await db
       .from("clients")
-      .select("phone, name, note")
+      .select("phone, name")
       .eq("id", data.id)
       .maybeSingle();
     if (beforeError) throw beforeError;
     if (!before) return { ok: false, message: "Klient sa nenašiel." };
 
     const nextName = data.name ?? null;
-    const nextNote = data.note ?? null;
     const phoneChanged = data.phone !== undefined && data.phone !== before.phone;
-    const dataChanged = nextName !== before.name || nextNote !== before.note;
+    const dataChanged = nextName !== before.name;
 
     const { error } = await db
       .from("clients")
-      .update({ phone: data.phone ?? before.phone, name: nextName, note: nextNote })
+      .update({ phone: data.phone ?? before.phone, name: nextName })
       .eq("id", data.id);
 
     if (isUniqueViolation(error)) {
@@ -293,8 +292,8 @@ export async function updateClient(input: unknown): Promise<UpdateClientResult> 
     }
     if (dataChanged) {
       await writeAudit(actor, "client.update", "client", data.id, {
-        from: { name: before.name, note: before.note },
-        to: { name: nextName, note: nextNote },
+        from: { name: before.name },
+        to: { name: nextName },
       });
     }
 
