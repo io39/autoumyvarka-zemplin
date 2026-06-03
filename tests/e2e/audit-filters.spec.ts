@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { accessHeaders, MANAGER_EMAIL, serviceClient } from "./support";
+import { accessHeaders, MANAGER_EMAIL, serviceClient, pickDateField } from "./support";
 
 const todayBratislava = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(new Date());
@@ -82,7 +82,7 @@ test.describe("audit filters & keyset pagination (spec 09 §4.3)", () => {
     // Clear, then date filter from today → the 2020 row drops out.
     await page.getByRole("button", { name: "Vymazať filtre" }).click();
     await expect(page.locator('[data-section="audit"] tr[data-id]')).toHaveCount(3);
-    await page.locator("#from").fill(todayBratislava());
+    await pickDateField(page, "from", todayBratislava());
     await expect(page.locator(`[data-section="audit"] tr[data-id="${oldId}"]`)).toHaveCount(0);
     ids = await visibleIds(page);
     expect(ids).toHaveLength(2);

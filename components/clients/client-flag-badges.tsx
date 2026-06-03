@@ -32,7 +32,7 @@ export function ClientFlagBadges({
     <div className={cn("flex flex-wrap gap-2", className)} data-section="client-flags">
       {flags.overdueUnpaidCount > 0 && (
         <Badge data-flag="unpaid" className={FLAG_BADGE}>
-          Nezaplatené: {flags.overdueUnpaidCount} · {formatPriceCents(flags.unpaidAmountCents)}
+          Nezaplatené: {flags.overdueUnpaidCount}x: {formatPriceCents(flags.unpaidAmountCents)}
         </Badge>
       )}
       {flags.noShowCount > 0 && (

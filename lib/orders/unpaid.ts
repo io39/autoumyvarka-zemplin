@@ -11,12 +11,10 @@ import { bratislavaDateKey } from "@/lib/settings/availability";
  *     (covers post-hoc services added to an otherwise-paid order — PRD §9.3).
  * Excluded: `vytvorena` (nothing owed yet), `nedostavil_sa`, soft-deleted.
  *
- * NB on the line signal: marking an order `zaplatena` (spec 06 `setStatus`)
- * does NOT cascade lines to `paid`, and lines default `paid=false`. So a
- * `zaplatena` order only counts as settled once its lines are individually
- * marked paid (`setOrderServicePaid`). That is the intended per-line workflow
- * (PRD §9.3); if the client instead wants `zaplatena` alone to mean "settled",
- * drop the line check for `zaplatena` here — a one-line change.
+ * NB on the line signal: advancing an order to `zaplatena` (spec 06 `setStatus`)
+ * **cascades all non-removed lines to `paid = true`**, so a paid order is settled
+ * without per-line ticking. A line added *after* payment defaults to `paid=false`
+ * (the post-hoc workflow, PRD §9.3) and re-surfaces the order until ticked.
  */
 
 export interface UnpaidLineInput {

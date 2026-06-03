@@ -564,6 +564,19 @@ export async function setStatus(input: unknown): Promise<ActionResult> {
       });
     }
 
+    // Marking the order paid settles every (non-removed) service line, so a
+    // Zaplatená order drops off the unpaid view without per-line ticking. A
+    // service added afterwards still defaults to unpaid (post-hoc workflow).
+    if (next === "zaplatena") {
+      const { error: paidErr } = await db
+        .from("order_services")
+        .update({ paid: true })
+        .eq("order_id", id)
+        .is("removed_at", null)
+        .eq("paid", false);
+      if (paidErr) throw paidErr;
+    }
+
     revalidatePath("/");
     revalidatePath(`/orders/${id}`);
     return { ok: true };

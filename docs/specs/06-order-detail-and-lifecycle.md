@@ -141,6 +141,9 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
   override) — and since duration changed, re-checks conflict for the new `ends_at`.
 - `removeOrderService`: allowed only while the line is not performed (soft `removed_at`).
 - `setStatus(next='hotova')` from `vytvorena` emits ORDER_READY after the commit.
+- `setStatus(next='zaplatena')` **cascades all non-removed `order_services` lines to
+  `paid = true`** after the status update, so a paid order is fully settled and leaves the
+  unpaid view (spec 10) without per-line ticking. A line added afterwards re-surfaces it.
 - `setStatus(next='vytvorena')` is **only** valid from `nedostavil_sa` (manager): it
   re-checks `isRangeOpen` + the DB conflict constraint before reverting, and is rejected
   if the slot was rebooked. It does **not** re-send the reminder SMS retroactively (spec

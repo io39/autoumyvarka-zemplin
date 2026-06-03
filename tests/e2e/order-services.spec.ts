@@ -103,4 +103,29 @@ test.describe("order services on existing order (manager)", () => {
       .single();
     expect(still!.removed_at).toBeNull();
   });
+
+  test("marking an order Zaplatená ticks all its service lines paid", async ({ page }) => {
+    const db = serviceClient();
+    const o = await seedOrder({ status: "hotova", time: "11:00" });
+
+    // The seeded line starts unpaid.
+    const { data: before } = await db
+      .from("order_services")
+      .select("paid")
+      .eq("id", o.serviceLineId)
+      .single();
+    expect(before!.paid).toBe(false);
+
+    await page.goto(`/orders/${o.orderId}`);
+    await page.getByRole("button", { name: "Označiť ako zaplatenú" }).click();
+    await expect(page.getByText("Stav: Zaplatená.")).toBeVisible();
+
+    // The cascade settled the line.
+    const { data: after } = await db
+      .from("order_services")
+      .select("paid")
+      .eq("id", o.serviceLineId)
+      .single();
+    expect(after!.paid).toBe(true);
+  });
 });

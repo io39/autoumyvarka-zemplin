@@ -58,8 +58,9 @@ the 403 view; the read action also asserts `requireManager()`.
 - Table: timestamp (Europe/Bratislava), `actor_email`, action (Slovak label), entity
   type + id (link to the entity where one exists, e.g. order → `/orders/[id]`), and a
   rendered `details` summary.
-- Filters: date range picker, action multiselect, entity-type select, optional order id
-  (deep-link from an order detail "história zmien" link).
+- Filters: **Od/Do date pickers** (the shared `DateField` — same shadcn `Calendar` popover
+  as the calendar/Výnimky, for app-wide consistency), action select, entity-type select,
+  optional order id (deep-link from an order detail "história zmien" link).
 - Action codes → Slovak labels via a small map (`order.status_change` → "Zmena stavu",
   `order.note_edit` → "Úprava poznámky", `order.assign`/`unassign` → "Priradenie/
   odobratie pracovníka", `order.delete` → "Vymazanie objednávky", `staff.*`, `service.*`,

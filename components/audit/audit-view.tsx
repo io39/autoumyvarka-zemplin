@@ -13,8 +13,8 @@ import {
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
 import type { AuditLogRow } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateField } from "@/components/settings/date-field";
 import {
   Select,
   SelectContent,
@@ -152,22 +152,18 @@ export function AuditView({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1">
           <Label htmlFor="from">Od dátumu</Label>
-          <Input
+          <DateField
             id="from"
-            type="date"
-            lang="sk-SK"
             value={filters.from}
-            onChange={(e) => applyFilters({ ...filters, from: e.target.value })}
+            onChange={(v) => applyFilters({ ...filters, from: v })}
           />
         </div>
         <div className="space-y-1">
           <Label htmlFor="to">Do dátumu</Label>
-          <Input
+          <DateField
             id="to"
-            type="date"
-            lang="sk-SK"
             value={filters.to}
-            onChange={(e) => applyFilters({ ...filters, to: e.target.value })}
+            onChange={(v) => applyFilters({ ...filters, to: v })}
           />
         </div>
         <div className="space-y-1">

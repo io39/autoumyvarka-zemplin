@@ -35,8 +35,13 @@ signals exist; Phase-1 default uses **both**, OR-ed:
 
 Excluded: `vytvorena` (not washed yet — nothing owed), `nedostavil_sa` (no service),
 and soft-deleted orders. **Overdue** = unpaid **and** `starts_at` is before today
-(Europe/Bratislava). This definition is the one design decision to confirm; it's
-isolated in `lib/orders/unpaid.ts` so it's easy to adjust.
+(Europe/Bratislava). This definition is isolated in `lib/orders/unpaid.ts` so it's easy
+to adjust.
+
+**Settlement (resolved):** advancing an order to `zaplatena` (`setStatus`) **cascades all
+its non-removed `order_services` lines to `paid = true`**, so a paid order drops off the
+unpaid view without per-line ticking. A service added *after* payment still defaults to
+`paid = false` (the post-hoc workflow), so it re-surfaces until ticked.
 
 ### 1.3 User stories (planning note 2026-05-27)
 

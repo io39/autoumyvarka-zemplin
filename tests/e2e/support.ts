@@ -66,6 +66,21 @@ export async function fillOverrideDate(page: Page, iso: string): Promise<void> {
 }
 
 /**
+ * Pick a date in a specific `DateField` identified by its trigger `id` (e.g.
+ * the audit "from"/"to" filters). Scopes the month/year dropdowns to the native
+ * `<select>` elements the Calendar renders (shadcn Selects on the page are
+ * buttons, not native selects), so it works on pages with other dropdowns.
+ */
+export async function pickDateField(page: Page, triggerId: string, iso: string): Promise<void> {
+  const [y, m, d] = iso.split("-").map(Number);
+  await page.locator(`#${triggerId}`).click();
+  const selects = page.locator("select");
+  await selects.nth(0).selectOption(String(m - 1)); // month (0-based)
+  await selects.nth(1).selectOption(String(y)); // year
+  await page.getByRole("grid").getByText(String(d), { exact: true }).click();
+}
+
+/**
  * Service-role Supabase client for test-side DB assertions (e.g. reading
  * audit_log). Bypasses RLS by design — same as the app server.
  */
