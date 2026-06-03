@@ -10,7 +10,7 @@ import {
   entityLabel,
   summarizeDetails,
 } from "@/lib/audit/labels";
-import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
+import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
 import type { AuditLogRow } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,7 +122,7 @@ export function AuditView({
     return {
       id: e.id,
       action: e.action,
-      time: `${bratislavaDateKey(at)} ${bratislavaHHMM(at)}`,
+      time: `${bratislavaDateDisplay(at)} ${bratislavaHHMM(at)}`,
       actor: e.actor_email,
       actionLbl: actionLabel(e.action),
       entityLbl: entityLabel(e.entity_type),

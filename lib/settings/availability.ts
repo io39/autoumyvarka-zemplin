@@ -23,10 +23,19 @@ export interface OpenInterval {
   close: string;
 }
 
-/** "YYYY-MM-DD" in Bratislava local time. */
+/** "YYYY-MM-DD" in Bratislava local time. Used as a key (URLs, comparisons). */
 export function bratislavaDateKey(d: Date): string {
   const parts = bratislavaParts(d);
   return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/**
+ * Human display date "DD.MM.YYYY" in Bratislava local time (the app-wide UI date
+ * format). Distinct from `bratislavaDateKey`, which is the machine key.
+ */
+export function bratislavaDateDisplay(d: Date): string {
+  const parts = bratislavaParts(d);
+  return `${parts.day}.${parts.month}.${parts.year}`;
 }
 
 /** 0 = Monday … 6 = Sunday — app convention (data-model §2.12). */

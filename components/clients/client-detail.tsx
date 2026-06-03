@@ -19,7 +19,7 @@ import { BrandField } from "@/components/cars/brand-field";
 import { STATE_COLOR, STATE_LABEL } from "@/types";
 import { cn } from "@/lib/utils";
 import { formatPriceCents } from "@/lib/services/format";
-import { bratislavaHHMM, bratislavaDateKey } from "@/lib/settings/availability";
+import { bratislavaHHMM, bratislavaDateDisplay } from "@/lib/settings/availability";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -268,7 +268,7 @@ function ServiceHistoryRow({ entry, poradie }: { entry: HistoryEntry; poradie: n
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-medium">
-              {poradie}. · {bratislavaDateKey(start)} · {bratislavaHHMM(start)}–
+              {poradie}. · {bratislavaDateDisplay(start)} · {bratislavaHHMM(start)}–
               {bratislavaHHMM(end)}
             </span>
             {/* nedostavil_sa renders plain gray — STATE_COLOR carries no

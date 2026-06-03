@@ -3,7 +3,9 @@
 Complete schema for every PRD entity plus supporting tables. Postgres (Supabase
 Cloud EU). All migrations are checked in (`CLAUDE.md`). Money is stored as integer
 **cents** (EUR). Timestamps are `timestamptz` (UTC); the app renders in
-Europe/Bratislava.
+Europe/Bratislava. **UI dates display app-wide as `DD.MM.YYYY`** (`bratislavaDateDisplay`
+for timestamp instants, `formatDMY` for `YYYY-MM-DD` keys), kept separate from the
+internal `YYYY-MM-DD` keys used in URLs and date logic.
 
 Conventions:
 - Primary keys: `uuid` (`gen_random_uuid()`), except low-cardinality lookup rows.

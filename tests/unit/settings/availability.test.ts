@@ -4,8 +4,18 @@ import {
   isOpenAt,
   isRangeOpen,
   bratislavaDayOfWeek,
+  bratislavaDateDisplay,
 } from "@/lib/settings/availability";
 import type { OpeningHoursRow, DayOverrideRow } from "@/lib/supabase/types";
+
+describe("bratislavaDateDisplay", () => {
+  it("formats a UTC instant as DD.MM.YYYY in Bratislava local time", () => {
+    // 21:30 UTC in winter (UTC+1) is 22:30 local on the same day.
+    expect(bratislavaDateDisplay(new Date("2026-12-24T21:30:00Z"))).toBe("24.12.2026");
+    // 23:30 UTC in summer (UTC+2) is 01:30 local the NEXT day.
+    expect(bratislavaDateDisplay(new Date("2026-05-25T23:30:00Z"))).toBe("26.05.2026");
+  });
+});
 
 /**
  * Bratislava is UTC+1 in winter / UTC+2 (DST) in summer. All test datetimes

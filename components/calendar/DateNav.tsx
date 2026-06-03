@@ -4,7 +4,7 @@ import { useState } from "react";
 import { sk } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CalendarView } from "@/lib/calendar/types";
-import { pad, weekDateKeys } from "@/lib/calendar/grid";
+import { formatDMY, pad, weekDateKeys } from "@/lib/calendar/grid";
 import { viewCoversToday } from "@/lib/calendar/today";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -19,25 +19,10 @@ function dateToKey(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-const fmtFull = new Intl.DateTimeFormat("sk-SK", { day: "numeric", month: "long", year: "numeric" });
-const fmtDayMonth = new Intl.DateTimeFormat("sk-SK", { day: "numeric", month: "long" });
-const fmtDay = new Intl.DateTimeFormat("sk-SK", { day: "numeric" });
-
 function formatLabel(view: CalendarView, dateKey: string): string {
-  if (view !== "week") return fmtFull.format(keyToDate(dateKey));
-
+  if (view !== "week") return formatDMY(dateKey);
   const keys = weekDateKeys(dateKey);
-  const mon = keyToDate(keys[0]);
-  const sun = keyToDate(keys[6]);
-  // Keep the Monday's month/year when the week spans a boundary, so e.g.
-  // "26. januára – 1. februára 2026" instead of dropping January.
-  if (mon.getFullYear() !== sun.getFullYear()) {
-    return `${fmtFull.format(mon)} – ${fmtFull.format(sun)}`;
-  }
-  if (mon.getMonth() !== sun.getMonth()) {
-    return `${fmtDayMonth.format(mon)} – ${fmtFull.format(sun)}`;
-  }
-  return `${fmtDay.format(mon)}. – ${fmtFull.format(sun)}`;
+  return `${formatDMY(keys[0])} – ${formatDMY(keys[6])}`;
 }
 
 /**

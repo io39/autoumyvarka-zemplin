@@ -79,7 +79,10 @@ desktop the sidebar covers it). Top→bottom:
    the nav — sidebar/bottom-nav — so there's no header button.)
 2. **Deň / Týždeň** — toggle (existing, restyled), applies to both views.
 3. **Date + ◀ ▶** — date label; clicking it opens the **Calendar popover** (§2.2). ◀ ▶
-   step one day (Day) / one week (Week). Week shows the week range.
+   step one day (Day) / one week (Week). Week shows the week range. The label uses the
+   **app-wide UI date format `DD.MM.YYYY`** (`formatDMY` in `lib/calendar/grid.ts` for
+   `YYYY-MM-DD` keys; `bratislavaDateDisplay` in `lib/settings/availability.ts` for
+   timestamp instants) — distinct from the internal `YYYY-MM-DD` keys used in URLs/logic.
 4. **Today state** — `DNES` if the current view covers today, else a **`Späť na dnes`**
    button (§2.3). Wrapped in a **fixed-width reserve** (`w-32`) so the layout doesn't reflow
    when the short `DNES` pill swaps to the wider button.

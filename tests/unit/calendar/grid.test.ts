@@ -2,10 +2,18 @@ import { describe, it, expect } from "vitest";
 import {
   buildRows,
   diffMinutes,
+  formatDMY,
   toMinutes,
   weekDateKeys,
   weekRange,
 } from "@/lib/calendar/grid";
+
+describe("formatDMY", () => {
+  it("renders a YYYY-MM-DD key as DD.MM.YYYY", () => {
+    expect(formatDMY("2026-06-03")).toBe("03.06.2026");
+    expect(formatDMY("2026-12-31")).toBe("31.12.2026");
+  });
+});
 
 describe("calendar grid math (spec 14)", () => {
   it("buildRows yields 15-min HH:MM rows, open inclusive / close exclusive", () => {

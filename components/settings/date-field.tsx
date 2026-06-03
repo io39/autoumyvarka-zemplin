@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { sk } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
-import { pad } from "@/lib/calendar/grid";
+import { formatDMY, pad } from "@/lib/calendar/grid";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -17,8 +17,6 @@ function keyToDate(key: string): Date {
 function dateToKey(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
-
-const fmt = new Intl.DateTimeFormat("sk-SK", { day: "numeric", month: "long", year: "numeric" });
 
 /**
  * Single-date field using the **same** shadcn `Calendar` popover as the main
@@ -54,7 +52,7 @@ export function DateField({
           )}
         >
           <CalendarIcon className="mr-2 size-4" />
-          {value ? fmt.format(selected) : placeholder}
+          {value ? formatDMY(value) : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

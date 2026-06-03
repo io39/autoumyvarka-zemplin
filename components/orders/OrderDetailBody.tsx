@@ -16,7 +16,7 @@ import {
 } from "@/lib/actions/orders";
 import { resendSms } from "@/lib/actions/sms";
 import type { ServiceWithPrices } from "@/lib/actions/services";
-import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
+import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
 import type { OrderStatus, SmsMessageRow, StaffRole, WorkerRow } from "@/lib/supabase/types";
 import { STATE_LABEL } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export function OrderDetailBody({
   const totalCents = activeServices.reduce((a, l) => a + l.price_cents_snapshot, 0);
   const startHHMM = bratislavaHHMM(new Date(order.starts_at));
   const endHHMM = bratislavaHHMM(new Date(order.ends_at));
-  const dateKey = bratislavaDateKey(new Date(order.starts_at));
+  const dateDisplay = bratislavaDateDisplay(new Date(order.starts_at));
   const assignableWorkers = allWorkers.filter(
     (w0) => !detail.workers.some((w) => w.worker_id === w0.id),
   );
@@ -87,7 +87,7 @@ export function OrderDetailBody({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <BookingStatusBadge status={order.status} />
         <span className="text-sm text-muted-foreground">
-          Box {order.box} · {startHHMM}–{endHHMM} ({order.duration_min} min) · {dateKey}
+          Box {order.box} · {startHHMM}–{endHHMM} ({order.duration_min} min) · {dateDisplay}
         </span>
       </div>
 

@@ -7,7 +7,7 @@ import { getCalendar, type CalendarBlock } from "@/lib/actions/orders";
 import { getDayOverrides } from "@/lib/actions/settings";
 import type { DayOverrideRow, OpeningHoursRow } from "@/lib/supabase/types";
 import { getOpenInterval, bratislavaHHMM } from "@/lib/settings/availability";
-import { ROW_PX, SLOT_MIN, addDays, buildRows, pad } from "@/lib/calendar/grid";
+import { ROW_PX, SLOT_MIN, addDays, buildRows, formatDMY, pad } from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import {
   computeFreeZones,
@@ -609,9 +609,7 @@ function DateControl({
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button variant="ghost" className="font-semibold" data-date-trigger>
-              {new Intl.DateTimeFormat("sk-SK", { day: "numeric", month: "long", year: "numeric" }).format(
-                keyToDate(date),
-              )}
+              {formatDMY(date)}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="center">

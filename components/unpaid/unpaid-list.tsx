@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition, useCallback } from "react";
 import Link from "next/link";
 import { getUnpaidOrders, type UnpaidOrderRow } from "@/lib/actions/orders";
 import { createBrowserRealtimeClient } from "@/lib/realtime/browser";
-import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
+import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
 import { formatPriceCents } from "@/lib/services/format";
 import { formatCarLabel } from "@/lib/cars/format";
 import { skPlural } from "@/lib/intl/sk";
@@ -115,7 +115,7 @@ export function UnpaidList({
                         href={`/orders/${o.id}`}
                         className="underline underline-offset-4"
                       >
-                        {bratislavaDateKey(at)} {bratislavaHHMM(at)}
+                        {bratislavaDateDisplay(at)} {bratislavaHHMM(at)}
                       </Link>
                     </TableCell>
                     <TableCell className="text-sm">
@@ -172,7 +172,7 @@ export function UnpaidList({
                     )}
                   </div>
                   <div className="text-muted-foreground">
-                    {bratislavaDateKey(at)} {bratislavaHHMM(at)} · {o.clientName ?? "—"}{" "}
+                    {bratislavaDateDisplay(at)} {bratislavaHHMM(at)} · {o.clientName ?? "—"}{" "}
                     {o.clientPhone}
                   </div>
                   {o.serviceNames.length > 0 && (

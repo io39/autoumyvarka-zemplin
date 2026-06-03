@@ -21,6 +21,12 @@ export function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+/** Display a "YYYY-MM-DD" key as the app-wide UI date "DD.MM.YYYY". */
+export function formatDMY(key: string): string {
+  const [y, m, d] = key.split("-");
+  return `${d}.${m}.${y}`;
+}
+
 export function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
