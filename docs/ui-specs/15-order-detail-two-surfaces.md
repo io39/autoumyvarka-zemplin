@@ -88,7 +88,9 @@ A single component rendering the cards in the order above (§1.1 #4), given
 `{ role, detail, allWorkers, services, sms, recentVisits, onRefresh }`. Both surfaces render
 `<OrderDetailBody/>`:
 
-- **`OrderDetailView`** (page) wraps it with the page title/back-link.
+- **`OrderDetailView`** (page) wraps it with the page title ("Rezervácia") and, for
+  managers, a subtle "História zmien →" link (muted, hover-underline). No back-to-calendar
+  link (navigation is the shell/back button).
 - **`BookingDetailSheet`** wraps it in a `Sheet` body with the §7 title row
   (`Rezervácia · {od}–{do} · Box {n}`).
 

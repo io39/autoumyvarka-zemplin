@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getCurrentStaff } from "@/lib/auth/session";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
@@ -46,10 +45,7 @@ export default async function NewOrderPage({
 
   return (
     <div className="space-y-4">
-      <header className="mx-auto max-w-4xl space-y-1">
-        <Link href="/" className="text-sm underline underline-offset-4">
-          ← Späť na kalendár
-        </Link>
+      <header className="mx-auto max-w-4xl">
         <h1 className="text-xl font-semibold">Nová rezervácia</h1>
       </header>
       <BookingWizard

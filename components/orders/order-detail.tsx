@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import type { OrderDetail, RecentVisit } from "@/lib/actions/orders";
 import type { ServiceWithPrices } from "@/lib/actions/services";
 import type { SmsMessageRow, StaffRole, WorkerRow } from "@/lib/supabase/types";
-import { bratislavaDateKey } from "@/lib/settings/availability";
 import { OrderDetailBody } from "./OrderDetailBody";
 
 type WorkerLite = Pick<WorkerRow, "id" | "display_name" | "active">;
@@ -30,19 +29,15 @@ export function OrderDetailView({ role, detail, allWorkers, services, sms, recen
   const router = useRouter();
   const { order } = detail;
   const isManager = role === "manazer";
-  const dateKey = bratislavaDateKey(new Date(order.starts_at));
 
   return (
     <div className="space-y-4">
-      <header className="space-y-1">
-        <Link href={`/?date=${dateKey}`} className="text-sm underline underline-offset-4">
-          ← Späť na kalendár
-        </Link>
+      <header className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Rezervácia</h1>
         {isManager && (
           <Link
             href={`/audit?orderId=${order.id}`}
-            className="block text-xs underline underline-offset-4"
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             História zmien →
           </Link>
