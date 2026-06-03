@@ -141,9 +141,15 @@ picker whose header mirrors the calendar (§4).
   scroll; each box column has a header row showing `Box N` + the reservation count. The
   occupied-booking **line** cards use a slightly larger **13px** font (`text-[13px]`) for
   legibility in the wider grid. In **3 dni**, the first box column of each subsequent day
-  carries a **left divider + gutter** (`ml-2 border-l-2 border-foreground/15`, applied to the
-  box-header, quick-slot, and grid cells) so the two boxes of one day stay grouped and
-  adjacent days are easy to tell apart.
+  carries a **divider centered in the gutter** (a `::before` placed half a `gap-x` into the
+  gap, on the box-header, quick-slot, and grid-column cells — the grid columns are
+  `overflow-hidden`, so the divider lives on a wrapper) so the two boxes of one day stay
+  grouped and adjacent days are easy to tell apart.
+- **Past cutoff (`lib/orders/slot-grid.ts earliestStartToday`):** for **today**, the slot the
+  clock is currently in is already closed — at 13:16 the 13:15 slot is gone and 13:30 is the
+  earliest pick (round up to the next 15-min boundary). A day **entirely in the past** is
+  fully blocked: no free zones, no quick slots, the MINULOSŤ overlay covers the whole open
+  range, and clicks/keyboard picks are rejected.
 - The **selected slot** ghost shows the **start–end** range (`HH:MM–HH:MM`), not just the
   start.
 - **Submit:** `bratislavaLocalToISO(date, pickedSlot.localStart)` → `createOrder({ clientId,
@@ -272,6 +278,8 @@ grep -rn "return=/orders/new\|redirect(\"/clients" app/orders/new | wc -l
 
 - [ ] Each step usable at 360px; stepper shows progress; Späť/Ďalej gating correct.
 - [ ] Step-4 header matches §4 (Deň/3 dni, date popover, Dnes/Späť na dnes, today gray).
-- [ ] Past times show the MINULOSŤ overlay; box is implicit from the picked slot.
+- [ ] Past times show the MINULOSŤ overlay; box is implicit from the picked slot. The
+      slot the clock is currently in is closed (round up to the next 15-min boundary), and a
+      day entirely in the past is fully blocked.
 - [ ] New client + car persist (visible afterwards in `/clients`).
 - [ ] Slovak throughout.

@@ -8,9 +8,11 @@ import { TimeAxis } from "./TimeAxis";
 
 const WEEKDAY_SHORT = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"];
 
-// Divider + gutter marking the start of a new day so adjacent days are easy to
-// tell apart on the shared time axis.
-const DAY_DIVIDER = "ml-1 border-l-2 border-foreground/15 pl-1";
+// Thin divider centered in the gutter (a ::before placed half a gap-width into
+// the gap) marking the start of a new day so adjacent days are easy to tell
+// apart on the shared time axis. `gap-1` = 4px → 2px in.
+const DAY_DIVIDER =
+  "relative before:pointer-events-none before:absolute before:inset-y-0 before:left-[-2px] before:w-px before:bg-foreground/30 before:content-['']";
 
 /**
  * Week view (spec 14 §2.7): 7 days × 2 boxes on a shared time axis, horizontally

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computeFreeZones,
+  earliestStartToday,
   fitsAt,
   hhmmToMin,
   minToHHMM,
@@ -60,6 +61,13 @@ describe("slot-grid math (interactive picker)", () => {
   it("nearestFreeStarts respects the from-cutoff and limit", () => {
     const near = nearestFreeStarts(OPEN, CLOSE, 60, busy, hhmmToMin("11:00"), 2).map(minToHHMM);
     expect(near).toEqual(["11:00", "11:15"]);
+  });
+
+  it("earliestStartToday closes the slot the clock is currently in", () => {
+    expect(minToHHMM(earliestStartToday(hhmmToMin("13:16")))).toBe("13:30"); // mid-slot
+    expect(minToHHMM(earliestStartToday(hhmmToMin("13:00")))).toBe("13:15"); // on the boundary → next
+    expect(minToHHMM(earliestStartToday(hhmmToMin("13:14")))).toBe("13:15"); // just before next boundary
+    expect(minToHHMM(earliestStartToday(hhmmToMin("08:01")))).toBe("08:15");
   });
 
   it("offsetToStartMin snaps a pixel offset to a 15-min start", () => {

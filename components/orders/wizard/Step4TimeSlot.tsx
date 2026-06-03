@@ -11,6 +11,7 @@ import { ROW_PX, SLOT_MIN, addDays, buildRows, pad } from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import {
   computeFreeZones,
+  earliestStartToday,
   fitsAt,
   hhmmToMin,
   minToHHMM,
@@ -159,6 +160,9 @@ export function Step4TimeSlot({
   const now = new Date();
   const nowMin = hhmmToMin(bratislavaHHMM(now));
   const todayK = todayKey(now);
+  // Earliest start still bookable today: the slot the clock is currently in is
+  // already closed (e.g. at 13:16 the 13:15 slot is gone, 13:30 is the earliest).
+  const todayCutoff = earliestStartToday(nowMin);
 
   // Flatten to ordered (day, box) columns.
   const columns = useMemo(
@@ -166,9 +170,11 @@ export function Step4TimeSlot({
     [days],
   );
   // In the 3-day view, the first box column of each subsequent day starts a new
-  // day — mark it with a left divider + gutter so adjacent days are easy to tell
-  // apart (the two boxes of one day stay visually grouped).
-  const DAY_DIVIDER = "ml-2 border-l-2 border-foreground/15";
+  // day — mark it with a thin divider centered in the gutter (a ::before placed
+  // half a gap-width into the gap) so adjacent days are easy to tell apart while
+  // the two boxes of one day stay visually grouped. `gap-x-2` = 8px → 4px in.
+  const DAY_DIVIDER =
+    "relative before:pointer-events-none before:absolute before:inset-y-0 before:left-[-4px] before:w-px before:bg-foreground/30 before:content-['']";
   const isDayStart = (day: string, box: 1 | 2) =>
     view !== "day" && box === 1 && day !== days[0];
   // Deň fills the width (2 boxes). 3 dni gives each of the 6 box-columns a wide
@@ -247,7 +253,15 @@ export function Step4TimeSlot({
               const dd = data.byDay[day];
               const iv = dd?.interval ?? null;
               const busy = busyFor(dd?.blocks ?? [], box, excludeOrderId);
-              const fromMin = day === todayK && iv ? Math.max(hhmmToMin(iv.open), nowMin) : iv ? hhmmToMin(iv.open) : 0;
+              // Past day → nothing bookable (cutoff = close); today → after the
+              // current slot; future day → from open.
+              const fromMin = !iv
+                ? 0
+                : day < todayK
+                  ? hhmmToMin(iv.close)
+                  : day === todayK
+                    ? Math.max(hhmmToMin(iv.open), todayCutoff)
+                    : hhmmToMin(iv.open);
               const quick = iv
                 ? nearestFreeStarts(hhmmToMin(iv.open), hhmmToMin(iv.close), durationMin, busy, fromMin, 2)
                 : [];
@@ -292,12 +306,10 @@ export function Step4TimeSlot({
             <TimeAxis rows={rows} />
             {columns.map(({ day, box }) => {
               const dd = data.byDay[day];
-              return (
+              const column = (
                 <GridColumn
-                  key={`g-${day}-${box}`}
                   day={day}
                   box={box}
-                  className={isDayStart(day, box) ? DAY_DIVIDER : undefined}
                   rows={rows}
                   gridOpenMin={grid.openMin}
                   dayInterval={dd?.interval ?? null}
@@ -307,11 +319,21 @@ export function Step4TimeSlot({
                   )}
                   durationMin={durationMin}
                   isToday={day === todayK}
-                  nowMin={nowMin}
+                  isPast={day < todayK}
+                  todayCutoff={todayCutoff}
                   picked={picked}
                   currentSlot={currentSlot}
                   onPick={onPick}
                 />
+              );
+              // The grid column is overflow-hidden, which would clip the gutter
+              // divider, so wrap it: the divider ::before lives on the wrapper.
+              return isDayStart(day, box) ? (
+                <div key={`g-${day}-${box}`} className={DAY_DIVIDER}>
+                  {column}
+                </div>
+              ) : (
+                <div key={`g-${day}-${box}`}>{column}</div>
               );
             })}
           </div>
@@ -345,7 +367,6 @@ function TimeAxis({ rows }: { rows: string[] }) {
 function GridColumn({
   day,
   box,
-  className,
   rows,
   gridOpenMin,
   dayInterval,
@@ -353,14 +374,14 @@ function GridColumn({
   blocks,
   durationMin,
   isToday,
-  nowMin,
+  isPast,
+  todayCutoff,
   picked,
   currentSlot,
   onPick,
 }: {
   day: string;
   box: 1 | 2;
-  className?: string;
   rows: string[];
   gridOpenMin: number;
   dayInterval: Interval | null;
@@ -368,7 +389,8 @@ function GridColumn({
   blocks: CalendarBlock[];
   durationMin: number;
   isToday: boolean;
-  nowMin: number;
+  isPast: boolean;
+  todayCutoff: number;
   picked: PickedSlot | null;
   currentSlot?: PickedSlot | null;
   onPick: (slot: PickedSlot) => void;
@@ -379,8 +401,11 @@ function GridColumn({
 
   const dayOpenMin = dayInterval ? hhmmToMin(dayInterval.open) : 0;
   const dayCloseMin = dayInterval ? hhmmToMin(dayInterval.close) : 0;
-  const fromMin = isToday ? Math.max(dayOpenMin, nowMin) : dayOpenMin;
-  const freeZones = dayInterval ? computeFreeZones(dayOpenMin, dayCloseMin, busy) : [];
+  // Past day → whole day closed (cutoff = close); today → after the current
+  // 15-min slot; future day → from open.
+  const fromMin = isPast ? dayCloseMin : isToday ? Math.max(dayOpenMin, todayCutoff) : dayOpenMin;
+  // No free (VOĽNÉ) zones on a past day — nothing there is bookable.
+  const freeZones = dayInterval && !isPast ? computeFreeZones(dayOpenMin, dayCloseMin, busy) : [];
 
   const top = (min: number) => ((min - gridOpenMin) / SLOT_MIN) * ROW_PX;
   const span = (a: number, b: number) => Math.max(ROW_PX, ((b - a) / SLOT_MIN) * ROW_PX);
@@ -424,10 +449,7 @@ function GridColumn({
         const near = nearestFreeStarts(dayOpenMin, dayCloseMin, durationMin, busy, fromMin, 1)[0];
         if (near !== undefined) onPick({ dateKey: day, box, localStart: minToHHMM(near) });
       }}
-      className={cn(
-        "relative cursor-pointer select-none overflow-hidden rounded-md border bg-muted/20",
-        className,
-      )}
+      className="relative cursor-pointer select-none overflow-hidden rounded-md border bg-muted/20"
       style={{ height: heightPx }}
     >
       {/* 15-min row guides */}
@@ -467,8 +489,8 @@ function GridColumn({
         </div>
       ))}
 
-      {/* Past (MINULOSŤ) overlay for today */}
-      {isToday && fromMin > gridOpenMin && (
+      {/* Past (MINULOSŤ) overlay: today up to the cutoff, or a whole past day */}
+      {(isToday || isPast) && fromMin > gridOpenMin && (
         <div
           className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-center bg-foreground/5 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground"
           style={{ height: top(fromMin) }}

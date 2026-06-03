@@ -162,9 +162,9 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
   `useMediaQuery` (SSR-safe); `data-box` preserved.
 - **`WeekView`** keeps absolute-positioned **compact** cards on a fixed `ROW_PX` grid (14
   box-columns sharing an axis make per-row growth impractical). Each day's two box columns
-  are grouped: the start of every new day (header + cell) carries a **left divider + gutter**
-  (`ml-1 border-l-2 border-foreground/15 pl-1`) so adjacent days are easy to tell apart on
-  the shared axis.
+  are grouped: the start of every new day (header + cell) carries a **divider centered in the
+  gutter** (a `::before` placed half a `gap` into the gap) so adjacent days are easy to tell
+  apart on the shared axis.
 
 ### 2.8 Error handling & states
 
