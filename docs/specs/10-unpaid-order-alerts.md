@@ -77,6 +77,19 @@ should see it too" — but since workers can't act on payment, default manager-o
 - The query selects candidate orders (`status='hotova'` OR exists an unpaid, non-removed
   `order_services` line), excluding deleted, then partitions overdue vs today.
 
+#### Client warning flags
+
+- `computeClientFlags(orders, todayKey)` (pure, unit-tested) reduces a client's orders to
+  `{ overdueUnpaidCount, unpaidAmountCents, noShowCount }` — **overdue-unpaid** (same
+  `isOverdue` rule) **plus any non-deleted `nedostavil_sa`** (no-show). `hasClientFlags(f)`
+  is true when either count > 0.
+- Action `getClientFlags({ clientId })` (`lib/actions/orders.ts`, both roles) runs a
+  lightweight per-client query and the helper.
+- Shared `<ClientFlagBadges>` renders an amber **"Nezaplatené: {n} · {€}"** and a red
+  **"Nedostavil sa: {n}×"** badge (nothing when clean). Surfaced in three places: the
+  **Nová rezervácia wizard** banner once a client is selected (spec 16), the **client detail
+  header** (spec 17), and the **order-detail Klient card** (spec 15).
+
 ### 2.3 Server Action (`lib/actions/orders.ts`, extending)
 
 | Action | Input (zod) | Authz | Notes |

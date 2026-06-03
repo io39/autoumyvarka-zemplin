@@ -40,7 +40,14 @@ import {
   suggestSlotsSchema,
   getUnpaidOrdersSchema,
 } from "@/lib/validation/orders";
-import { isUnpaid, isOverdue, unpaidAmountCents } from "@/lib/orders/unpaid";
+import {
+  isUnpaid,
+  isOverdue,
+  unpaidAmountCents,
+  computeClientFlags,
+  type ClientFlags,
+  type UnpaidOrderInput,
+} from "@/lib/orders/unpaid";
 import { resolveOrderLines, totalDurationMin } from "@/lib/orders/duration";
 import { isOn15MinBoundary, suggestFreeSlots, type SlotProposal } from "@/lib/orders/slots";
 import { isRangeOpen } from "@/lib/settings/availability";
@@ -431,12 +438,32 @@ export async function getRecentClientVisits(input: {
   });
 }
 
+export type { ClientFlags } from "@/lib/orders/unpaid";
+
+/**
+ * Warning flags for one client (overdue unpaid + no-shows) — surfaced in the
+ * booking wizard, the client card and the order detail. Scoped to the orders
+ * this client booked. Both roles; gated on an active staff identity.
+ */
+export async function getClientFlags(input: { clientId: string }): Promise<ClientFlags> {
+  await getCurrentStaff();
+  const db = getServiceClient();
+  const { data, error } = await db
+    .from("orders")
+    .select("status, starts_at, deleted_at, services:order_services(paid, removed_at, price_cents_snapshot)")
+    .eq("client_id", input.clientId)
+    .is("deleted_at", null);
+  if (error) throw error;
+  return computeClientFlags((data ?? []) as unknown as UnpaidOrderInput[], bratislavaDateKey(new Date()));
+}
+
 export interface OrderDetailBundle {
   detail: OrderDetail;
   allWorkers: Array<Pick<WorkerRow, "id" | "display_name" | "active">>;
   services: ServiceWithPrices[];
   sms: SmsMessageRow[];
   recentVisits: RecentVisit[];
+  clientFlags: ClientFlags;
 }
 
 /**
@@ -453,19 +480,21 @@ export async function getOrderDetailBundle(input: unknown): Promise<OrderDetailB
   if (!detail) return null;
 
   const db = getServiceClient();
-  const [{ data: workerList, error: workerErr }, services, sms, recentVisits] = await Promise.all([
-    db
-      .from("workers")
-      .select("id, display_name, active")
-      .eq("active", true)
-      .order("display_name"),
-    listServices({ includeInactive: false }),
-    getOrderSms({ orderId: id }),
-    getRecentClientVisits({ clientId: detail.client.id, excludeOrderId: id, limit: 3 }),
-  ]);
+  const [{ data: workerList, error: workerErr }, services, sms, recentVisits, clientFlags] =
+    await Promise.all([
+      db
+        .from("workers")
+        .select("id, display_name, active")
+        .eq("active", true)
+        .order("display_name"),
+      listServices({ includeInactive: false }),
+      getOrderSms({ orderId: id }),
+      getRecentClientVisits({ clientId: detail.client.id, excludeOrderId: id, limit: 3 }),
+      getClientFlags({ clientId: detail.client.id }),
+    ]);
   if (workerErr) throw workerErr;
 
-  return { detail, allWorkers: workerList ?? [], services, sms, recentVisits };
+  return { detail, allWorkers: workerList ?? [], services, sms, recentVisits, clientFlags };
 }
 
 export async function setStatus(input: unknown): Promise<ActionResult> {

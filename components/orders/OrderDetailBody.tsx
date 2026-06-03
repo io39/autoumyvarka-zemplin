@@ -15,6 +15,7 @@ import {
   type OrderDetail,
   type RecentVisit,
 } from "@/lib/actions/orders";
+import type { ClientFlags } from "@/lib/orders/unpaid";
 import { resendSms } from "@/lib/actions/sms";
 import type { ServiceWithPrices } from "@/lib/actions/services";
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
@@ -41,6 +42,7 @@ interface OrderDetailBodyProps {
   services: ServiceWithPrices[];
   sms: SmsMessageRow[];
   recentVisits: RecentVisit[];
+  clientFlags: ClientFlags;
   /** Re-pull the data after a mutation: router.refresh() (page) or refetch (Sheet). */
   onRefresh: () => void;
 }
@@ -58,6 +60,7 @@ export function OrderDetailBody({
   services,
   sms,
   recentVisits,
+  clientFlags,
   onRefresh,
 }: OrderDetailBodyProps) {
   const [pending, startTransition] = useTransition();
@@ -114,7 +117,7 @@ export function OrderDetailBody({
 
       {/* Klient + Auto, side by side (stacked on the narrow mobile sheet) */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <BookingClientCard client={client} />
+        <BookingClientCard client={client} flags={clientFlags} />
         <BookingCarCard car={car} />
       </div>
 

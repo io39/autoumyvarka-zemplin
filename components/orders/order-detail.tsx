@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { OrderDetail, RecentVisit } from "@/lib/actions/orders";
 import type { ServiceWithPrices } from "@/lib/actions/services";
+import type { ClientFlags } from "@/lib/orders/unpaid";
 import type { SmsMessageRow, StaffRole, WorkerRow } from "@/lib/supabase/types";
 import { OrderDetailBody } from "./OrderDetailBody";
 
@@ -16,6 +17,7 @@ interface Props {
   services: ServiceWithPrices[];
   sms: SmsMessageRow[];
   recentVisits: RecentVisit[];
+  clientFlags: ClientFlags;
 }
 
 /**
@@ -25,7 +27,15 @@ interface Props {
  * surface (`BookingDetailSheet`) renders the same body. Mutations refresh the
  * page via `router.refresh()`.
  */
-export function OrderDetailView({ role, detail, allWorkers, services, sms, recentVisits }: Props) {
+export function OrderDetailView({
+  role,
+  detail,
+  allWorkers,
+  services,
+  sms,
+  recentVisits,
+  clientFlags,
+}: Props) {
   const router = useRouter();
   const { order } = detail;
   const isManager = role === "manazer";
@@ -51,6 +61,7 @@ export function OrderDetailView({ role, detail, allWorkers, services, sms, recen
         services={services}
         sms={sms}
         recentVisits={recentVisits}
+        clientFlags={clientFlags}
         onRefresh={() => router.refresh()}
       />
     </div>

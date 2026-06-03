@@ -83,6 +83,9 @@ picker whose header mirrors the calendar (§4).
   Auto). `WizardActions` — **Späť** / **Ďalej** (disabled until the step is valid) and, on
   step 4, **"Vytvoriť rezerváciu"**.
 - Wizard state also carries `note` (the order note, shared by create + edit).
+- **Client warning flags:** once a client is selected (or prefilled/edit), the wizard fetches
+  `getClientFlags` and shows a `<ClientFlagBadges>` banner above the steps (overdue unpaid /
+  no-shows — spec 10). Nothing renders for a clean client.
 - Step validity gates: 1 needs a `clientId`; 2 a `carId`; 3 ≥1 service; 4 a `pickedSlot`.
 - **Width:** the wizard pages (`/orders/new`, `/orders/[id]/edit`) have **no page-level
   `max-w-*`**; inside `BookingWizard` the header, stepper, the form-based steps (1–3) and

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getCurrentStaff } from "@/lib/auth/session";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
-import { getOrder, getRecentClientVisits } from "@/lib/actions/orders";
+import { getOrder, getRecentClientVisits, getClientFlags } from "@/lib/actions/orders";
 import { getOrderSms } from "@/lib/actions/sms";
 import { listServices } from "@/lib/actions/services";
 import { getServiceClient } from "@/lib/supabase/server";
@@ -26,12 +26,14 @@ export default async function OrderPage({
   if (!detail) notFound();
 
   const db = getServiceClient();
-  const [{ data: workerList, error: workerErr }, services, sms, recentVisits] = await Promise.all([
-    db.from("workers").select("id, display_name, active").eq("active", true).order("display_name"),
-    listServices({ includeInactive: false }),
-    getOrderSms({ orderId: id }),
-    getRecentClientVisits({ clientId: detail.client.id, excludeOrderId: id, limit: 3 }),
-  ]);
+  const [{ data: workerList, error: workerErr }, services, sms, recentVisits, clientFlags] =
+    await Promise.all([
+      db.from("workers").select("id, display_name, active").eq("active", true).order("display_name"),
+      listServices({ includeInactive: false }),
+      getOrderSms({ orderId: id }),
+      getRecentClientVisits({ clientId: detail.client.id, excludeOrderId: id, limit: 3 }),
+      getClientFlags({ clientId: detail.client.id }),
+    ]);
   if (workerErr) throw workerErr;
 
   return (
@@ -43,6 +45,7 @@ export default async function OrderPage({
         services={services}
         sms={sms}
         recentVisits={recentVisits}
+        clientFlags={clientFlags}
       />
     </div>
   );

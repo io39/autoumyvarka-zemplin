@@ -124,6 +124,7 @@ export function BookingDetailSheet({
               services={bundle.services}
               sms={bundle.sms}
               recentVisits={bundle.recentVisits}
+              clientFlags={bundle.clientFlags}
               onRefresh={load}
             />
           )}

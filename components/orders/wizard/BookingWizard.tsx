@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   addOrderService,
   createOrder,
+  getClientFlags,
   moveOrder,
   removeOrderService,
   setNote,
@@ -18,8 +19,10 @@ import {
   totalDurationMin,
   type Selection,
 } from "@/lib/orders/booking";
+import { type ClientFlags } from "@/lib/orders/unpaid";
 import { bratislavaLocalToISO } from "@/lib/time/bratislava";
 import { formatCarLabel } from "@/lib/cars/format";
+import { ClientFlagBadges } from "@/components/clients/client-flag-badges";
 import { BookingStepper } from "./BookingStepper";
 import { WizardActions } from "./WizardActions";
 import { Step1Client } from "./Step1Client";
@@ -62,6 +65,8 @@ export interface BookingWizardProps {
  * locked, it opens on step 3, and finishing applies the diff against the
  * existing order (service add/remove + `moveOrder`) instead of creating one.
  */
+const ZERO_FLAGS: ClientFlags = { overdueUnpaidCount: 0, unpaidAmountCents: 0, noShowCount: 0 };
+
 export function BookingWizard({ mode, services, hours, initial, edit }: BookingWizardProps) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -78,6 +83,23 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
   const [view, setView] = useState<SlotView>("day");
   const [date, setDate] = useState(initial.date);
   const [picked, setPicked] = useState<PickedSlot | null>(initial.picked);
+  const [flags, setFlags] = useState<ClientFlags>(ZERO_FLAGS);
+
+  // Warning flags for the selected client (overdue unpaid / no-shows). Re-fetched
+  // whenever the client changes (initial prefill, edit mode, or in-wizard select).
+  // The banner is only rendered when a client is selected, so no synchronous
+  // reset is needed when there's none (avoids cascading-render lint).
+  const clientId = client?.id ?? null;
+  useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+    getClientFlags({ clientId }).then((f) => {
+      if (!cancelled) setFlags(f);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
 
   const isEdit = mode === "edit";
   const category: PricingCategory | null =
@@ -230,6 +252,13 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
 
   return (
     <div className="space-y-4">
+      {/* Warning about the selected client (overdue unpaid / no-shows). */}
+      {client && (
+        <div className="mx-auto w-full max-w-4xl empty:hidden">
+          <ClientFlagBadges flags={flags} />
+        </div>
+      )}
+
       <div className="mx-auto max-w-4xl">
         <BookingStepper
           current={step}

@@ -15,7 +15,9 @@ import type {
 import type { CarHistory, HistoryEntry } from "@/lib/clients/history";
 import { poradieFor } from "@/lib/clients/history";
 import { formatCarLabel } from "@/lib/cars/format";
+import type { ClientFlags } from "@/lib/orders/unpaid";
 import { BrandField } from "@/components/cars/brand-field";
+import { ClientFlagBadges } from "@/components/clients/client-flag-badges";
 import { STATE_COLOR, STATE_LABEL } from "@/types";
 import { cn } from "@/lib/utils";
 import { formatPriceCents } from "@/lib/services/format";
@@ -66,10 +68,12 @@ export function ClientDetail({
   client,
   histories,
   role,
+  flags,
 }: {
   client: ClientRow;
   histories: CarHistory[];
   role: StaffRole;
+  flags: ClientFlags;
 }) {
   const router = useRouter();
   const isManager = role === "manazer";
@@ -81,6 +85,7 @@ export function ClientDetail({
     <div className="space-y-6">
       <ClientHeaderCard
         client={client}
+        flags={flags}
         isManager={isManager}
         onEdit={() => setEditClientOpen(true)}
         onAddCar={() => setAddCarOpen(true)}
@@ -158,11 +163,13 @@ export function ClientDetail({
 
 function ClientHeaderCard({
   client,
+  flags,
   isManager,
   onEdit,
   onAddCar,
 }: {
   client: ClientRow;
+  flags: ClientFlags;
   isManager: boolean;
   onEdit: () => void;
   onAddCar: () => void;
@@ -170,6 +177,7 @@ function ClientHeaderCard({
   return (
     <section className="rounded-lg border p-4" data-section="client">
       <h1 className="text-xl font-semibold">{client.name ?? "(bez mena)"}</h1>
+      <ClientFlagBadges flags={flags} className="mt-2" />
       <p className="mt-0.5 text-sm">
         <a href={`tel:${telHref(client.phone)}`} className="text-primary hover:underline">
           {client.phone}

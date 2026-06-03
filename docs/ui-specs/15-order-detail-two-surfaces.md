@@ -70,7 +70,7 @@ Move each existing inline section into `components/orders/sections/`, props-only
 | --- | --- | --- |
 | `BookingStatusBadge` | header `Badge` | — |
 | `BookingStatusActions` | "Stav" section buttons | advance: all; Nedostavil sa: manager |
-| `BookingClientCard` | Klient block (name + phone; history lives in the História klienta box) | — |
+| `BookingClientCard` | Klient block: name + phone + warning flags (ClientFlagBadges, spec 10); history lives in the História klienta box | — |
 | `BookingCarCard` | Auto block | — |
 | `BookingServicesList` | `ServicesSection` | add/remove/paid: manager |
 | `BookingWorkerCard` | `WorkersSection` | add/remove: all roles |
@@ -85,8 +85,8 @@ already implement the read-only-vs-editable split via a `canEdit`/role prop — 
 ### 2.2 Shared body — `OrderDetailBody`
 
 A single component rendering the cards in the order above (§1.1 #4), given
-`{ role, detail, allWorkers, services, sms, recentVisits, onRefresh }`. Both surfaces render
-`<OrderDetailBody/>`:
+`{ role, detail, allWorkers, services, sms, recentVisits, clientFlags, onRefresh }`. Both
+surfaces render `<OrderDetailBody/>`:
 
 - **`OrderDetailView`** (page) wraps it with the page title ("Rezervácia") and, for
   managers, a subtle "História zmien →" link (muted, hover-underline). No back-to-calendar
@@ -120,8 +120,8 @@ Spacing/readability: sections use `space-y-5`, each card `p-4`, with section lab
 
 The page loads `getOrder` + worker list + `listServices` + `getOrderSms` server-side. Add
 **`getOrderDetailBundle({ id })`** in `lib/actions/orders.ts` returning
-`{ detail, allWorkers, services, sms }` (composing the existing reads), callable from the
-Sheet on open. The `/orders/[id]` page may switch to it too (single source). Role comes
+`{ detail, allWorkers, services, sms, recentVisits, clientFlags }` (composing the existing
+reads + `getRecentClientVisits` + `getClientFlags`), callable from the Sheet on open. The `/orders/[id]` page may switch to it too (single source). Role comes
 from the calendar's existing `role` prop (no extra fetch).
 
 ### 2.5 "Zmeniť čas" — interim move, upgraded by spec 16

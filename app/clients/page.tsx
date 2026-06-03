@@ -1,6 +1,7 @@
 import { getCurrentStaff } from "@/lib/auth/session";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { getClientWithHistory } from "@/lib/actions/clients";
+import { getClientFlags } from "@/lib/actions/orders";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { ClientSearch } from "@/components/clients/client-search";
 import { ClientDetail } from "@/components/clients/client-detail";
@@ -20,7 +21,9 @@ export default async function ClientsPage({
   }
 
   const { id } = await searchParams;
-  const detail = id ? await getClientWithHistory(id) : null;
+  const [detail, clientFlags] = id
+    ? await Promise.all([getClientWithHistory(id), getClientFlags({ clientId: id })])
+    : [null, null];
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -34,7 +37,12 @@ export default async function ClientsPage({
               Vyhľadajte zákazníka a vyberte ho zo zoznamu.
             </p>
           ) : detail ? (
-            <ClientDetail client={detail.client} histories={detail.cars} role={role} />
+            <ClientDetail
+              client={detail.client}
+              histories={detail.cars}
+              role={role}
+              flags={clientFlags ?? { overdueUnpaidCount: 0, unpaidAmountCents: 0, noShowCount: 0 }}
+            />
           ) : (
             <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
               Klient sa nenašiel.

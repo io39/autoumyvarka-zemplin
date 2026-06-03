@@ -54,3 +54,41 @@ export function unpaidAmountCents(o: Pick<UnpaidOrderInput, "services">): number
     .filter((l) => l.removed_at === null && !l.paid)
     .reduce((sum, l) => sum + l.price_cents_snapshot, 0);
 }
+
+/** Per-client warning summary surfaced in the wizard, client card and order detail. */
+export interface ClientFlags {
+  /** Count of the client's overdue (past-due) unpaid orders. */
+  overdueUnpaidCount: number;
+  /** Sum (cents) owed across those overdue unpaid orders. */
+  unpaidAmountCents: number;
+  /** Count of the client's no-show (nedostavil sa) orders. */
+  noShowCount: number;
+}
+
+/**
+ * Reduce a client's orders to the warning flags. Overdue-unpaid uses the same
+ * `isOverdue` definition as the /unpaid view; no-shows are any non-deleted
+ * `nedostavil_sa`. A client with no flags has all-zero counts (`hasClientFlags`
+ * is false).
+ */
+export function computeClientFlags(orders: UnpaidOrderInput[], todayKey: string): ClientFlags {
+  let overdueUnpaidCount = 0;
+  let amount = 0;
+  let noShowCount = 0;
+  for (const o of orders) {
+    if (o.deleted_at !== null) continue;
+    if (o.status === "nedostavil_sa") {
+      noShowCount += 1;
+      continue;
+    }
+    if (isOverdue(o, todayKey)) {
+      overdueUnpaidCount += 1;
+      amount += unpaidAmountCents(o);
+    }
+  }
+  return { overdueUnpaidCount, unpaidAmountCents: amount, noShowCount };
+}
+
+export function hasClientFlags(f: ClientFlags): boolean {
+  return f.overdueUnpaidCount > 0 || f.noShowCount > 0;
+}

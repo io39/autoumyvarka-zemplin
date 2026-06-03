@@ -3,12 +3,14 @@ import {
   isUnpaid,
   isOverdue,
   unpaidAmountCents,
+  computeClientFlags,
   type UnpaidOrderInput,
 } from "@/lib/orders/unpaid";
 
 const TODAY = "2026-05-29";
 const YESTERDAY = "2026-05-28T10:00:00+02:00";
 const TODAY_TS = "2026-05-29T10:00:00+02:00";
+const TOMORROW = "2026-05-30T10:00:00+02:00";
 
 function order(p: Partial<UnpaidOrderInput>): UnpaidOrderInput {
   return {
@@ -27,6 +29,31 @@ const removedUnpaidLine = {
   removed_at: "2026-05-01T00:00:00Z",
   price_cents_snapshot: 1890,
 };
+
+describe("computeClientFlags", () => {
+  it("counts overdue-unpaid orders + amount and no-shows; ignores clean ones", () => {
+    const flags = computeClientFlags(
+      [
+        order({ status: "hotova", starts_at: YESTERDAY, services: [unpaidLine] }), // overdue unpaid
+        order({ status: "nedostavil_sa", starts_at: YESTERDAY }), // no-show
+        order({ status: "nedostavil_sa", starts_at: TODAY_TS }), // no-show
+        order({ status: "hotova", starts_at: TOMORROW, services: [unpaidLine] }), // future → not overdue
+        order({ status: "zaplatena", starts_at: YESTERDAY, services: [paidLine] }), // settled
+        order({ status: "hotova", starts_at: YESTERDAY, deleted_at: "x", services: [unpaidLine] }), // deleted
+      ],
+      TODAY,
+    );
+    expect(flags).toEqual({ overdueUnpaidCount: 1, unpaidAmountCents: 1890, noShowCount: 2 });
+  });
+
+  it("a clean client has no flags", () => {
+    const flags = computeClientFlags(
+      [order({ status: "zaplatena", starts_at: YESTERDAY, services: [paidLine] })],
+      TODAY,
+    );
+    expect(flags).toEqual({ overdueUnpaidCount: 0, unpaidAmountCents: 0, noShowCount: 0 });
+  });
+});
 
 describe("isUnpaid (spec 10 §4.2)", () => {
   it("hotova order is unpaid regardless of lines", () => {

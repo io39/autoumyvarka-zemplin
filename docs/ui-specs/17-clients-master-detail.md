@@ -88,9 +88,10 @@ Pracovníci/Poznámka/box/€.
 
 ### 2.3 Detail restructure (`ClientDetail`)
 
-- **Klient blok** (card): meno + telefón as **call/SMS links** (`tel:` / `sms:`). Buttons:
-  **Nová rezervácia** under the name (**all roles** → `/orders/new?clientId=` → wizard
-  step 2; available even with no cars, since the wizard can add one), **+ Pridať auto**
+- **Klient blok** (card): meno + telefón as **call/SMS links** (`tel:` / `sms:`), plus a
+  `<ClientFlagBadges>` row (overdue unpaid / no-shows — spec 10; `getClientFlags` fetched on
+  the page). Buttons: **Nová rezervácia** under the name (**all roles** → `/orders/new?clientId=`
+  → wizard step 2; available even with no cars, since the wizard can add one), **+ Pridať auto**
   (all roles), **Upraviť klienta** (manager only).
 - **Zoznam áut**: each car (ŠPZ · model · kategória) + **Upraviť auto** (manager only;
   reuses link/duplicate-ŠPZ confirm). A car with **no orders** shows **"Žiadne služby."**
