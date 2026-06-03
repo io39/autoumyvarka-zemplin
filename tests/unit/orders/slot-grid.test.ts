@@ -63,11 +63,11 @@ describe("slot-grid math (interactive picker)", () => {
     expect(near).toEqual(["11:00", "11:15"]);
   });
 
-  it("earliestStartToday closes the slot the clock is currently in", () => {
-    expect(minToHHMM(earliestStartToday(hhmmToMin("13:16")))).toBe("13:30"); // mid-slot
-    expect(minToHHMM(earliestStartToday(hhmmToMin("13:00")))).toBe("13:15"); // on the boundary → next
-    expect(minToHHMM(earliestStartToday(hhmmToMin("13:14")))).toBe("13:15"); // just before next boundary
-    expect(minToHHMM(earliestStartToday(hhmmToMin("08:01")))).toBe("08:15");
+  it("earliestStartToday keeps the current slot open and closes fully-past ones", () => {
+    expect(minToHHMM(earliestStartToday(hhmmToMin("11:05")))).toBe("11:00"); // mid-slot stays open
+    expect(minToHHMM(earliestStartToday(hhmmToMin("13:16")))).toBe("13:15"); // 13:00 closed, 13:15 open
+    expect(minToHHMM(earliestStartToday(hhmmToMin("13:00")))).toBe("13:00"); // exactly on the boundary
+    expect(minToHHMM(earliestStartToday(hhmmToMin("13:14")))).toBe("13:00"); // still in the 13:00 slot
   });
 
   it("offsetToStartMin snaps a pixel offset to a 15-min start", () => {

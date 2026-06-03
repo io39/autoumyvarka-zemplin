@@ -97,12 +97,13 @@ export function nearestFreeStarts(
 
 /**
  * The earliest 15-min start still bookable for *today* given the current local
- * time `nowMin`: the start of the slot **after** the one containing `nowMin`, so
- * a slot is closed as soon as the clock enters it (e.g. at 13:16 the 13:15 slot
- * is already closed and 13:30 is the earliest pick).
+ * time `nowMin`: the start of the slot **containing** `nowMin`. The slot the
+ * clock is currently in stays selectable; a slot closes only once the clock
+ * crosses into the next one (e.g. at 11:05 the 11:00 slot is still pickable,
+ * and at 13:16 the 13:00 slot is closed while 13:15 is the earliest pick).
  */
 export function earliestStartToday(nowMin: number): number {
-  return Math.floor(nowMin / STEP_MIN) * STEP_MIN + STEP_MIN;
+  return Math.floor(nowMin / STEP_MIN) * STEP_MIN;
 }
 
 /** Snap a pixel offset within a column to a 15-min start (minutes-from-midnight). */
