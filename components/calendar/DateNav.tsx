@@ -112,7 +112,7 @@ export function DateNav({
           <ChevronRight className="size-4" />
         </Button>
       </div>
-      <div className="flex items-center w-28 justify-center">
+      <div className="flex items-center w-32 justify-center">
         <div className="flex h-7 items-center gap-2">
           {coversToday ? (
             <span className="text-xs font-medium text-muted-foreground" data-today-pill>
