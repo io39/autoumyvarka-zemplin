@@ -28,11 +28,17 @@ actions.
    mobile** — opened by clicking a **calendar block** (spec 14 left the block as a `Link`).
 3. Keep the **full `/orders/[id]` page** (opened from client history, spec 17) rendering
    the same cards.
-4. **Reorder** the cards to §7: Title → Stav badge → Akcie (manager: Zmeniť čas left /
-   Zmazať right) → Klient → Auto → Služby → Pracovníci → Poznámka → SMS → bottom status
-   actions (+ Nedostavil sa, manager).
+4. **Card order:** Stav badge + meta (Box · čas · dátum) → Akcie (manager: Zmeniť čas left /
+   Zmazať right) → **Klient + Auto side by side** (`sm:grid-cols-2`, stacked on mobile) →
+   **História klienta** → Poznámka → Pracovníci → Služby → SMS → bottom status actions
+   (Stav, + Nedostavil sa manager).
 5. Feed the Sheet via a single **client-callable bundle action** returning everything the
-   cards need.
+   cards need (`getOrderDetailBundle` — detail + workers + services + SMS + `recentVisits`).
+6. **História klienta box:** the client's **last 3 other visits** (newest-first, excludes the
+   current order + cancelled), via the lightweight `getRecentClientVisits({ clientId,
+   excludeOrderId, limit })` action — each row (dátum · auto · služby · stav) **links to that
+   order**; a **"Celá história →"** link opens `/clients?id=`. Empty state "Žiadne predošlé
+   návštevy." Read-only, both roles.
 
 ### 1.2 User stories (UI-STRUCTURE §7)
 
@@ -78,8 +84,8 @@ already implement the read-only-vs-editable split via a `canEdit`/role prop — 
 
 ### 2.2 Shared body — `OrderDetailBody`
 
-A single component rendering the cards in **§7 order**, given
-`{ role, detail, allWorkers, services, sms, onAction }`. Both surfaces render
+A single component rendering the cards in the order above (§1.1 #4), given
+`{ role, detail, allWorkers, services, sms, recentVisits, onRefresh }`. Both surfaces render
 `<OrderDetailBody/>`:
 
 - **`OrderDetailView`** (page) wraps it with the page title/back-link.

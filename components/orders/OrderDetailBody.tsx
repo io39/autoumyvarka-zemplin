@@ -13,6 +13,7 @@ import {
   setOrderServicePaid,
   setStatus,
   type OrderDetail,
+  type RecentVisit,
 } from "@/lib/actions/orders";
 import { resendSms } from "@/lib/actions/sms";
 import type { ServiceWithPrices } from "@/lib/actions/services";
@@ -24,6 +25,7 @@ import { BookingStatusBadge } from "./sections/BookingStatusBadge";
 import { BookingStatusActions } from "./sections/BookingStatusActions";
 import { BookingClientCard } from "./sections/BookingClientCard";
 import { BookingCarCard } from "./sections/BookingCarCard";
+import { BookingClientHistoryCard } from "./sections/BookingClientHistoryCard";
 import { BookingServicesList } from "./sections/BookingServicesList";
 import { BookingWorkerCard } from "./sections/BookingWorkerCard";
 import { BookingNotes } from "./sections/BookingNotes";
@@ -38,6 +40,7 @@ interface OrderDetailBodyProps {
   allWorkers: WorkerLite[];
   services: ServiceWithPrices[];
   sms: SmsMessageRow[];
+  recentVisits: RecentVisit[];
   /** Re-pull the data after a mutation: router.refresh() (page) or refetch (Sheet). */
   onRefresh: () => void;
 }
@@ -54,6 +57,7 @@ export function OrderDetailBody({
   allWorkers,
   services,
   sms,
+  recentVisits,
   onRefresh,
 }: OrderDetailBodyProps) {
   const [pending, startTransition] = useTransition();
@@ -108,11 +112,38 @@ export function OrderDetailBody({
         </section>
       )}
 
-      {/* §7 #4 Klient · #5 Auto */}
-      <BookingClientCard client={client} />
-      <BookingCarCard car={car} />
+      {/* Klient + Auto, side by side (stacked on the narrow mobile sheet) */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <BookingClientCard client={client} />
+        <BookingCarCard car={car} />
+      </div>
 
-      {/* §7 #6 Služby */}
+      {/* História klienta — last few visits, each links to its order */}
+      <BookingClientHistoryCard clientId={client.id} visits={recentVisits} />
+
+      {/* Poznámka — prominent (PRD §7); workers read-only */}
+      <BookingNotes
+        note={order.note}
+        canEdit={isManager}
+        onSave={(value) =>
+          call("Poznámka uložená.", () => setNote({ id: order.id, note: value }))
+        }
+      />
+
+      {/* Pracovníci */}
+      <BookingWorkerCard
+        workers={detail.workers}
+        assignable={assignableWorkers}
+        pending={pending}
+        onAdd={(workerId) =>
+          call("Zamestnanec pridaný.", () => addOrderWorker({ id: order.id, workerId }))
+        }
+        onRemove={(workerId) =>
+          call("Zamestnanec odobraný.", () => removeOrderWorker({ id: order.id, workerId }))
+        }
+      />
+
+      {/* Služby */}
       <BookingServicesList
         lines={detail.services}
         canEdit={isManager}
@@ -132,29 +163,7 @@ export function OrderDetailBody({
         totalCents={totalCents}
       />
 
-      {/* §7 #7 Pracovníci */}
-      <BookingWorkerCard
-        workers={detail.workers}
-        assignable={assignableWorkers}
-        pending={pending}
-        onAdd={(workerId) =>
-          call("Zamestnanec pridaný.", () => addOrderWorker({ id: order.id, workerId }))
-        }
-        onRemove={(workerId) =>
-          call("Zamestnanec odobraný.", () => removeOrderWorker({ id: order.id, workerId }))
-        }
-      />
-
-      {/* §7 #8 Poznámka — prominent (PRD §7); workers read-only */}
-      <BookingNotes
-        note={order.note}
-        canEdit={isManager}
-        onSave={(value) =>
-          call("Poznámka uložená.", () => setNote({ id: order.id, note: value }))
-        }
-      />
-
-      {/* §7 #9 SMS */}
+      {/* SMS */}
       <SmsStatusCard
         sms={sms}
         canResend={isManager}

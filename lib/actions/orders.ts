@@ -16,10 +16,12 @@ import type {
   OrderRow,
   OrderServiceRow,
   OrderStaffRow,
+  OrderStatus,
   ServicePriceRow,
   SmsMessageRow,
   WorkerRow,
 } from "@/lib/supabase/types";
+import { formatCarLabel } from "@/lib/cars/format";
 import { type ActionResult, toActionError } from "./result";
 import { listServices, type ServiceWithPrices } from "./services";
 import { getOrderSms } from "./sms";
@@ -382,11 +384,59 @@ export async function getOrder(input: unknown): Promise<OrderDetail | null> {
   };
 }
 
+export interface RecentVisit {
+  orderId: string;
+  startsAt: string;
+  carLabel: string;
+  serviceNames: string[];
+  status: OrderStatus;
+}
+
+/**
+ * The client's most recent other orders (lightweight — for the order-detail
+ * "História klienta" box). Newest-first, excludes the current order and
+ * cancelled (soft-deleted) ones. Both roles; gated on an active staff identity.
+ */
+export async function getRecentClientVisits(input: {
+  clientId: string;
+  excludeOrderId: string;
+  limit?: number;
+}): Promise<RecentVisit[]> {
+  await getCurrentStaff();
+  const limit = input.limit ?? 3;
+  const db = getServiceClient();
+  const { data, error } = await db
+    .from("orders")
+    .select(
+      "id, starts_at, status, car:car_id(spz, brand, model), services:order_services(name_snapshot, removed_at)",
+    )
+    .eq("client_id", input.clientId)
+    .is("deleted_at", null)
+    .neq("id", input.excludeOrderId)
+    .order("starts_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+
+  return (data ?? []).map((o) => {
+    const car = o.car as { spz: string; brand: string | null; model: string | null } | null;
+    return {
+      orderId: o.id,
+      startsAt: o.starts_at,
+      carLabel: car ? formatCarLabel(car.brand, car.model) || car.spz : "",
+      serviceNames: (o.services ?? [])
+        .filter((s: { removed_at: string | null }) => s.removed_at === null)
+        .map((s: { name_snapshot: string }) => s.name_snapshot),
+      status: o.status as OrderStatus,
+    };
+  });
+}
+
 export interface OrderDetailBundle {
   detail: OrderDetail;
   allWorkers: Array<Pick<WorkerRow, "id" | "display_name" | "active">>;
   services: ServiceWithPrices[];
   sms: SmsMessageRow[];
+  recentVisits: RecentVisit[];
 }
 
 /**
@@ -403,7 +453,7 @@ export async function getOrderDetailBundle(input: unknown): Promise<OrderDetailB
   if (!detail) return null;
 
   const db = getServiceClient();
-  const [{ data: workerList, error: workerErr }, services, sms] = await Promise.all([
+  const [{ data: workerList, error: workerErr }, services, sms, recentVisits] = await Promise.all([
     db
       .from("workers")
       .select("id, display_name, active")
@@ -411,10 +461,11 @@ export async function getOrderDetailBundle(input: unknown): Promise<OrderDetailB
       .order("display_name"),
     listServices({ includeInactive: false }),
     getOrderSms({ orderId: id }),
+    getRecentClientVisits({ clientId: detail.client.id, excludeOrderId: id, limit: 3 }),
   ]);
   if (workerErr) throw workerErr;
 
-  return { detail, allWorkers: workerList ?? [], services, sms };
+  return { detail, allWorkers: workerList ?? [], services, sms, recentVisits };
 }
 
 export async function setStatus(input: unknown): Promise<ActionResult> {
