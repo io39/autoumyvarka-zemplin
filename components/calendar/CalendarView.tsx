@@ -176,7 +176,8 @@ export function CalendarView({
         realtimeJwt={realtimeJwt}
       />
 
-      <div className="flex justify-center">
+      {/* Mobile: toggle + date + DNES on one line; desktop: centered stack. */}
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 md:flex-col md:gap-2">
         <div className="inline-flex rounded-md border">
           <Button
             size="sm"
@@ -195,17 +196,17 @@ export function CalendarView({
             Týždeň
           </Button>
         </div>
-      </div>
 
-      <DateNav
-        date={date}
-        view={view}
-        pending={pending}
-        onPrev={onPrev}
-        onNext={onNext}
-        onToday={onToday}
-        onPick={onPick}
-      />
+        <DateNav
+          date={date}
+          view={view}
+          pending={pending}
+          onPrev={onPrev}
+          onNext={onNext}
+          onToday={onToday}
+          onPick={onPick}
+        />
+      </div>
 
       <div className="flex items-center justify-between gap-2">
         <StatusLegend />

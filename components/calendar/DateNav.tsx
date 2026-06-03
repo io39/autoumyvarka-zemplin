@@ -67,7 +67,7 @@ export function DateNav({
   const coversToday = viewCoversToday(view, date, new Date());
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-row flex-wrap items-center justify-center gap-x-2 gap-y-1 md:flex-col">
       <div className="flex items-center gap-1">
         <Button
           size="icon"
@@ -80,7 +80,7 @@ export function DateNav({
 
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" className="text-base font-semibold" data-date-trigger>
+            <Button variant="ghost" className="px-2 text-sm font-semibold md:text-base" data-date-trigger>
               {formatLabel(view, date)}
             </Button>
           </PopoverTrigger>

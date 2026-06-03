@@ -77,11 +77,16 @@ desktop the sidebar covers it). Top→bottom:
 1. **Actions row (mobile only)** — the **identity chip** (`{display_name} • {ROLE_LABEL}`)
    and the manager-only **`UnpaidBadge`** (→ `/unpaid`). (Nová rezervácia is reached from
    the nav — sidebar/bottom-nav — so there's no header button.)
-2. **Deň / Týždeň** — centered Tabs (existing toggle, restyled), applies to both views.
-3. **Date + ◀ ▶** — large, centered date label; clicking it opens the **Calendar
-   popover** (§2.2). ◀ ▶ step one day (Day) / one week (Week). Week shows the week range.
-4. **Today state** — below the date: `DNES` if the current view covers today, else a
-   **`Späť na dnes`** button (§2.3).
+2. **Deň / Týždeň** — toggle (existing, restyled), applies to both views.
+3. **Date + ◀ ▶** — date label; clicking it opens the **Calendar popover** (§2.2). ◀ ▶
+   step one day (Day) / one week (Week). Week shows the week range.
+4. **Today state** — `DNES` if the current view covers today, else a **`Späť na dnes`**
+   button (§2.3).
+   - **Layout:** on **desktop** items 2–4 are a centered vertical stack (toggle → date →
+     today state). On **mobile** they collapse onto **one row** — `[Deň/Týždeň] [◀ date ▶]
+     [DNES/Späť]` — via a `flex … md:flex-col` wrapper (`DateNav` is `flex-row … md:flex-col`
+     so its nav-row and today state sit side-by-side); the date label uses a smaller font on
+     mobile (`text-sm md:text-base`) and the row wraps if space is tight.
 5. **Legenda (left) + Box filter (right)** — one row directly above the grid (§2.4–2.5).
 
 ### 2.2 Date picker — shadcn `Calendar` popover
