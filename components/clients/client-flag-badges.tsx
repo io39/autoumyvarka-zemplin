@@ -1,8 +1,18 @@
 import type { ClientFlags } from "@/lib/orders/unpaid";
 import { hasClientFlags } from "@/lib/orders/unpaid";
 import { formatPriceCents } from "@/lib/services/format";
+import { STATE_COLOR } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+// Both warning badges use the same look as the "Vytvorená" status badge (red),
+// for visual consistency across the app.
+const FLAG_BADGE = cn(
+  "border",
+  STATE_COLOR.vytvorena.bg,
+  STATE_COLOR.vytvorena.border,
+  STATE_COLOR.vytvorena.text,
+);
 
 /**
  * Warning badges for a "problematic" client: overdue-unpaid orders (amber, with
@@ -21,15 +31,12 @@ export function ClientFlagBadges({
   return (
     <div className={cn("flex flex-wrap gap-2", className)} data-section="client-flags">
       {flags.overdueUnpaidCount > 0 && (
-        <Badge
-          data-flag="unpaid"
-          className="border border-amber-400 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-        >
+        <Badge data-flag="unpaid" className={FLAG_BADGE}>
           Nezaplatené: {flags.overdueUnpaidCount} · {formatPriceCents(flags.unpaidAmountCents)}
         </Badge>
       )}
       {flags.noShowCount > 0 && (
-        <Badge data-flag="no-show" variant="destructive">
+        <Badge data-flag="no-show" className={FLAG_BADGE}>
           Nedostavil sa: {flags.noShowCount}×
         </Badge>
       )}

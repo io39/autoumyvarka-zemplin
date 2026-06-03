@@ -85,8 +85,9 @@ should see it too" — but since workers can't act on payment, default manager-o
   is true when either count > 0.
 - Action `getClientFlags({ clientId })` (`lib/actions/orders.ts`, both roles) runs a
   lightweight per-client query and the helper.
-- Shared `<ClientFlagBadges>` renders an amber **"Nezaplatené: {n} · {€}"** and a red
-  **"Nedostavil sa: {n}×"** badge (nothing when clean). Surfaced in three places: the
+- Shared `<ClientFlagBadges>` renders **"Nezaplatené: {n} · {€}"** and **"Nedostavil sa:
+  {n}×"** badges — both use the **`vytvorená` status look** (`STATE_COLOR.vytvorena`, red) for
+  app-wide consistency; nothing renders when clean. Surfaced in three places: the
   **Nová rezervácia wizard** banner once a client is selected (spec 16), the **client detail
   header** (spec 17), and the **order-detail Klient card** (spec 15).
 
