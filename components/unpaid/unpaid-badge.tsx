@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useTransition } from "react";
+import { useState, useCallback, useTransition } from "react";
 import Link from "next/link";
 import { getUnpaidCount } from "@/lib/actions/orders";
-import { createBrowserRealtimeClient } from "@/lib/realtime/browser";
+import { useRealtimeChannel } from "@/lib/realtime/use-realtime";
 import { Badge } from "@/components/ui/badge";
 
 /**
@@ -27,22 +27,20 @@ export function UnpaidBadge({
     });
   }, []);
 
-  useEffect(() => {
-    const client = createBrowserRealtimeClient(realtimeJwt);
-    const channel = client
-      .channel("unpaid-badge")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => refresh())
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "order_services" },
-        () => refresh(),
-      )
-      .subscribe();
-    return () => {
-      channel.unsubscribe();
-      client.removeAllChannels();
-    };
-  }, [realtimeJwt, refresh]);
+  useRealtimeChannel(
+    realtimeJwt,
+    (client) =>
+      client
+        .channel("unpaid-badge")
+        .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => refresh())
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "order_services" },
+          () => refresh(),
+        )
+        .subscribe(),
+    [],
+  );
 
   if (count <= 0) return null;
 

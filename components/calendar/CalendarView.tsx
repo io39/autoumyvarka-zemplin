@@ -8,7 +8,7 @@ import { bratislavaDateKey, getOpenInterval } from "@/lib/settings/availability"
 import { buildRows, weekDateKeys, type Interval } from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import type { CalendarView as ViewMode } from "@/lib/calendar/types";
-import { createBrowserRealtimeClient } from "@/lib/realtime/browser";
+import { useRealtimeChannel } from "@/lib/realtime/use-realtime";
 import { Button } from "@/components/ui/button";
 import { BookingDetailSheet } from "@/components/orders/BookingDetailSheet";
 import { OpenOrderSheetContext } from "./order-sheet-context";
@@ -119,22 +119,22 @@ export function CalendarView({
   }, [view, date]);
 
   // Live updates: any orders change re-fetches the current view's blocks. The
-  // channel name carries view+date so navigating tears down and re-creates.
-  useEffect(() => {
-    const client = createBrowserRealtimeClient(realtimeJwt);
-    const channel = client
-      .channel(`orders-${view}-${date}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        () => refresh(),
-      )
-      .subscribe();
-    return () => {
-      channel.unsubscribe();
-      client.removeAllChannels();
-    };
-  }, [realtimeJwt, view, date, refresh]);
+  // channel name carries view+date so navigating re-subscribes; a token re-mint
+  // (e.g. from a revalidating action) updates auth in place without a teardown,
+  // so the actor's own change can't fall into a resubscribe gap.
+  useRealtimeChannel(
+    realtimeJwt,
+    (client) =>
+      client
+        .channel(`orders-${view}-${date}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "orders" },
+          () => refresh(),
+        )
+        .subscribe(),
+    [view, date],
+  );
 
   const pushTo = useCallback(
     (nextView: ViewMode, nextDate: string) => {

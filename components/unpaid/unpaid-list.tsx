@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition, useCallback } from "react";
+import { useState, useTransition, useCallback } from "react";
 import Link from "next/link";
 import { getUnpaidOrders, type UnpaidOrderRow } from "@/lib/actions/orders";
-import { createBrowserRealtimeClient } from "@/lib/realtime/browser";
+import { useRealtimeChannel } from "@/lib/realtime/use-realtime";
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
 import { formatPriceCents } from "@/lib/services/format";
 import { formatCarLabel } from "@/lib/cars/format";
@@ -45,22 +45,20 @@ export function UnpaidList({
 
   // Live updates: an order paid (status → zaplatena) or a line marked paid drops
   // it from the list. Subscribe to both tables (data-model §3.1) — no new plumbing.
-  useEffect(() => {
-    const client = createBrowserRealtimeClient(realtimeJwt);
-    const channel = client
-      .channel("unpaid-alerts")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => refresh())
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "order_services" },
-        () => refresh(),
-      )
-      .subscribe();
-    return () => {
-      channel.unsubscribe();
-      client.removeAllChannels();
-    };
-  }, [realtimeJwt, refresh]);
+  useRealtimeChannel(
+    realtimeJwt,
+    (client) =>
+      client
+        .channel("unpaid-alerts")
+        .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => refresh())
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "order_services" },
+          () => refresh(),
+        )
+        .subscribe(),
+    [],
+  );
 
   return (
     <div className="space-y-4">
