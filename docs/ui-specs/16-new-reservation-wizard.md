@@ -25,7 +25,7 @@ picker whose header mirrors the calendar (§4).
 2. **Step 1 Klient** — fuzzy search (telefón/meno, reusing spec-02 unified search) to pick
    an existing client. There is **no separate add-customer button**: when the typed query is
    a **complete phone number that matches no existing client**, a **"Nový zákazník" row**
-   (styled like a result — label left, the number right) is appended to the results list.
+   (styled like a result — label left, the number right) is shown at the **top** of the results list.
    Clicking it opens the **new-client dialog with the phone pre-filled** (editable telefón +
    optional meno) → `createClient` → select the new client.
 3. **Step 2 Auto** — pick one of the client's cars (a **"zdieľané auto"** badge marks cars
@@ -101,9 +101,9 @@ picker whose header mirrors the calendar (§4).
   result sets `clientId` and loads the client's cars.
 - **New-client via a result row** (no standalone button): the search field doubles as the
   phone entry. When the typed query (debounced) `normalizePhone`s to a complete E.164 number
-  and **no** search result has that exact phone, append a **"Nový zákazník" row**
-  (`data-new-client`) to the results list, styled like a client result (label left, the
-  normalized number right). Clicking it opens the **new-client Dialog with the phone
+  and **no** search result has that exact phone, show a **"Nový zákazník" row**
+  (`data-new-client`) at the **top** of the results list, styled like a client result (label
+  left, the normalized number right). Clicking it opens the **new-client Dialog with the phone
   pre-filled** (the Dialog is mounted only while open and keyed on the phone, so its fields
   start fresh): editable **telefón** + optional **meno** + **Pridať** → `createClient` →
   select the new client (auto-advances to step 2). Telefón is the key (rule #1). The Dialog

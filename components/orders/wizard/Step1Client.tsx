@@ -107,20 +107,8 @@ export function Step1Client({
 
       {(results.length > 0 || showNewClient) && (
         <ul className="divide-y rounded-md border">
-          {results.map((r) => (
-            <li key={r.clientId}>
-              <button
-                type="button"
-                data-client-id={r.clientId}
-                onClick={() => onSelect(r.clientId)}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
-              >
-                <span className="font-medium">{r.name ?? "—"}</span>
-                <span className="text-muted-foreground">{r.phone}</span>
-              </button>
-            </li>
-          ))}
-
+          {/* "Nový zákazník" is always first so it's never buried under partial
+              substring matches when the typed number isn't registered. */}
           {showNewClient && normalizedPhone && (
             <li>
               <button
@@ -134,6 +122,20 @@ export function Step1Client({
               </button>
             </li>
           )}
+
+          {results.map((r) => (
+            <li key={r.clientId}>
+              <button
+                type="button"
+                data-client-id={r.clientId}
+                onClick={() => onSelect(r.clientId)}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+              >
+                <span className="font-medium">{r.name ?? "—"}</span>
+                <span className="text-muted-foreground">{r.phone}</span>
+              </button>
+            </li>
+          ))}
         </ul>
       )}
 
