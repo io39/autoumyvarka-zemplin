@@ -1,0 +1,11 @@
+# Nixpacks build config (Coolify deploy).
+#
+# Nixpacks pins an old corepack (0.24.1) whose pnpm shim crashes under Node 22
+# with ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING when launching pnpm 11.x. Upgrade
+# corepack before installing so it can run the pinned pnpm (packageManager field).
+[phases.install]
+cmds = [
+  "npm i -g corepack@latest",
+  "corepack enable",
+  "pnpm install --frozen-lockfile",
+]
