@@ -8,6 +8,16 @@ is the operational source of truth for **how the app is deployed**; `architectur
 > **Status:** draft. Items marked `TBD` await a decision — see
 > [§9 Open decisions](#9-open-decisions). Fill them in before the first cutover.
 
+> ⚠️ **Current environment is a TEST deploy** (Coolify on a shared VPS, Cloudflare
+> proxy + Access, **no tunnel, no origin hardening**). The VPS origin (80/443) is
+> directly reachable, so the edge-auth header (`cf-access-authenticated-user-email`,
+> trusted unsigned by `lib/auth/identity.ts`) can be spoofed by connecting straight
+> to the origin IP. **Use fake/test data only — no real client PII.** Before the
+> real production deploy on a dedicated VPS, restore the secure topology: either the
+> **Cloudflare Tunnel** (no open ports — preferred, §5.1) **or** firewall 80/443 to
+> Cloudflare IP ranges **plus** Authenticated Origin Pulls (mTLS); and ideally
+> verify the signed `Cf-Access-Jwt-Assertion` JWT in-app as defense-in-depth.
+
 ---
 
 ## 0. Topology recap
@@ -72,8 +82,8 @@ pnpm supabase db push        # applies supabase/migrations/0001 .. 0009
 by `db push`. Production therefore starts with empty reference tables. Run
 **`supabase/seed.prod.sql`** (committed) **once** against Cloud after `db push`:
 ```bash
-psql "$SUPABASE_DB_URL" -f supabase/seed.prod.sql
-# or: pnpm supabase db execute --file supabase/seed.prod.sql
+pnpm supabase db query --linked --file supabase/seed.prod.sql
+# or via psql: psql "postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres" -f supabase/seed.prod.sql
 ```
 It contains, vs. the dev `seed.sql`:
 - **`services` + `service_prices`** — the catalog (copied verbatim from `seed.sql`).
