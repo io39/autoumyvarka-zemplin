@@ -23,11 +23,11 @@ picker whose header mirrors the calendar (§4).
 1. Replace `BookingForm` with a **`BookingWizard`**: `BookingStepper` (4-step progress) +
    per-step components + `WizardActions` (Späť / Ďalej, final **"Vytvoriť rezerváciu"**).
 2. **Step 1 Klient** — fuzzy search (telefón/meno, reusing spec-02 unified search) to pick
-   an existing client. There is **no separate add-customer button/dialog**: when the typed
-   query is a **complete phone number that matches no existing client**, an **inline**
-   affordance appears below the search — a small *"Zákazník s týmto číslom ešte nie je
-   registrovaný."* warning, a **meno** field (optional), and a **"Pridať nového zákazníka"**
-   button that `createClient`s with the typed number and selects the new client.
+   an existing client. There is **no separate add-customer button**: when the typed query is
+   a **complete phone number that matches no existing client**, a **"Nový zákazník" row**
+   (styled like a result — label left, the number right) is appended to the results list.
+   Clicking it opens the **new-client dialog with the phone pre-filled** (editable telefón +
+   optional meno) → `createClient` → select the new client.
 3. **Step 2 Auto** — pick one of the client's cars (a **"zdieľané auto"** badge marks cars
    shared with another client; rows show the combined **značka + model**), or **"+ nové auto"**
    (ŠPZ, **značka** [fuzzy type-to-filter combobox, free text allowed], model, kategória). The
@@ -99,15 +99,18 @@ picker whose header mirrors the calendar (§4).
 
 - Reuse the **spec-02 unified search** action (phone/name) in an autocomplete; selecting a
   result sets `clientId` and loads the client's cars.
-- **Inline new-client** (no button/dialog): the search field doubles as the phone entry.
-  When the typed query (debounced) `normalizePhone`s to a complete E.164 number and **no**
-  search result has that exact phone, reveal below the results: a small amber warning
-  *"Zákazník s týmto číslom ešte nie je registrovaný."* (`data-no-match`), an optional
-  **meno** field, and a **"Pridať nového zákazníka"** button (`data-new-client`) → `createClient`
-  with the typed number → select the new client (auto-advances to step 2). Telefón is the key
-  (rule #1). If a record raced in (phone is `UNIQUE`), `createClient` returns the existing id
-  and that client is selected instead. The affordance hides as soon as a result matches the
-  number (the user picks the existing client) or the query isn't yet a full number.
+- **New-client via a result row** (no standalone button): the search field doubles as the
+  phone entry. When the typed query (debounced) `normalizePhone`s to a complete E.164 number
+  and **no** search result has that exact phone, append a **"Nový zákazník" row**
+  (`data-new-client`) to the results list, styled like a client result (label left, the
+  normalized number right). Clicking it opens the **new-client Dialog with the phone
+  pre-filled** (the Dialog is mounted only while open and keyed on the phone, so its fields
+  start fresh): editable **telefón** + optional **meno** + **Pridať** → `createClient` →
+  select the new client (auto-advances to step 2). Telefón is the key (rule #1). The Dialog
+  keeps its non-blocking duplicate-phone hint (`data-dup-phone`) in case the phone is edited;
+  if a record raced in (phone is `UNIQUE`), `createClient` returns the existing id and that
+  client is selected instead. The row hides as soon as a result matches the number (pick the
+  existing client) or the query isn't yet a full number.
 - Replaces today's `/clients?return=/orders/new` redirect — the page no longer bounces.
 
 ### 2.3 Step 2 — Auto (`Step2Car`)
@@ -232,7 +235,7 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
    wizard (locked client/car, open on step 3); apply-diff on finish (service add/remove +
    `moveOrder`, self-slot excluded from conflict); **repoint spec-15 Zmeniť čas** to it.
    (dep: 5, spec 15)
-8. **(M)** Refinements: Step-1 inline new-client on unregistered number + Step-2 dup-vehicle hints (debounced
+8. **(M)** Refinements: Step-1 new-client row (→ pre-filled dialog) on unregistered number + Step-2 dup-vehicle hints (debounced
    `searchClients`); `getClientWithCars.sharedCarIds` + Step-2 **zdieľané auto** badge;
    Step-3 **Doplnkové accordion** + `addonGroup` sub-headers + **Poznámka** field (→
    `createOrder.note` / edit `setNote`); `BookingStepper` subtitles; Step-4 line cards +
@@ -263,9 +266,10 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build   # all exit 0
   (with the note) and lands on the calendar for that date.
 - From a client page (`?clientId=`): wizard starts at **step 2** (client prefilled).
 - Picking a slot that overlaps an existing order in that box is rejected (Slovak error).
-- Typing a complete, unregistered number in Step-1 search reveals the inline new-client
-  affordance (`data-no-match` warning + meno + **Pridať nového zákazníka**); the new-car
-  Dialog still shows its non-blocking duplicate-vehicle hint (`data-dup-vehicle`) but allows submit.
+- Typing a complete, unregistered number in Step-1 search appends a **Nový zákazník** row
+  (`data-new-client`); clicking it opens the new-client Dialog with the phone pre-filled.
+  The new-car Dialog still shows its non-blocking duplicate-vehicle hint (`data-dup-vehicle`)
+  but allows submit.
 - The stepper shows the client name (Klient) and car brand (Auto).
 
 ```bash
