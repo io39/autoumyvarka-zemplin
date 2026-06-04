@@ -66,10 +66,16 @@ pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder G
   `useRealtimeChannel` decouples token (in-place `setAuth`) from subscription (rebuilds only
   on view/date); `startRealtimeTokenRefresh` + `mintBrowserRealtimeToken` action periodically
   re-mint so an idle tab doesn't cross the 1h TTL. Applied to calendar + both unpaid widgets.
-- `feat(wizard)` (`01b3768`): Step-1 new-client is now **inline** — the add-customer
-  button/dialog is gone; typing a complete **unregistered** number reveals a warning
-  (`data-no-match`) + optional meno field + **Pridať nového zákazníka** (`data-new-client`)
-  → `createClient` + select + advance. Spec 16 updated; new-client e2e rewritten.
+- `feat(wizard)` (`01b3768` → `d9ab28d` → `56c3663`): reworked Step-1 new-client. The
+  standalone add-customer button is gone. When the typed search query is a complete
+  **unregistered** number, a **"Nový zákazník" row** (`data-new-client`, styled like a client
+  result — label left, normalized number right) appears at the **top** of the results list;
+  clicking it opens the **new-client dialog with the phone pre-filled** (editable telefón +
+  optional meno + **Pridať**) → `createClient` + select + advance. (Iterated from a first
+  "inline warning + form" version `01b3768` → result-row + pre-filled dialog `d9ab28d` →
+  pinned to top `56c3663`.) **Phone search is ordered substring (not fuzzy/transposed)** —
+  verified `456` does not match a `654` phone; fuzzy applies only to names/ŠPZ. Spec 16
+  updated; new-client e2e rewritten for the row→dialog flow.
 - `chore` (`01d25eb`): favicon (`app/favicon.ico`, from oczemplin.sk).
 
 ---

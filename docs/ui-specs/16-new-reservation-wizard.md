@@ -266,8 +266,9 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build   # all exit 0
   (with the note) and lands on the calendar for that date.
 - From a client page (`?clientId=`): wizard starts at **step 2** (client prefilled).
 - Picking a slot that overlaps an existing order in that box is rejected (Slovak error).
-- Typing a complete, unregistered number in Step-1 search appends a **Nový zákazník** row
-  (`data-new-client`); clicking it opens the new-client Dialog with the phone pre-filled.
+- Typing a complete, unregistered number in Step-1 search shows a **Nový zákazník** row
+  (`data-new-client`) at the top of the list; clicking it opens the new-client Dialog with
+  the phone pre-filled.
   The new-car Dialog still shows its non-blocking duplicate-vehicle hint (`data-dup-vehicle`)
   but allows submit.
 - The stepper shows the client name (Klient) and car brand (Auto).
