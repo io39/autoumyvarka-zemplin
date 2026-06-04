@@ -8,14 +8,69 @@ order-detail panel width, header-mobile-only + sidebar unpaid badge, wizard dupl
 / shared badge / Doplnkové accordion / step-3 note / stepper subtitles) is **done + committed
 to `main` locally** and **merged into the specs it touches — 12/14/15/16** (no separate spec
 file, per the single-source-of-truth rule in `CLAUDE.md`). Push from your own terminal —
-pushing is hook-blocked here. Next up: the **walking-skeleton production deploy** (Supabase
-Cloud EU + VPS + Cloudflare Tunnel/Access), picking the real SMS provider, and the client's
-open questions. The redesign is UI-layer only (the one back-end touch was a **read-only**
-additive field, `getClientWithCars.sharedCarIds`). **Last updated:** 2026-06-02.
+pushing is hook-blocked here. A **TEST deployment is now live** (Coolify + Supabase Cloud
+EU + Cloudflare Access) — see the **Deployment status** section below and the full runbook
+`docs/deployment.md`. **Production hardening (Phase 4) is NOT done** and the VPS origin is
+unhardened (no tunnel) — test/fake data only. Still ahead: the real SMS provider and the
+client's open questions. **Last updated:** 2026-06-04.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
 (features 01–11), `docs/ui-specs/README.md` (redesign 12–18) + `docs/UI-STRUCTURE.md`.
+
+---
+
+## Deployment status — TEST environment live (2026-06-04)
+
+A **test** deployment is up; **production hardening (Phase 4) is NOT done.**
+`docs/deployment.md` is the runbook + source of truth for deploy steps.
+
+**Done (test box):**
+- **Supabase Cloud EU** (eu-central-1): migrations `0001–0012` pushed; reference data
+  loaded via `supabase/seed.prod.sql` (catalog + opening hours + manager `staff` row;
+  workers are added in-app). Two Cloud-only gotchas hit + fixed:
+  - Cloud pre-installs `pg_trgm`/`unaccent`/`btree_gist` in the **`extensions`** schema, so
+    unqualified `gin_trgm_ops` / `box with =` failed on `db push`. Fix: install those three
+    in **`public`** (disable in dashboard → the migration recreates them there). `pg_cron`/
+    `pg_net` are fine in any schema (referenced as `cron.`/`net.`).
+  - service_role/authenticated had **no table grants** on Cloud (the local stack
+    auto-grants on create). Fixed by checked-in migration **`0012_role_grants.sql`** (full
+    grant to service_role; SELECT on orders/order_services/order_staff to authenticated;
+    default privileges for future tables). Symptom was `permission denied for table staff`.
+- **App host: Coolify** (Nixpacks — **superseded** the runbook's systemd/Docker §3 draft).
+  `nixpacks.toml` upgrades corepack before `pnpm install` (Nixpacks pins corepack 0.24.1,
+  which crashes pnpm 11 on Node 22 with `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`).
+  `NEXT_PUBLIC_*` must be **build-time** vars in Coolify; the rest are runtime. Deploys from
+  GitHub `io39/autoumyvarka-zemplin` (branch `main`).
+- **Edge: Cloudflare proxy + Access** gating the hostname; **bypass** policies for
+  `/api/sms/webhook` and `/api/reminders`. The pg_cron reminder GUCs (`app.reminder_url` /
+  `app.reminder_secret`) still need setting before reminders fire (deployment.md §8).
+
+**Skipped / deferred — the "VPS port" hardening (REQUIRED before real production):**
+- **No Cloudflare Tunnel; ports 80/443 are open** on the shared VPS. The app trusts the
+  **unsigned** `cf-access-authenticated-user-email` header (`lib/auth/identity.ts`), so a
+  directly-reachable origin = header spoofing = full manager impersonation. **Test box only
+  — fake data, no real client PII.** Before prod on a dedicated VPS: either the **Tunnel**
+  (no open ports, preferred) **or** firewall 80/443 to Cloudflare IP ranges **+**
+  Authenticated Origin Pulls (mTLS); ideally also verify the signed `Cf-Access-Jwt-Assertion`
+  JWT in-app as defense-in-depth. Recorded in `docs/deployment.md` (header + §5).
+
+**Phase 4 (real production deploy + the hardening above) — NOT started.** Also still open:
+pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
+
+**Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- `fix(realtime)` (`c59c63b`): calendar/unpaid live updates broke after a status change —
+  `setStatus`'s `revalidatePath("/")` re-minted `realtimeJwt`, which (being a subscription
+  dep) churned the channel and dropped the actor's own `postgres_changes` echo in the
+  resubscribe gap (other tabs were fine). New `lib/realtime/use-realtime.ts`
+  `useRealtimeChannel` decouples token (in-place `setAuth`) from subscription (rebuilds only
+  on view/date); `startRealtimeTokenRefresh` + `mintBrowserRealtimeToken` action periodically
+  re-mint so an idle tab doesn't cross the 1h TTL. Applied to calendar + both unpaid widgets.
+- `feat(wizard)` (`01b3768`): Step-1 new-client is now **inline** — the add-customer
+  button/dialog is gone; typing a complete **unregistered** number reveals a warning
+  (`data-no-match`) + optional meno field + **Pridať nového zákazníka** (`data-new-client`)
+  → `createClient` + select + advance. Spec 16 updated; new-client e2e rewritten.
+- `chore` (`01d25eb`): favicon (`app/favicon.ico`, from oczemplin.sk).
 
 ---
 
@@ -857,12 +912,15 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
    - New shadcn primitives several specs add: `dropdown-menu` (12), `calendar`+`popover`
      (14), `sheet` (15), `accordion` (17).
 
-3. **Walking-skeleton / production deploy** (architecture §8) — **after the redesign.**
-   Provision Supabase Cloud EU, the self-hosted VPS, and the Cloudflare Tunnel + Access
-   policies; wire the prod env store (Supabase keys, `SUPABASE_JWT_SECRET`, SMS provider
-   creds). Spec-07 deploy notes still apply: `alter database … set app.reminder_url/
-   app.reminder_secret` for the pg_cron reminder, and a Cloudflare Access **bypass** policy
-   for `/api/sms/webhook`.
+3. **Production deploy — TEST box done, PROD (Phase 4) pending.** A test environment is
+   live (Coolify + Supabase Cloud EU + Cloudflare Access) — see the **Deployment status**
+   section above and the runbook `docs/deployment.md`. Remaining for real production:
+   (a) the **origin hardening** that was deliberately skipped on the shared test VPS —
+   Cloudflare **Tunnel** (preferred) or firewall-to-CF-IPs + Authenticated Origin Pulls,
+   ideally + in-app `Cf-Access-Jwt-Assertion` verification; (b) set the pg_cron reminder
+   GUCs `app.reminder_url` / `app.reminder_secret` (deployment.md §8); (c) stand up the
+   dedicated prod VPS + env store. Cloudflare Access bypasses for `/api/sms/webhook` and
+   `/api/reminders` are already in place on the test box.
 4. **Pick + pin the real Slovak SMS provider** (PRD §13#4 — provider AND final
    wording both still open; `fake` adapter is the default in dev).
 5. **Resolve the client's open questions** (below) and tune where flagged.
