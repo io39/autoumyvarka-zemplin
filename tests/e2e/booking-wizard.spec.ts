@@ -39,12 +39,14 @@ test.describe("booking wizard — create (manager)", () => {
     await expect(page).toHaveURL(/\/\?date=\d{4}-\d{2}-\d{2}/);
   });
 
-  test("Pridať nového zákazníka creates + selects, landing on step 2", async ({ page }) => {
+  test("typing an unregistered number reveals the inline new-client form, creates + selects, landing on step 2", async ({ page }) => {
     await page.goto("/orders/new");
+    // Typing a full, unregistered number surfaces the warning + inline form
+    // (no separate add-customer button/dialog).
+    await page.getByLabel(/Hľadať klienta/).fill(uniquePhone());
+    await expect(page.locator("[data-no-match]")).toBeVisible();
+    await page.getByLabel(/Meno nového zákazníka/).fill("Nový Wizard");
     await page.getByRole("button", { name: "Pridať nového zákazníka" }).click();
-    await page.getByLabel("Telefón", { exact: true }).fill(uniquePhone());
-    await page.getByLabel(/Meno/).fill("Nový Wizard");
-    await page.getByRole("button", { name: "Pridať", exact: true }).click();
     await expect(page.getByText("Klient pridaný.")).toBeVisible();
     // Now on step 2 (Auto).
     await expect(page.locator('[data-step="car"]')).toBeVisible();
