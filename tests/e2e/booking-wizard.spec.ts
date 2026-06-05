@@ -106,6 +106,46 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
     expect(after!.duration_min).toBe(newDuration);
     expect(after!.starts_at).not.toBe(before!.starts_at);
   });
+
+  test("Zmeniť čas: add a service + move slot saves (no false conflict)", async ({ page }) => {
+    const o = await seedOrder();
+    const db = serviceClient();
+    const linesBefore = await db
+      .from("order_services")
+      .select("id")
+      .eq("order_id", o.orderId)
+      .is("removed_at", null);
+
+    await page.goto(`/orders/${o.orderId}`);
+    await page.getByRole("link", { name: "Zmeniť čas" }).click();
+    await expect(page.locator('[data-step="services"]')).toBeVisible();
+
+    // Add another (enabled, unchecked) service — this widens the duration.
+    const services = page.locator('[data-step="services"] label[data-service-id] input');
+    const count = await services.count();
+    for (let i = 0; i < count; i++) {
+      const cb = services.nth(i);
+      if (!(await cb.isChecked()) && (await cb.isEnabled())) {
+        await cb.check();
+        break;
+      }
+    }
+
+    // Pick a free slot for the new (longer) duration and save — must not falsely
+    // report the box as occupied (the move now precedes the service widening).
+    await page.getByRole("button", { name: "Ďalej" }).click();
+    await pickAFreeSlot(page);
+    await page.getByRole("button", { name: "Uložiť zmeny" }).click();
+    await expect(page.getByText("Zmeny uložené.")).toBeVisible();
+    await expect(page).toHaveURL(/\/\?date=\d{4}-\d{2}-\d{2}/);
+
+    const linesAfter = await db
+      .from("order_services")
+      .select("id")
+      .eq("order_id", o.orderId)
+      .is("removed_at", null);
+    expect((linesAfter.data ?? []).length).toBe((linesBefore.data ?? []).length + 1);
+  });
 });
 
 test.describe("booking wizard — edit route gating (prevádzka)", () => {

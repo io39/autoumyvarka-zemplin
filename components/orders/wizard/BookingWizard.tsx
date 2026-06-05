@@ -190,7 +190,22 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
         router.refresh();
       };
       start(async () => {
-        // 1) Service diff (add/remove; a quantity change = remove + re-add).
+        // 1) Move FIRST, to the picked slot with the *final* duration. Doing the
+        //    service diff first would widen the order at its OLD position (where a
+        //    neighbour may sit) and falsely conflict before it ever moves. moveOrder
+        //    re-checks conflict + hours at the new slot (own slot excluded), and the
+        //    subsequent add/remove won't re-resize because duration_min now differs
+        //    from the service-sum baseline (treated as an override).
+        const slotMoved =
+          picked.box !== edit.currentSlot.box ||
+          picked.dateKey !== edit.currentSlot.dateKey ||
+          picked.localStart !== edit.currentSlot.localStart;
+        const durationChanged = durationMin !== edit.originalDuration;
+        if (slotMoved || durationChanged) {
+          const r = await moveOrder({ id: edit.orderId, box: picked.box, startsAt, durationMin });
+          if (!r.ok) return fail(r.message);
+        }
+        // 2) Service diff (add/remove; a quantity change = remove + re-add).
         for (const o of edit.originalLines) {
           const c = selections.find((s) => s.serviceId === o.serviceId);
           if (!c || c.quantity !== o.quantity) {
@@ -208,17 +223,6 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
             });
             if (!r.ok) return fail(r.message ?? "Zmena služby zlyhala.");
           }
-        }
-        // 2) Move when the slot OR the manual duration changed. moveOrder persists
-        //    the slot and (re)applies the duration, re-checking conflict + hours.
-        const slotMoved =
-          picked.box !== edit.currentSlot.box ||
-          picked.dateKey !== edit.currentSlot.dateKey ||
-          picked.localStart !== edit.currentSlot.localStart;
-        const durationChanged = durationMin !== edit.originalDuration;
-        if (slotMoved || durationChanged) {
-          const r = await moveOrder({ id: edit.orderId, box: picked.box, startsAt, durationMin });
-          if (!r.ok) return fail(r.message);
         }
         // 3) Note diff (only when it actually changed).
         if (note.trim() !== (edit.originalNote ?? "").trim()) {
