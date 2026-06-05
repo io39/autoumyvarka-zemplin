@@ -411,16 +411,13 @@ function OrderSummaryDialog({
           </dl>
         )}
 
-        <DialogFooter>
-          {data && !data.deleted && (
+        {data && !data.deleted && (
+          <DialogFooter>
             <Button asChild variant="outline">
               <Link href={`/orders/${data.id}`}>Otvoriť objednávku →</Link>
             </Button>
-          )}
-          <Button variant="ghost" onClick={onClose}>
-            Zavrieť
-          </Button>
-        </DialogFooter>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
