@@ -28,6 +28,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "client.create": "Vytvorenie klienta",
   "client.update": "Úprava klienta",
   "client.phone_change": "Zmena telefónu",
+  "client.delete": "Odstránenie klienta",
   "car.create": "Pridanie auta",
   "car.link": "Prepojenie auta",
   "car.update": "Úprava auta",

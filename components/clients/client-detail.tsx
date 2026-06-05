@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { updateClient } from "@/lib/actions/clients";
+import { Plus, Settings, Trash2 } from "lucide-react";
+import { updateClient, deleteClient } from "@/lib/actions/clients";
 import { addCarToClient, linkExistingCar, updateCar } from "@/lib/actions/cars";
 import type {
   CarRow,
@@ -79,6 +80,7 @@ export function ClientDetail({
   const isManager = role === "manazer";
   const [editClientOpen, setEditClientOpen] = useState(false);
   const [addCarOpen, setAddCarOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [editCar, setEditCar] = useState<CarRow | null>(null);
 
   return (
@@ -89,6 +91,7 @@ export function ClientDetail({
         isManager={isManager}
         onEdit={() => setEditClientOpen(true)}
         onAddCar={() => setAddCarOpen(true)}
+        onDelete={() => setDeleteOpen(true)}
       />
 
       <section className="space-y-3" data-section="history">
@@ -137,6 +140,20 @@ export function ClientDetail({
         />
       )}
 
+      {isManager && (
+        <DeleteClientDialog
+          client={client}
+          open={deleteOpen}
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={() => {
+            // Client is gone — leave the detail and clear ?id=.
+            setDeleteOpen(false);
+            router.push("/clients");
+            router.refresh();
+          }}
+        />
+      )}
+
       <AddCarDialog
         clientId={client.id}
         open={addCarOpen}
@@ -167,12 +184,14 @@ function ClientHeaderCard({
   isManager,
   onEdit,
   onAddCar,
+  onDelete,
 }: {
   client: ClientRow;
   flags: ClientFlags;
   isManager: boolean;
   onEdit: () => void;
   onAddCar: () => void;
+  onDelete: () => void;
 }) {
   return (
     <section className="rounded-lg border p-4" data-section="client">
@@ -188,16 +207,39 @@ function ClientHeaderCard({
         </a>
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        {/* All roles — available even with no cars (the wizard can add one). */}
+        {/* All roles — available even with no cars (the wizard can add one).
+            On mobile the labels collapse to icons to leave room for Odstrániť. */}
         <Button size="sm" asChild>
-          <Link href={`/orders/new?clientId=${client.id}`}>Nová rezervácia</Link>
+          <Link href={`/orders/new?clientId=${client.id}`} aria-label="Nová rezervácia">
+            <Plus className="size-4 sm:hidden" />
+            <span className="hidden sm:inline">Nová rezervácia</span>
+          </Link>
         </Button>
         <Button variant="outline" size="sm" onClick={onAddCar}>
           Pridať auto
         </Button>
         {isManager && (
-          <Button variant="ghost" size="sm" onClick={onEdit}>
-            Upraviť klienta
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onEdit}
+            aria-label="Upraviť klienta"
+            title="Upraviť klienta"
+          >
+            <Settings className="size-4 sm:hidden" />
+            <span className="hidden sm:inline">Upraviť klienta</span>
+          </Button>
+        )}
+        {isManager && (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="ml-auto"
+            onClick={onDelete}
+            data-action="delete-client"
+          >
+            <Trash2 className="size-4" />
+            Odstrániť
           </Button>
         )}
       </div>
@@ -386,6 +428,54 @@ function EditClientDialog({
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteClientDialog({
+  client,
+  open,
+  onClose,
+  onDeleted,
+}: {
+  client: ClientRow;
+  open: boolean;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  function onConfirm() {
+    startTransition(async () => {
+      const result = await deleteClient({ id: client.id });
+      if (result.ok) {
+        toast.success("Zákazník odstránený.");
+        onDeleted();
+      } else {
+        toast.error(result.message);
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Odstrániť zákazníka</DialogTitle>
+          <DialogDescription>
+            Naozaj odstrániť zákazníka {client.name ?? client.phone}? Klient zmizne z
+            vyhľadávania a zoznamu; história jeho objednávok ostáva zachovaná.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Zrušiť
+          </Button>
+          <Button type="button" variant="destructive" disabled={pending} onClick={onConfirm}>
+            {pending ? "Odstraňujem…" : "Odstrániť"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -49,6 +49,11 @@ export const searchClientsSchema = z.object({
   limit: z.number().int().min(1).max(50).optional(),
 });
 
+export const listClientsSchema = z.object({
+  page: z.number().int().min(0).default(0),
+  pageSize: z.number().int().min(1).max(50).default(5),
+});
+
 export const createClientSchema = z.object({
   phone: phoneSchema,
   name: nameSchema,
@@ -59,6 +64,8 @@ export const updateClientSchema = z.object({
   phone: phoneSchema.optional(),
   name: nameSchema,
 });
+
+export const deleteClientSchema = z.object({ id: idSchema });
 
 export const addCarToClientSchema = z.object({
   clientId: idSchema,

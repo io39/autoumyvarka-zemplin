@@ -16,8 +16,10 @@ import { type ActionResult, toActionError } from "./result";
 import {
   findClientByPhoneSchema,
   searchClientsSchema,
+  listClientsSchema,
   createClientSchema,
   updateClientSchema,
+  deleteClientSchema,
 } from "@/lib/validation/clients";
 
 const PHONE_TAKEN_MESSAGE = "Klient s týmto telefónnym číslom už existuje.";
@@ -42,6 +44,7 @@ export async function findClientByPhone(input: unknown): Promise<ClientRow | nul
     .from("clients")
     .select("*")
     .eq("phone", phone)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) throw error;
@@ -64,6 +67,7 @@ export async function getClientWithCars(clientId: string): Promise<ClientWithCar
     .from("clients")
     .select("*")
     .eq("id", clientId)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
   if (!client) return null;
@@ -129,6 +133,7 @@ export async function getClientWithHistory(
     .from("clients")
     .select("*")
     .eq("id", clientId)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
   if (!client) return null;
@@ -203,6 +208,42 @@ export async function searchClients(input: unknown): Promise<ClientSuggestion[]>
     phone: r.phone,
     matchedSpz: r.matched_spz,
   }));
+}
+
+export interface ClientsPage {
+  clients: ClientSuggestion[];
+  total: number;
+}
+
+/**
+ * Alphabetical, paginated list of all clients (name then phone; nameless last).
+ * Drives the browse list under the search bar when no query is typed. Both roles.
+ * Offset pagination — Phase-1 client volume is small; the search RPC stays the
+ * path for fuzzy lookups.
+ */
+export async function listClients(input: unknown): Promise<ClientsPage> {
+  const { page, pageSize } = listClientsSchema.parse(input);
+  await getCurrentStaff();
+
+  const from = page * pageSize;
+  const { data, count, error } = await getServiceClient()
+    .from("clients")
+    .select("id, name, phone", { count: "exact" })
+    .is("deleted_at", null)
+    .order("name", { ascending: true, nullsFirst: false })
+    .order("phone", { ascending: true })
+    .range(from, from + pageSize - 1);
+  if (error) throw error;
+
+  return {
+    clients: (data ?? []).map((r) => ({
+      clientId: r.id,
+      name: r.name,
+      phone: r.phone,
+      matchedSpz: null,
+    })),
+    total: count ?? 0,
+  };
 }
 
 export type CreateClientResult =
@@ -298,6 +339,43 @@ export async function updateClient(input: unknown): Promise<UpdateClientResult> 
     }
 
     revalidatePath(`/clients/${data.id}`);
+    revalidatePath("/clients");
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/**
+ * Soft-delete a client (manager only). Sets `deleted_at` so the client drops out
+ * of search/browse/lookup while order/car history is preserved (CLAUDE.md
+ * soft-delete rule). Idempotent: a second call on an already-deleted client is a
+ * no-op success.
+ */
+export async function deleteClient(input: unknown): Promise<ActionResult> {
+  try {
+    const { id } = deleteClientSchema.parse(input);
+    const actor = await getCurrentStaff();
+    requireManager(actor);
+    const db = getServiceClient();
+
+    const { data: before, error: beforeError } = await db
+      .from("clients")
+      .select("id, deleted_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (beforeError) throw beforeError;
+    if (!before) return { ok: false, message: "Klient sa nenašiel." };
+    if (before.deleted_at) return { ok: true }; // already deleted
+
+    const { error } = await db
+      .from("clients")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+
+    await writeAudit(actor, "client.delete", "client", id, {});
+
     revalidatePath("/clients");
     return { ok: true };
   } catch (error) {

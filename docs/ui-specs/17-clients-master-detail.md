@@ -44,9 +44,11 @@ Pracovníci/Poznámka/box/€.
 
 ### 1.3 Non-goals
 
-- **No change to the client/car/history Server Actions** — `searchClients`,
+- The client/car/history Server Actions are reused from spec 02 (`searchClients`,
   `getClientWithHistory`, `createClient`, `updateClient`, `addCarToClient`,
-  `linkExistingCar`, `updateCar` are reused unchanged (spec 02).
+  `linkExistingCar`, `updateCar`). Two later additions on this page: `listClients`
+  (alphabetical browse list, §2.x) and `deleteClient` (soft-delete, §2.y) — both
+  read/soft-delete only, no change to existing actions.
 - **No new car fields** — the schema has ŠPZ, model, `pricing_category` (kategória); the
   doc's "typ/farba" don't exist and are **not** invented here.
 - History aggregation logic (shared-ŠPZ, `buildCarHistories`) is unchanged (spec 08).
@@ -60,6 +62,7 @@ Pracovníci/Poznámka/box/€.
 | Nová rezervácia (from client) | ✅ | ✅ |
 | + Pridať auto | ✅ | ✅ |
 | Edit client (meno / telefón) | ❌ | ✅ |
+| Odstrániť (delete client) | ❌ | ✅ |
 | Upraviť / link car | ❌ | ✅ |
 | Open an order's full page | ✅ | ✅ |
 
@@ -76,7 +79,14 @@ Pracovníci/Poznámka/box/€.
   `searchClients` with the stale-response sequence guard). Clicking a result
   `router.push('/clients?id=' + clientId)` (keeps the search query in component state).
   Results **sorted by meno**; rows = `ClientCard` (meno + telefón).
-- Empty query (<2 chars) → the blank prompt (existing copy "Zadajte aspoň 2 znaky.").
+- **Browse list + pagination (5 per page).** Empty/short query (<2 chars) shows the **full
+  client list, alphabetical**, via a new **`listClients({ page, pageSize: 5 })`** action
+  (server offset pagination + exact count; both roles, read-only, excludes soft-deleted).
+  ◀ ▶ arrows + "Strana N z M" under the list (`data-client-pagination`); ◀ disabled on page
+  1, ▶ at the last page. **Search is also paginated by 5** so the panel never stretches:
+  fuzzy search fetches all matches (≤50 — the RPC has no offset) and paginates **client-side**.
+  Typing resets to page 1. Empty states: "Žiadny výsledok" (search) / "Žiadni zákazníci"
+  (browse). Results carry `data-client-results`.
 - **"+ Nový zákazník"** reuses the existing `CreateClientDialog`; on create, push
   `?id=<newId>` (all roles).
 
@@ -92,7 +102,13 @@ Pracovníci/Poznámka/box/€.
   `<ClientFlagBadges>` row (overdue unpaid / no-shows — spec 10; `getClientFlags` fetched on
   the page). Buttons: **Nová rezervácia** under the name (**all roles** → `/orders/new?clientId=`
   → wizard step 2; available even with no cars, since the wizard can add one), **+ Pridať auto**
-  (all roles), **Upraviť klienta** (manager only).
+  (all roles), **Upraviť klienta** (manager only), and **Odstrániť** (manager only — §2.6).
+  **Responsive:** on mobile the labels collapse to icons to make room — Nová rezervácia → a
+  **`+`** icon, Pridať auto keeps its label, Upraviť klienta → a **gear** icon (`aria-label`s
+  preserved); on `sm:+` the full labels show.
+- **Odstrániť** (delete) is a **destructive (red) button pushed to the right** of the button
+  row (`ml-auto`, `data-action="delete-client"`), so it reads as separate from the
+  constructive actions.
 - **Zoznam áut**: each car (ŠPZ · model · kategória) + **Upraviť auto** (manager only;
   reuses link/duplicate-ŠPZ confirm). A car with **no orders** shows **"Žiadne služby."**
 - **Per-car block** — each vehicle is its **own grouped block** (`data-car-block`): a
@@ -120,6 +136,22 @@ inline. `ClientDetail` → `ClientHeaderCard`, `CarRow` (×N accordion), `Servic
 - `?id=` that doesn't resolve → an inline "Klient sa nenašiel" in the detail pane, master
   list still usable (no full-page error).
 - Mutations keep `toast` + `router.refresh()`; refresh re-reads the `?id=` detail.
+
+### 2.6 Delete client — soft-delete (`deleteClient`)
+
+- **Manager only.** A confirm `Dialog` ("Odstrániť zákazníka? … história jeho objednávok
+  ostáva zachovaná") → `deleteClient({ id })`. On success: `toast`, then `router.push('/clients')`
+  (leave the detail, clear `?id=`).
+- **Soft-delete:** migration **`0013_client_soft_delete.sql`** adds `clients.deleted_at
+  timestamptz` and recreates `search_clients` to exclude deleted rows. The action sets
+  `deleted_at = now()` (idempotent), audits **`client.delete`**, and `revalidatePath('/clients')`.
+  Order/car history (FK references) is **preserved** — soft-delete rule (CLAUDE.md, PRD §9.1/§10);
+  supersedes 0002's "No Phase-1 delete" note.
+- A soft-deleted client is filtered out of `searchClients` (RPC), `listClients`,
+  `findClientByPhone`, `getClientWithCars`, and `getClientWithHistory` (a stale `?id=` of a
+  deleted client → "Klient sa nenašiel").
+- **Known edge:** `clients.phone` is `UNIQUE`, so re-adding a soft-deleted client's number
+  currently collides (no resurrect-on-re-add) — acceptable for Phase 1, revisit if needed.
 
 ---
 

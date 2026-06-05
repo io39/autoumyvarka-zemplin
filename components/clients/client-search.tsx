@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { searchClients, createClient, type ClientSuggestion } from "@/lib/actions/clients";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  searchClients,
+  listClients,
+  createClient,
+  type ClientSuggestion,
+} from "@/lib/actions/clients";
 import { normalizePhone } from "@/lib/clients/phone";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -19,40 +25,47 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+const PAGE_SIZE = 5;
+
 export function ClientSearch() {
   const router = useRouter();
   const selectedId = useSearchParams().get("id");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
   const [results, setResults] = useState<ClientSuggestion[]>([]);
+  const [total, setTotal] = useState(0); // browse mode only; 0 while searching
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   // Sequence guard: ignore out-of-order (stale) responses.
   const seq = useRef(0);
 
+  // ≥2 chars → fuzzy search; otherwise browse the full alphabetical list.
+  const searching = query.trim().length >= 2;
+
+  // Both modes paginate by 5 so the panel never stretches. Browse is paginated
+  // on the server (offset); fuzzy search fetches all matches (≤50, the RPC has
+  // no offset) and is paginated client-side here. `results` holds the full set
+  // for the current query; `total` is the server count in browse mode.
+  const totalCount = searching ? results.length : total;
+  const lastPage = Math.max(0, Math.ceil(totalCount / PAGE_SIZE) - 1);
+  const display = searching
+    ? results.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+    : results;
+
   function select(clientId: string) {
     router.push(`/clients?id=${clientId}`);
   }
 
+  // Fuzzy search — re-fetched only on query change (paging slices client-side).
   useEffect(() => {
+    if (!searching) return;
     const q = query.trim();
     const id = ++seq.current;
-
-    if (q.length < 2) {
-      // Reset asynchronously (no synchronous setState inside the effect body).
-      const t0 = setTimeout(() => {
-        if (id === seq.current) {
-          setResults([]);
-          setLoading(false);
-        }
-      }, 0);
-      return () => clearTimeout(t0);
-    }
-
     const t = setTimeout(async () => {
       if (id !== seq.current) return;
       setLoading(true);
       try {
-        const r = await searchClients({ query: q });
+        const r = await searchClients({ query: q, limit: 50 });
         // Results sorted by meno (UI-STRUCTURE §9); nameless rows sort last.
         const sorted = [...r].sort((a, b) =>
           (a.name ?? "￿").localeCompare(b.name ?? "￿", "sk"),
@@ -65,7 +78,32 @@ export function ClientSearch() {
       }
     }, 200);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, searching]);
+
+  // Browse the full alphabetical list — re-fetched per page (server offset).
+  useEffect(() => {
+    if (searching) return;
+    const id = ++seq.current;
+    const t = setTimeout(async () => {
+      if (id !== seq.current) return;
+      setLoading(true);
+      try {
+        const r = await listClients({ page, pageSize: PAGE_SIZE });
+        if (id === seq.current) {
+          setResults(r.clients);
+          setTotal(r.total);
+        }
+      } catch {
+        if (id === seq.current) {
+          setResults([]);
+          setTotal(0);
+        }
+      } finally {
+        if (id === seq.current) setLoading(false);
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, [searching, page]);
 
   return (
     <div className="space-y-4">
@@ -76,7 +114,10 @@ export function ClientSearch() {
 
       <Input
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setPage(0);
+        }}
         placeholder="Hľadať podľa telefónu, mena alebo ŠPZ…"
         aria-label="Hľadať klienta"
         autoFocus
@@ -90,19 +131,15 @@ export function ClientSearch() {
           </div>
         )}
 
-        {!loading && query.trim().length >= 2 && results.length === 0 && (
-          <p className="p-4 text-center text-sm text-muted-foreground">Žiadny výsledok</p>
-        )}
-
-        {!loading && query.trim().length < 2 && (
+        {!loading && display.length === 0 && (
           <p className="p-4 text-center text-sm text-muted-foreground">
-            Zadajte aspoň 2 znaky.
+            {searching ? "Žiadny výsledok" : "Žiadni zákazníci"}
           </p>
         )}
 
-        {!loading && results.length > 0 && (
-          <ul className="divide-y">
-            {results.map((r) => (
+        {!loading && display.length > 0 && (
+          <ul className="divide-y" data-client-results>
+            {display.map((r) => (
               <li key={r.clientId}>
                 <button
                   type="button"
@@ -123,6 +160,35 @@ export function ClientSearch() {
           </ul>
         )}
       </div>
+
+      {/* Pagination (5 per page) — both browse and search, so the panel never stretches. */}
+      {totalCount > PAGE_SIZE && (
+        <div className="flex items-center justify-between" data-client-pagination>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Predošlá strana"
+            disabled={page === 0 || loading}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            Strana {page + 1} z {lastPage + 1}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Nasledujúca strana"
+            disabled={page >= lastPage || loading}
+            onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      )}
 
       <CreateClientDialog
         open={createOpen}
