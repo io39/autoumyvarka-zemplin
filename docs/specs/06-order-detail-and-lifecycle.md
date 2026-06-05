@@ -139,8 +139,12 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
 - `deleteOrder`: rejected if status already `zaplatena` (PRD §6); soft-delete via
   `deleted_at`.
 - `addOrderService`: snapshots name/category/duration/price into `order_services`
-  (data-model §2.8); recomputes the order's default `duration_min` (respecting a manual
-  override) — and since duration changed, re-checks conflict for the new `ends_at`.
+  (data-model §2.8); **recomputes `duration_min` to Σ active lines + the new line**
+  (overwriting any manual override — services drive the time), then **validates the longer
+  booking before inserting the line**: within opening hours (`SERVICE_WOULD_CLOSE_MESSAGE`)
+  and no box overlap with the next booking (`SERVICE_WOULD_OVERLAP_MESSAGE`). So the action
+  also answers "can this service be added at all" — if it can't fit, it's refused and no line
+  is created.
 - `removeOrderService`: allowed only while the line is not performed (soft `removed_at`).
 - `setStatus(next='hotova')` from `vytvorena` emits ORDER_READY after the commit.
 - `setStatus(next='zaplatena')` **cascades all non-removed `order_services` lines to

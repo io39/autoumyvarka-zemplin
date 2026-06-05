@@ -70,6 +70,10 @@ const SERVICE_INACTIVE_MESSAGE = "Niektorá zo služieb je neaktívna.";
 const SERVICE_UNAVAILABLE_MESSAGE = "Služba nie je dostupná pre tento typ vozidla.";
 const SERVICE_LINE_PERFORMED_MESSAGE =
   "Vykonanú službu nie je možné odstrániť.";
+const SERVICE_WOULD_OVERLAP_MESSAGE =
+  "Službu nie je možné pridať: predĺžený termín by sa prekrýval s ďalšou rezerváciou.";
+const SERVICE_WOULD_CLOSE_MESSAGE =
+  "Službu nie je možné pridať: predĺžený termín presahuje otváracie hodiny.";
 
 export interface CalendarBlock {
   order: OrderRow;
@@ -852,11 +856,10 @@ export async function addOrderService(input: unknown): Promise<ActionResult> {
       return { ok: false, message: NOT_FOUND_MESSAGE };
     }
 
-    // Active lines drive the "default" duration. If the order's stored
-    // duration matches their sum, no manual override is in effect and we
-    // recompute downstream; otherwise leave the override alone (spec §2.3).
+    // Σ of the current active-line durations; the new line is added on top to
+    // get the order's recomputed duration (services drive the time — a prior
+    // manual override is overwritten when a service is added).
     const baselineDuration = await sumActiveLineDuration(db, order.id);
-    const hasOverride = order.duration_min !== baselineDuration;
 
     const { data: car, error: carErr } = await db
       .from("cars")
@@ -889,15 +892,16 @@ export async function addOrderService(input: unknown): Promise<ActionResult> {
     const lineDuration = (resolved.durationMin ?? 0) * quantity;
     const linePrice = resolved.priceCents * quantity;
 
-    // Respect a prior manual override: if one's in effect (stored
-    // duration_min ≠ Σ active line durations), don't widen the booking when
-    // the manager adds a service. Otherwise track Σ lines as the default.
-    if (!hasOverride && lineDuration > 0) {
-      const newDuration = order.duration_min + lineDuration;
+    // Recompute the duration to Σ active lines + this new line (overwriting any
+    // manual override), and validate the longer booking BEFORE inserting the
+    // line: it must stay within opening hours and not overlap another booking in
+    // the box — i.e. check whether the service can be added at all.
+    const newDuration = baselineDuration + lineDuration;
+    if (newDuration > 0 && newDuration !== order.duration_min) {
       const start = new Date(order.starts_at);
       const newEnd = new Date(start.getTime() + newDuration * 60_000);
       if (!(await rangeIsOpen(db, start, newEnd))) {
-        return { ok: false, message: CLOSED_MESSAGE };
+        return { ok: false, message: SERVICE_WOULD_CLOSE_MESSAGE };
       }
       const { error: durErr } = await db
         .from("orders")
@@ -905,7 +909,7 @@ export async function addOrderService(input: unknown): Promise<ActionResult> {
         .eq("id", order.id);
       if (durErr) {
         if (isExclusionViolation(durErr)) {
-          return { ok: false, message: CONFLICT_MESSAGE };
+          return { ok: false, message: SERVICE_WOULD_OVERLAP_MESSAGE };
         }
         throw durErr;
       }

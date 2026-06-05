@@ -128,4 +128,53 @@ test.describe("order services on existing order (manager)", () => {
       .single();
     expect(after!.paid).toBe(true);
   });
+
+  test("adding a service is refused when the longer booking would overlap the next one", async ({
+    page,
+  }) => {
+    const db = serviceClient();
+    // Order A at 11:00 box 1 (60 min → ends 12:00), with B booked right after it
+    // in the same box, so A cannot extend in place.
+    const a = await seedOrder({ box: 1, time: "11:00" });
+    const endHHMM = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Bratislava",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(a.endsAt));
+    await seedOrder({ box: 1, date: a.date, time: endHHMM });
+
+    await page.goto(`/orders/${a.orderId}`);
+
+    // A service (other than the seeded one) with a positive 'os' duration, so the
+    // extension definitely overflows into B and must be refused.
+    const { data: priced } = await db
+      .from("service_prices")
+      .select("service_id, duration_min")
+      .eq("pricing_category", "os")
+      .gt("duration_min", 0)
+      .neq("service_id", a.serviceId);
+    const ids = [...new Set((priced ?? []).map((p) => p.service_id))];
+    const { data: actives } = await db
+      .from("services")
+      .select("id, name")
+      .in("id", ids)
+      .eq("active", true)
+      .order("name");
+    const candidate = actives![0];
+    expect(candidate).toBeTruthy();
+
+    await page.locator("#add-service").click();
+    await page.getByRole("option", { name: candidate!.name }).click();
+    await page.getByRole("button", { name: "Pridať službu" }).click();
+
+    // Refused with a clear message; the line is NOT added.
+    await expect(page.getByText(/prekrýval s ďalšou rezerváciou/)).toBeVisible();
+    const { data: lines } = await db
+      .from("order_services")
+      .select("id")
+      .eq("order_id", a.orderId)
+      .is("removed_at", null);
+    expect(lines!.length).toBe(1);
+  });
 });
