@@ -113,5 +113,12 @@ test.describe("audit coverage of order lifecycle (spec 09 §4.4)", () => {
     // actor_email present and the status summary rendered non-empty.
     await expect(audit.getByText(MANAGER_EMAIL).first()).toBeVisible();
     await expect(audit.getByText("Vytvorená → Hotová")).toBeVisible();
+
+    // The order is now deleted, so its /orders/[id] page 404s. Clicking its
+    // audit entity opens a read-only summary popup instead.
+    await audit.locator('tr[data-action="order.delete"] button').first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("Zrušená objednávka")).toBeVisible();
+    await expect(dialog.getByText("Box")).toBeVisible();
   });
 });

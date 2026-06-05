@@ -55,9 +55,16 @@ the 403 view; the read action also asserts `requireManager()`.
 | --- | --- | --- |
 | `/audit` | **manager** | filterable, paginated audit list |
 
+- The page is **full-width** (`/audit` wraps `<AuditView>` in a plain `w-full`, no
+  `max-w-*`) so the table has room.
 - Table: timestamp (Europe/Bratislava), `actor_email`, action (Slovak label), entity
-  type + id (link to the entity where one exists, e.g. order → `/orders/[id]`), and a
-  rendered `details` summary.
+  type + id, and a rendered `details` summary. For order-linked rows the entity is a
+  **button that opens a read-only order popup** (`Dialog`) instead of navigating to
+  `/orders/[id]` — because a **deleted** order's page 404s (spec 17 soft-delete), yet its
+  audit rows remain. The popup calls **`getOrderSummary({ id })`** (`lib/actions/orders.ts` —
+  like `getOrder` but **does not** filter `deleted_at`) and shows klient · auto · termín
+  (date + od–do) · box · stav · služby, a **"Zrušená objednávka"** badge when deleted, and an
+  **"Otvoriť objednávku →"** link only when the order still exists.
 - Filters: **Od/Do date pickers** (the shared `DateField` — same shadcn `Calendar` popover
   as the calendar/Výnimky, for app-wide consistency), action select, entity-type select,
   optional order id (deep-link from an order detail "história zmien" link).

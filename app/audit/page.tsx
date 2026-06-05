@@ -33,7 +33,7 @@ export default async function AuditPage({
   const initial = await getAuditLog(orderId ? { orderId, limit: PAGE_SIZE } : { limit: PAGE_SIZE });
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full">
       <AuditView
         initialEntries={initial.entries}
         initialCursor={initial.nextCursor}

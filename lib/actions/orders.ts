@@ -395,6 +395,64 @@ export async function getOrder(input: unknown): Promise<OrderDetail | null> {
   };
 }
 
+export interface OrderSummary {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  box: number;
+  status: OrderRow["status"];
+  deleted: boolean;
+  client: { name: string | null; phone: string } | null;
+  car: { spz: string; brand: string | null; model: string | null } | null;
+  services: string[];
+}
+
+/**
+ * Lean read-only order overview for the audit popup — unlike `getOrder` it does
+ * NOT filter `deleted_at`, so a deleted (cancelled) order referenced by an audit
+ * row still resolves (its `/orders/[id]` page 404s). Both roles.
+ */
+export async function getOrderSummary(input: unknown): Promise<OrderSummary | null> {
+  const { id } = getOrderSchema.parse(input);
+  await getCurrentStaff();
+  const db = getServiceClient();
+
+  const { data, error } = await db
+    .from("orders")
+    .select(
+      "id, starts_at, ends_at, box, status, deleted_at, client:client_id(name, phone), car:car_id(spz, brand, model), services:order_services(name_snapshot, quantity, removed_at)",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const r = data as unknown as {
+    id: string;
+    starts_at: string;
+    ends_at: string;
+    box: number;
+    status: OrderRow["status"];
+    deleted_at: string | null;
+    client: { name: string | null; phone: string } | null;
+    car: { spz: string; brand: string | null; model: string | null } | null;
+    services: { name_snapshot: string; quantity: number; removed_at: string | null }[] | null;
+  };
+  return {
+    id: r.id,
+    startsAt: r.starts_at,
+    endsAt: r.ends_at,
+    box: r.box,
+    status: r.status,
+    deleted: r.deleted_at != null,
+    client: r.client,
+    car: r.car,
+    services: (r.services ?? [])
+      .filter((s) => !s.removed_at)
+      .map((s) => (s.quantity > 1 ? `${s.name_snapshot} ×${s.quantity}` : s.name_snapshot)),
+  };
+}
+
 export interface RecentVisit {
   orderId: string;
   startsAt: string;

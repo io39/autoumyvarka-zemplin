@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { getAuditLog } from "@/lib/actions/audit";
+import { getOrderSummary, type OrderSummary } from "@/lib/actions/orders";
 import {
   ACTION_LABEL,
   ENTITY_LABEL,
@@ -11,9 +12,20 @@ import {
   summarizeDetails,
 } from "@/lib/audit/labels";
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
+import { formatCarLabel } from "@/lib/cars/format";
+import { STATE_LABEL } from "@/types";
 import type { AuditLogRow } from "@/lib/supabase/types";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DateField } from "@/components/settings/date-field";
 import {
   Select,
@@ -67,6 +79,9 @@ export function AuditView({
   // visited, `null` for page 1. Push on ▶, pop on ◀; length-1 = current page.
   const [pageStack, setPageStack] = useState<(string | null)[]>([null]);
   const [pending, startTransition] = useTransition();
+  // Order whose summary popup is open (works for deleted orders, which 404 on
+  // their /orders/[id] page).
+  const [summaryId, setSummaryId] = useState<string | null>(null);
 
   const pageIndex = pageStack.length - 1; // 0-based
 
@@ -139,9 +154,13 @@ export function AuditView({
         <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
           <span>
             Filtrované na objednávku{" "}
-            <Link href={`/orders/${orderId}`} className="font-mono underline underline-offset-4">
+            <button
+              type="button"
+              onClick={() => setSummaryId(orderId)}
+              className="font-mono underline underline-offset-4 hover:no-underline"
+            >
               {orderId.slice(0, 8)}
-            </Link>
+            </button>
           </span>
           <Link href="/audit" className="underline underline-offset-4">
             Zrušiť filter
@@ -238,13 +257,7 @@ export function AuditView({
                   <TableCell className="text-sm">{e.actor}</TableCell>
                   <TableCell className="text-sm">{e.actionLbl}</TableCell>
                   <TableCell className="text-sm">
-                    {e.orderId ? (
-                      <Link href={`/orders/${e.orderId}`} className="underline underline-offset-4">
-                        {e.entityLbl}
-                      </Link>
-                    ) : (
-                      e.entityLbl
-                    )}
+                    <EntityLabel orderId={e.orderId} label={e.entityLbl} onOpen={setSummaryId} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{e.summary}</TableCell>
                 </TableRow>
@@ -269,13 +282,7 @@ export function AuditView({
               </div>
               <div className="text-muted-foreground">{e.actor}</div>
               <div>
-                {e.orderId ? (
-                  <Link href={`/orders/${e.orderId}`} className="underline underline-offset-4">
-                    {e.entityLbl}
-                  </Link>
-                ) : (
-                  e.entityLbl
-                )}
+                <EntityLabel orderId={e.orderId} label={e.entityLbl} onOpen={setSummaryId} />
               </div>
               {e.summary && <div className="text-muted-foreground">{e.summary}</div>}
             </li>
@@ -304,6 +311,126 @@ export function AuditView({
           </Button>
         </div>
       )}
+
+      <OrderSummaryDialog orderId={summaryId} onClose={() => setSummaryId(null)} />
+    </div>
+  );
+}
+
+/** The "Objekt" cell: opens the order popup for order-linked rows, else plain text. */
+function EntityLabel({
+  orderId,
+  label,
+  onOpen,
+}: {
+  orderId: string | null;
+  label: string;
+  onOpen: (id: string) => void;
+}) {
+  if (!orderId) return <>{label}</>;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(orderId)}
+      className="underline underline-offset-4 hover:no-underline"
+    >
+      {label}
+    </button>
+  );
+}
+
+/** Read-only order overview popup (works for deleted orders — they 404 on their page). */
+function OrderSummaryDialog({
+  orderId,
+  onClose,
+}: {
+  orderId: string | null;
+  onClose: () => void;
+}) {
+  const [data, setData] = useState<OrderSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!orderId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset when closed
+      setData(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    getOrderSummary({ id: orderId })
+      .then((d) => {
+        if (!cancelled) {
+          setData(d);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData(null);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId]);
+
+  const carLabel = data?.car
+    ? [data.car.spz, formatCarLabel(data.car.brand, data.car.model)].filter(Boolean).join(" · ")
+    : "—";
+  const time = data
+    ? `${bratislavaDateDisplay(new Date(data.startsAt))} · ${bratislavaHHMM(new Date(data.startsAt))}–${bratislavaHHMM(new Date(data.endsAt))}`
+    : "";
+
+  return (
+    <Dialog open={orderId != null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Objednávka</DialogTitle>
+          <DialogDescription className="sr-only">Prehľad objednávky</DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Načítavam…</p>
+        ) : !data ? (
+          <p className="text-sm text-muted-foreground">Objednávka sa nenašla.</p>
+        ) : (
+          <dl className="space-y-2 text-sm">
+            {data.deleted && (
+              <Badge variant="outline" className="text-muted-foreground">
+                Zrušená objednávka
+              </Badge>
+            )}
+            <SummaryRow label="Klient" value={data.client ? `${data.client.name ?? "(bez mena)"} · ${data.client.phone}` : "—"} />
+            <SummaryRow label="Auto" value={carLabel} />
+            <SummaryRow label="Termín" value={time} />
+            <SummaryRow label="Box" value={String(data.box)} />
+            <SummaryRow label="Stav" value={STATE_LABEL[data.status] ?? data.status} />
+            <SummaryRow label="Služby" value={data.services.length ? data.services.join(", ") : "—"} />
+          </dl>
+        )}
+
+        <DialogFooter>
+          {data && !data.deleted && (
+            <Button asChild variant="outline">
+              <Link href={`/orders/${data.id}`}>Otvoriť objednávku →</Link>
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose}>
+            Zavrieť
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2">
+      <dt className="w-20 shrink-0 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words font-medium">{value}</dd>
     </div>
   );
 }
