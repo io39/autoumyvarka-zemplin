@@ -47,6 +47,9 @@ export async function getAuditLog(input: unknown): Promise<AuditPage> {
   if (params.entityType) {
     q = q.eq("entity_type", params.entityType);
   }
+  if (params.actorStaffId) {
+    q = q.eq("actor_staff_id", params.actorStaffId);
+  }
   if (params.orderId) {
     q = q.eq("order_id", params.orderId);
   }

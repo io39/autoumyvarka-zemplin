@@ -2,6 +2,7 @@ import { getCurrentStaff } from "@/lib/auth/session";
 import { requireManager } from "@/lib/auth/require";
 import { isForbiddenError, isUnauthenticatedError } from "@/lib/auth/errors";
 import { getAuditLog } from "@/lib/actions/audit";
+import { listStaff } from "@/lib/actions/staff";
 import { ForbiddenView, UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { AuditView } from "@/components/audit/audit-view";
 
@@ -30,7 +31,11 @@ export default async function AuditPage({
   // throw an uncaught error: an invalid filter simply shows the unfiltered log.
   const { orderId: rawOrderId } = await searchParams;
   const orderId = rawOrderId && UUID_RE.test(rawOrderId) ? rawOrderId : null;
-  const initial = await getAuditLog(orderId ? { orderId, limit: PAGE_SIZE } : { limit: PAGE_SIZE });
+  const [initial, staff] = await Promise.all([
+    getAuditLog(orderId ? { orderId, limit: PAGE_SIZE } : { limit: PAGE_SIZE }),
+    listStaff(),
+  ]);
+  const accounts = staff.map((s) => ({ id: s.id, label: s.display_name || s.email }));
 
   return (
     <div className="w-full">
@@ -38,6 +43,7 @@ export default async function AuditPage({
         initialEntries={initial.entries}
         initialCursor={initial.nextCursor}
         orderId={orderId}
+        accounts={accounts}
       />
     </div>
   );

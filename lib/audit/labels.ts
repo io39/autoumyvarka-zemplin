@@ -35,6 +35,8 @@ export const ACTION_LABEL: Record<string, string> = {
   // service catalog (spec 03)
   "service.create": "Vytvorenie služby",
   "service.update": "Úprava služby",
+  "service.activate": "Aktivácia služby",
+  "service.deactivate": "Deaktivácia služby",
   "service.price_update": "Úprava ceny",
   "service.price_delete": "Zmazanie ceny",
   // staff = login accounts (Účty, spec 01/11) — distinct from workers below
@@ -103,7 +105,7 @@ export function summarizeDetails(action: string, details: Json | null): string {
       return `${statusLabel(d.from)} → ${statusLabel(d.to)}`;
     case "order.delete":
       return d.previous_status
-        ? `Predtým: ${statusLabel(d.previous_status)}`
+        ? `Stav pred zrušením: ${statusLabel(d.previous_status)}`
         : "Objednávka zrušená";
     case "order.create":
       return typeof d.box === "number" ? `Box ${d.box}` : "Nová objednávka";
@@ -134,6 +136,10 @@ export function summarizeDetails(action: string, details: Json | null): string {
       return "Účet aktivovaný";
     case "staff.deactivate":
       return "Účet deaktivovaný";
+    case "service.activate":
+      return "Služba aktivovaná";
+    case "service.deactivate":
+      return "Služba deaktivovaná";
     case "worker.activate":
       return "Zamestnanec aktivovaný";
     case "worker.deactivate":

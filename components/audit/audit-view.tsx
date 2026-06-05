@@ -59,18 +59,21 @@ interface Filters {
   to: string;
   action: string;
   entityType: string;
+  account: string;
 }
 
-const EMPTY: Filters = { from: "", to: "", action: ALL, entityType: ALL };
+const EMPTY: Filters = { from: "", to: "", action: ALL, entityType: ALL, account: ALL };
 
 export function AuditView({
   initialEntries,
   initialCursor,
   orderId,
+  accounts,
 }: {
   initialEntries: AuditLogRow[];
   initialCursor: string | null;
   orderId: string | null;
+  accounts: { id: string; label: string }[];
 }) {
   const [filters, setFilters] = useState<Filters>(EMPTY);
   const [entries, setEntries] = useState<AuditLogRow[]>(initialEntries);
@@ -91,6 +94,7 @@ export function AuditView({
       to: f.to || undefined,
       actions: f.action !== ALL ? [f.action] : undefined,
       entityType: f.entityType !== ALL ? f.entityType : undefined,
+      actorStaffId: f.account !== ALL ? f.account : undefined,
       orderId: orderId ?? undefined,
       cursor,
       limit: PAGE_SIZE,
@@ -168,7 +172,7 @@ export function AuditView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="space-y-1">
           <Label htmlFor="from">Od dátumu</Label>
           <DateField
@@ -223,9 +227,32 @@ export function AuditView({
             </SelectContent>
           </Select>
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="account">Účet</Label>
+          <Select
+            value={filters.account}
+            onValueChange={(v) => applyFilters({ ...filters, account: v })}
+          >
+            <SelectTrigger id="account">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Všetky účty</SelectItem>
+              {accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {(filters.from || filters.to || filters.action !== ALL || filters.entityType !== ALL) && (
+      {(filters.from ||
+        filters.to ||
+        filters.action !== ALL ||
+        filters.entityType !== ALL ||
+        filters.account !== ALL) && (
         <Button variant="ghost" size="sm" onClick={() => applyFilters(EMPTY)}>
           Vymazať filtre
         </Button>
@@ -237,7 +264,7 @@ export function AuditView({
           <TableHeader>
             <TableRow>
               <TableHead className="whitespace-nowrap">Čas</TableHead>
-              <TableHead>Kto</TableHead>
+              <TableHead>Účet</TableHead>
               <TableHead>Akcia</TableHead>
               <TableHead>Objekt</TableHead>
               <TableHead>Detail</TableHead>

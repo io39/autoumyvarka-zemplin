@@ -28,7 +28,7 @@ describe("summarizeDetails", () => {
 
   it("renders a delete with the previous status", () => {
     expect(summarizeDetails("order.delete", { previous_status: "vytvorena" })).toBe(
-      "Predtým: Vytvorená",
+      "Stav pred zrušením: Vytvorená",
     );
   });
 
@@ -107,11 +107,14 @@ describe("summarizeDetails", () => {
       "client.create",
       "client.update",
       "client.phone_change",
+      "client.delete",
       "car.create",
       "car.link",
       "car.update",
       "service.create",
       "service.update",
+      "service.activate",
+      "service.deactivate",
       "service.price_update",
       "service.price_delete",
       "staff.create",

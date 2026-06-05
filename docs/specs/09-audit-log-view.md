@@ -65,13 +65,19 @@ the 403 view; the read action also asserts `requireManager()`.
   like `getOrder` but **does not** filter `deleted_at`) and shows klient · auto · termín
   (date + od–do) · box · stav · služby, a **"Zrušená objednávka"** badge when deleted, and an
   **"Otvoriť objednávku →"** link only when the order still exists.
+- The actor column header is **"Účet"** (renamed from "Kto"; shows `actor_email`).
 - Filters: **Od/Do date pickers** (the shared `DateField` — same shadcn `Calendar` popover
   as the calendar/Výnimky, for app-wide consistency), action select, entity-type select,
-  optional order id (deep-link from an order detail "história zmien" link).
+  an **Účet select** (filters by `actor_staff_id`; the page fetches `listStaff()` and passes
+  the accounts, `getAuditLog` takes `actorStaffId?`), and optional order id (deep-link from an
+  order detail "história zmien" link).
 - Action codes → Slovak labels via a small map (`order.status_change` → "Zmena stavu",
   `order.note_edit` → "Úprava poznámky", `order.assign`/`unassign` → "Priradenie/
-  odobratie pracovníka", `order.delete` → "Vymazanie objednávky", `staff.*`, `service.*`,
-  `settings.*`, `sms.resend`, …). **Labels are unique** so the Akcia/Objekt filter dropdowns
+  odobratie pracovníka", `order.delete` → "Zrušenie objednávky", `staff.*`, `service.*`
+  (incl. `service.activate`/`service.deactivate`), `settings.*`, `sms.resend`, …). The
+  `details` summaries are in `summarizeDetails` (e.g. `order.delete` → "Stav pred zrušením:
+  {stav}", not the old confusing "Predtým: …"). **Labels are unique** so the Akcia/Objekt
+  filter dropdowns
   show no duplicates: `staff.*` (login accounts) use **"…účtu"** / entity **"Účet"**, while
   `worker.*` use **"…zamestnanca"** / entity **"Zamestnanec"** (Účty vs Zamestnanci, spec 11).
 - shadcn/ui: `Table`, `DateRangePicker`/`Calendar`, `Select`, `Badge`, pagination.

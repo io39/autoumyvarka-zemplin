@@ -16,6 +16,7 @@ export const getAuditLogSchema = z.object({
     .optional(),
   actions: z.array(z.string().min(1).max(64)).max(40).optional(),
   entityType: z.string().min(1).max(64).optional(),
+  actorStaffId: z.string().uuid("Neplatný identifikátor.").optional(),
   orderId: z.string().uuid("Neplatný identifikátor.").optional(),
   cursor: z.string().max(512).optional(),
   limit: z.number().int().min(1).max(100).optional(),
