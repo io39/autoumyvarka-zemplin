@@ -67,10 +67,17 @@ the 403 view; the read action also asserts `requireManager()`.
   **"Otvoriť objednávku →"** link only when the order still exists.
 - The actor column header is **"Účet"** (renamed from "Kto"; shows `actor_email`).
 - Filters: **Od/Do date pickers** (the shared `DateField` — same shadcn `Calendar` popover
-  as the calendar/Výnimky, for app-wide consistency), action select, entity-type select,
-  an **Účet select** (filters by `actor_staff_id`; the page fetches `listStaff()` and passes
-  the accounts, `getAuditLog` takes `actorStaffId?`), and optional order id (deep-link from an
-  order detail "história zmien" link).
+  as the calendar/Výnimky, for app-wide consistency), an **Účet select** (filters by
+  `actor_staff_id`; the page fetches `listStaff()` and passes the accounts, `getAuditLog`
+  takes `actorStaffId?`), an action select, an entity-type select, and optional order id
+  (deep-link from an order detail "história zmien" link).
+- **Layout (desktop ≥sm):** the filters sit in a **bar above the table, column-aligned** —
+  Čas (Od + Do stacked) · Účet · Akcia · Objekt — by sharing **one horizontal-scroll
+  container** with **fixed column widths** (`table-fixed`, matching `w-*` on the bar slots and
+  the `TableHead`s; `px-6` cell/slot padding) so the bar and the columns stay lined up and
+  scroll together. A single **"Vymazať filtre"** button (shown when any filter is active).
+  **Mobile (<sm):** a stacked filter block with distinct `-m` ids (the desktop ids `#from`/
+  `#to`/`#account`/`#action`/`#entity` are what the e2e drives), above the stacked cards.
 - Action codes → Slovak labels via a small map (`order.status_change` → "Zmena stavu",
   `order.note_edit` → "Úprava poznámky", `order.assign`/`unassign` → "Priradenie/
   odobratie pracovníka", `order.delete` → "Zrušenie objednávky", `staff.*`, `service.*`

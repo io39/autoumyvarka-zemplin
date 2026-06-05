@@ -269,9 +269,9 @@ export function AuditView({
           one horizontal-scroll container with the same fixed column widths so the
           filters stay above their columns. The e2e drives the desktop ids. */}
       <div className="hidden overflow-x-auto sm:block">
-        <div className="min-w-[60rem] space-y-2">
+        <div className="min-w-[84rem] space-y-2">
           <div className="flex items-start">
-            <div className="w-44 shrink-0 space-y-1 px-2">
+            <div className="w-56 shrink-0 space-y-1 px-6">
               <DateField
                 id="from"
                 value={filters.from}
@@ -283,7 +283,7 @@ export function AuditView({
                 onChange={(v) => applyFilters({ ...filters, to: v })}
               />
             </div>
-            <div className="w-56 shrink-0 px-2">
+            <div className="w-72 shrink-0 px-6">
               <Select
                 value={filters.account}
                 onValueChange={(v) => applyFilters({ ...filters, account: v })}
@@ -301,7 +301,7 @@ export function AuditView({
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-52 shrink-0 px-2">
+            <div className="w-64 shrink-0 px-6">
               <Select
                 value={filters.action}
                 onValueChange={(v) => applyFilters({ ...filters, action: v })}
@@ -319,7 +319,7 @@ export function AuditView({
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-40 shrink-0 px-2">
+            <div className="w-52 shrink-0 px-6">
               <Select
                 value={filters.entityType}
                 onValueChange={(v) => applyFilters({ ...filters, entityType: v })}
@@ -340,13 +340,13 @@ export function AuditView({
           </div>
 
           <div className="rounded-lg border" data-section="audit">
-            <Table className="table-fixed">
+            <Table className="table-fixed [&_td]:px-6 [&_th]:px-6">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-44">Čas</TableHead>
-                  <TableHead className="w-56">Účet</TableHead>
-                  <TableHead className="w-52">Akcia</TableHead>
-                  <TableHead className="w-40">Objekt</TableHead>
+                  <TableHead className="w-56">Čas</TableHead>
+                  <TableHead className="w-72">Účet</TableHead>
+                  <TableHead className="w-64">Akcia</TableHead>
+                  <TableHead className="w-52">Objekt</TableHead>
                   <TableHead>Detail</TableHead>
                 </TableRow>
               </TableHeader>
