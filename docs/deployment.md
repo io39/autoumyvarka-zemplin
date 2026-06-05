@@ -74,8 +74,17 @@ Dashboard → Database → Extensions, enable:
 Run from **your own terminal** (CLI push is hook-blocked inside Claude Code sessions):
 ```bash
 pnpm supabase link --project-ref <project-ref>
-pnpm supabase db push        # applies supabase/migrations/0001 .. 0009
+pnpm supabase db push        # applies all checked-in supabase/migrations/* not yet on Cloud
 ```
+`db push` applies only migrations the linked project hasn't seen yet — re-running it after a
+new migration lands is the normal deploy step (never `db reset --linked`).
+
+> **Redeploy checklist (on every release that adds a migration):** push code to GitHub
+> `main` **and** `supabase db push` the new migration to Cloud, **before/with** the Coolify
+> redeploy — new app code that references a not-yet-applied column errors until the migration
+> runs. Most recent: **`0013_client_soft_delete.sql`** (adds `clients.deleted_at` + recreates
+> `search_clients`; the client soft-delete/Odstrániť feature needs it). Additive + safe (new
+> nullable column, `create or replace function`) — no data loss, no downtime.
 
 ### 2.4 Seed reference data  ⚠️ gotcha
 `supabase/seed.sql` is **only** run by local `supabase db reset` — it is **not** run

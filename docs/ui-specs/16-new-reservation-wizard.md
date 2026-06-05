@@ -239,11 +239,15 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
 - **Final label:** "Uložiť zmeny" (not "Vytvoriť rezerváciu"); on success → **redirect to
   the calendar** at the (possibly new) date (`/?date=…`) + toast, **not** back to the order
   detail — so the updated slot is immediately visible in its schedule context.
-- **Submit runs outside the `useTransition`** (a manual `submitting` flag drives the button
-  pending state). A `router.push` that follows the server actions **inside** a transition can
-  be dropped when their `revalidatePath` re-renders the current route — the intermittent
-  "stays on step 4, no redirect" (a second save then works). Same for create. Step navigation
-  (Step 0→1, Auto add) keeps the transition.
+- **Reliable post-save redirect.** Submit runs **outside the `useTransition`** (a manual
+  `submitting` flag drives the button pending state) — a `router.push` after the server
+  actions inside a transition can be dropped when their `revalidatePath` re-renders the
+  current route. **Critically, no `setState` runs after the success `router.push`**: the
+  earlier symptom (success toast shows, but the page stays on the edit step) was a
+  `finally { setSubmitting(false) }` firing a state update immediately after the push, which
+  **cancels the navigation**. `submitting` is therefore reset **only on the paths that stay
+  on the page** (failures / create-error); on success the wizard navigates and unmounts, no
+  trailing setState. Same for create. Step navigation (Step 0→1, Auto add) keeps the transition.
 - **Repoint spec 15:** replace `ChangeTimeDialog` wiring with a link/navigation to this
   edit entry. (This is why spec 16 depends on spec 15.)
 
