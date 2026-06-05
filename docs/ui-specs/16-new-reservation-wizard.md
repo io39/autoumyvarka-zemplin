@@ -142,11 +142,11 @@ picker whose header mirrors the calendar (§4).
   `addonGroup(name)` helper (`lib/orders/booking.ts`, name-prefix heuristic; unknown →
   Ostatné; unit-tested).
 - Running summary: **Σ min** and **Σ €** via `resolveServicePrice`. The optional **manual
-  duration override** ("Trvanie (min)", `#override`) is available in **both create and edit**:
-  it sets the effective duration (→ step-4 slot length) and, on save, is persisted
-  (`createOrder.durationOverrideMin` on create; `moveOrder.durationMin` on edit). In edit it
-  is **prefilled** with the order's current duration when that was a manual override (≠ the
-  service-derived sum), so saving untouched keeps the duration.
+  duration override** ("Trvanie (min)", `#override`) is available in **both create and edit**
+  and **starts empty** in both — so the duration tracks the **live service sum** (adding /
+  removing a service updates Σ min and the step-4 slot length). Only when a positive value is
+  typed does it override the sum. On save it's persisted (`createOrder.durationOverrideMin`
+  on create; `moveOrder.durationMin` on edit, when the effective duration changed).
 - **Poznámka (voliteľné)** textarea at the bottom (`data-order-note`) → wizard `note` state.
 
 ### 2.5 Step 4 — Termín (`Step4TimeSlot`) — the new part
@@ -223,8 +223,9 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
   `BookingWizard` with `mode: 'edit'` + the prefilled state.
 - **Prefill + start step:** client (step 1) and car (step 2) are prefilled and **locked**
   (the order's client/car don't change here); the wizard **opens on step 3 (Služby)** so the
-  manager can adjust services **and the manual "Trvanie" duration** (prefilled when overridden
-  — §2.4), then **step 4 (Termín)** to pick a new slot. Steps 1–2 are visible but locked.
+  manager can adjust services **and the manual "Trvanie" duration** (empty by default — the
+  duration tracks the live service sum, §2.4), then **step 4 (Termín)** to pick a new slot.
+  Steps 1–2 are visible but locked.
 - **Apply on finish** (not `createOrder`): persist the diff against the existing order using
   the **existing actions** — `addOrderService`/`removeOrderService` for the service changes,
   `moveOrder({ id, box, startsAt, durationMin? })` for the new slot **and the duration

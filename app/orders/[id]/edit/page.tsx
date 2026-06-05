@@ -8,7 +8,6 @@ import { getOrder } from "@/lib/actions/orders";
 import { listServices } from "@/lib/actions/services";
 import { getOpeningHours } from "@/lib/actions/settings";
 import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
-import { resolveSelectionLines, totalDurationMin } from "@/lib/orders/booking";
 import { BookingWizard } from "@/components/orders/wizard/BookingWizard";
 import type { PickedSlot } from "@/components/orders/wizard/types";
 
@@ -56,14 +55,6 @@ export default async function EditOrderPage({
     localStart: bratislavaHHMM(start),
   };
 
-  // Prefill the manual "Trvanie" override only when the order's duration differs
-  // from the service-derived baseline (i.e. it really was overridden), so saving
-  // without touching it keeps the duration as-is rather than reverting to the sum.
-  const baselineDuration = totalDurationMin(
-    resolveSelectionLines(selections, services, car.pricing_category),
-  );
-  const overrideMin = order.duration_min !== baselineDuration ? String(order.duration_min) : "";
-
   return (
     <div className="space-y-4">
       <header className="mx-auto max-w-4xl space-y-1">
@@ -86,7 +77,6 @@ export default async function EditOrderPage({
           sharedCarIds: [],
           carId: car.id,
           selections,
-          overrideMin,
           date: currentSlot.dateKey,
           picked: currentSlot,
           note: order.note,
