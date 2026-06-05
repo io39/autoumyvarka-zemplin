@@ -29,16 +29,19 @@ actions.
 3. Keep the **full `/orders/[id]` page** (opened from client history, spec 17) rendering
    the same cards.
 4. **Card order:** Stav badge + meta (Box · čas · dátum) → Akcie (manager: Zmeniť čas left /
-   Zmazať right) → **Klient + Auto side by side** (`sm:grid-cols-2`, stacked on mobile) →
-   **História klienta** → Poznámka → Pracovníci → Služby → SMS → bottom status actions
+   Zmazať right) → **Klient + Auto side by side** (`grid-cols-2` at every width) →
+   **História auta** → Poznámka → Pracovníci → Služby → SMS → bottom status actions
    (Stav, + Nedostavil sa manager).
 5. Feed the Sheet via a single **client-callable bundle action** returning everything the
    cards need (`getOrderDetailBundle` — detail + workers + services + SMS + `recentVisits`).
-6. **História klienta box:** the client's **last 3 other visits** (newest-first, excludes the
-   current order + cancelled), via the lightweight `getRecentClientVisits({ clientId,
-   excludeOrderId, limit })` action — each row (dátum · auto · služby · stav) **links to that
-   order**; a **"Celá história →"** link opens `/clients?id=`. Empty state "Žiadne predošlé
-   návštevy." Read-only, both roles.
+6. **História auta box:** the **car's last 3 other visits** (newest-first, excludes the
+   current order + cancelled), via the lightweight `getRecentCarVisits({ carId,
+   excludeOrderId, limit })` action — **scoped by `car_id`, not the client**, so a car shared by
+   several clients shows every past visit on the vehicle (what matters here is the car's history,
+   not one owner's). Each row (dátum · služby · stav) **links to that order**; a
+   **"Celá história →"** link opens the current client's `/clients?id=` (where the full per-car
+   history lives). Empty state "Žiadne predošlé návštevy." Read-only, both roles.
+   `data-section="car-history"`.
 
 ### 1.2 User stories (UI-STRUCTURE §7)
 
@@ -70,7 +73,7 @@ Move each existing inline section into `components/orders/sections/`, props-only
 | --- | --- | --- |
 | `BookingStatusBadge` | header `Badge` | — |
 | `BookingStatusActions` | "Stav" section buttons | advance: all; Nedostavil sa: manager |
-| `BookingClientCard` | Klient block: name + phone + warning flags (ClientFlagBadges, spec 10); history lives in the História klienta box | — |
+| `BookingClientCard` | Klient block: name + phone + warning flags (ClientFlagBadges, spec 10); the vehicle's visits live in the História auta box | — |
 | `BookingCarCard` | Auto block | — |
 | `BookingServicesList` | `ServicesSection` | add/remove/paid: manager |
 | `BookingWorkerCard` | `WorkersSection` | add/remove: all roles |
@@ -114,14 +117,14 @@ Spacing/readability: sections use `space-y-5`, each card `p-4`, with section lab
   whole screen. The mobile bottom sheet keeps `max-h-[90dvh]`.
 - Opened from `BookingBlock` (calendar): the block becomes a button that sets the selected
   order id and opens the Sheet (replacing the spec-14 `Link`). The **full page** stays the
-  client-history entry point.
+  full-history entry point.
 
 ### 2.4 Data — one client-callable bundle action
 
 The page loads `getOrder` + worker list + `listServices` + `getOrderSms` server-side. Add
 **`getOrderDetailBundle({ id })`** in `lib/actions/orders.ts` returning
 `{ detail, allWorkers, services, sms, recentVisits, clientFlags }` (composing the existing
-reads + `getRecentClientVisits` + `getClientFlags`), callable from the Sheet on open. The `/orders/[id]` page may switch to it too (single source). Role comes
+reads + `getRecentCarVisits` + `getClientFlags`), callable from the Sheet on open. The `/orders/[id]` page may switch to it too (single source). Role comes
 from the calendar's existing `role` prop (no extra fetch).
 
 ### 2.5 "Zmeniť čas" — interim move, upgraded by spec 16

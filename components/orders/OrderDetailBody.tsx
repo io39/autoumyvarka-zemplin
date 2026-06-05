@@ -26,7 +26,7 @@ import { BookingStatusBadge } from "./sections/BookingStatusBadge";
 import { BookingStatusActions } from "./sections/BookingStatusActions";
 import { BookingClientCard } from "./sections/BookingClientCard";
 import { BookingCarCard } from "./sections/BookingCarCard";
-import { BookingClientHistoryCard } from "./sections/BookingClientHistoryCard";
+import { BookingCarHistoryCard } from "./sections/BookingCarHistoryCard";
 import { BookingServicesList } from "./sections/BookingServicesList";
 import { BookingWorkerCard } from "./sections/BookingWorkerCard";
 import { BookingNotes } from "./sections/BookingNotes";
@@ -115,14 +115,14 @@ export function OrderDetailBody({
         </section>
       )}
 
-      {/* Klient + Auto, side by side (stacked on the narrow mobile sheet) */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* Klient + Auto, side by side on every width (incl. the mobile sheet) */}
+      <div className="grid grid-cols-2 gap-3">
         <BookingClientCard client={client} flags={clientFlags} />
         <BookingCarCard car={car} />
       </div>
 
-      {/* História klienta — last few visits, each links to its order */}
-      <BookingClientHistoryCard clientId={client.id} visits={recentVisits} />
+      {/* História auta — the car's last few visits, each links to its order */}
+      <BookingCarHistoryCard clientId={client.id} visits={recentVisits} />
 
       {/* Poznámka — prominent (PRD §7); workers read-only */}
       <BookingNotes

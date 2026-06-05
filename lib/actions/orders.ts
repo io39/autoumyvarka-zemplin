@@ -462,12 +462,15 @@ export interface RecentVisit {
 }
 
 /**
- * The client's most recent other orders (lightweight — for the order-detail
- * "História klienta" box). Newest-first, excludes the current order and
- * cancelled (soft-deleted) ones. Both roles; gated on an active staff identity.
+ * The car's most recent other orders (lightweight — for the order-detail
+ * "História auta" box). Scoped by `car_id`, **not** client, so a car shared by
+ * several clients shows every past visit on the car (what matters at the box is
+ * the vehicle's history, not one owner's). Newest-first, excludes the current
+ * order and cancelled (soft-deleted) ones. Both roles; gated on an active staff
+ * identity.
  */
-export async function getRecentClientVisits(input: {
-  clientId: string;
+export async function getRecentCarVisits(input: {
+  carId: string;
   excludeOrderId: string;
   limit?: number;
 }): Promise<RecentVisit[]> {
@@ -479,7 +482,7 @@ export async function getRecentClientVisits(input: {
     .select(
       "id, starts_at, status, car:car_id(spz, brand, model), services:order_services(name_snapshot, removed_at)",
     )
-    .eq("client_id", input.clientId)
+    .eq("car_id", input.carId)
     .is("deleted_at", null)
     .neq("id", input.excludeOrderId)
     .order("starts_at", { ascending: false })
@@ -551,7 +554,7 @@ export async function getOrderDetailBundle(input: unknown): Promise<OrderDetailB
         .order("display_name"),
       listServices({ includeInactive: false }),
       getOrderSms({ orderId: id }),
-      getRecentClientVisits({ clientId: detail.client.id, excludeOrderId: id, limit: 3 }),
+      getRecentCarVisits({ carId: detail.car.id, excludeOrderId: id, limit: 3 }),
       getClientFlags({ clientId: detail.client.id }),
     ]);
   if (workerErr) throw workerErr;

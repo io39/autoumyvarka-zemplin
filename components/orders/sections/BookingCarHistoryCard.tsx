@@ -5,10 +5,12 @@ import { STATE_COLOR, STATE_LABEL } from "@/types";
 import { Badge } from "@/components/ui/badge";
 
 /**
- * História klienta — the client's last few other visits (newest-first), each
- * row links to that order; a "Celá história →" link opens the full client page.
+ * História auta — the car's last few other visits (newest-first, scoped by the
+ * car, not the client), so a car shared by several clients still shows what was
+ * done on it in the past. Each row links to that order; a "Celá história →" link
+ * opens the current client's page (where the full per-car history lives).
  */
-export function BookingClientHistoryCard({
+export function BookingCarHistoryCard({
   clientId,
   visits,
 }: {
@@ -16,9 +18,9 @@ export function BookingClientHistoryCard({
   visits: RecentVisit[];
 }) {
   return (
-    <section className="rounded-lg border p-4 text-sm" data-section="client-history">
+    <section className="rounded-lg border p-4 text-sm" data-section="car-history">
       <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-        História klienta
+        História auta
       </div>
 
       {visits.length === 0 ? (
@@ -36,7 +38,6 @@ export function BookingClientHistoryCard({
                 >
                   <span className="min-w-0">
                     <span className="font-medium">{bratislavaDateDisplay(new Date(v.startsAt))}</span>
-                    {v.carLabel && <span className="text-muted-foreground"> · {v.carLabel}</span>}
                     {v.serviceNames.length > 0 && (
                       <span className="text-muted-foreground"> · {v.serviceNames.join(", ")}</span>
                     )}

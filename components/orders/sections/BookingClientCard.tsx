@@ -2,8 +2,8 @@ import type { ClientRow } from "@/lib/supabase/types";
 import type { ClientFlags } from "@/lib/orders/unpaid";
 import { ClientFlagBadges } from "@/components/clients/client-flag-badges";
 
-/** Klient block — name + phone + warning flags (UI-STRUCTURE §7 #4). Client
- *  history lives in its own "História klienta" box below. */
+/** Klient block — name + phone + warning flags (UI-STRUCTURE §7 #4). The
+ *  vehicle's past visits live in their own "História auta" box below. */
 export function BookingClientCard({ client, flags }: { client: ClientRow; flags: ClientFlags }) {
   return (
     <section className="rounded-lg border p-4 text-sm" data-section="client">
