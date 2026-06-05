@@ -82,7 +82,11 @@ picker whose header mirrors the calendar (§4).
   durationOverride?, view: 'day'|'3day', date, pickedSlot }` and the current step.
 - `BookingStepper` — 4 labelled steps (Klient · Auto · Služby · Termín), current/done
   states, with an optional **subtitle** per step (client name under Klient, car brand under
-  Auto). `WizardActions` — **Späť** / **Ďalej** (disabled until the step is valid) and, on
+  Auto). **Responsive layout:** a **2×2 grid on mobile** (`grid grid-cols-2` — Klient/Auto on
+  the top row, Služby/Termín on the bottom — so the steps don't overflow a 360px screen, with
+  each step's content centred in its cell and the `›` separators hidden), reverting to the
+  single horizontal **row on `sm:+`** (`sm:flex`, left-aligned, `›` separators shown).
+  `WizardActions` — **Späť** / **Ďalej** (disabled until the step is valid) and, on
   step 4, **"Vytvoriť rezerváciu"**.
 - Wizard state also carries `note` (the order note, shared by create + edit).
 - **Client warning flags:** once a client is selected (or prefilled/edit), the wizard fetches
@@ -140,8 +144,15 @@ picker whose header mirrors the calendar (§4).
 
 ### 2.5 Step 4 — Termín (`Step4TimeSlot`) — the new part
 
-- **Header mirrors §4:** Deň / **3 dni** switch; the **shared Calendar popover** date
-  control + ◀ ▶; **Dnes / Späť na dnes**; today highlighted (gray) in the day blocks.
+- **Header mirrors §4 (`DateControl`):** Deň / **3 dni** switch; the **shared Calendar
+  popover** date control + ◀ ▶; **Dnes / Späť na dnes**; today highlighted (gray) in the day
+  blocks. **Layout:** stacked on mobile (switch on top, then a full-width row with the date
+  on the left and DNES/Späť na dnes on the right); on desktop a **3-column grid** — switch
+  **left**, the date + today-state centred together in the **middle**, the **right column
+  empty**. The date label is **view-dependent**, reusing the §14 helpers: **Deň** shows the
+  Slovak weekday prefix (`skWeekdayShort` + `formatDMY`, e.g. `Po. 01.06.2026`); **3 dni**
+  shows the collapsed 3-day range (`formatWeekRange(date, date+2)`, e.g. `01 – 03.06.2026`,
+  widening across month/year boundaries).
 - **Quick slots:** call `suggestSlots({ date, durationMin })` → nearest free slots **per
   box** as one-tap buttons; picking one sets `pickedSlot = { box, localStart }`.
 - **Full picker:** for each visible day × box, render free ranges computed from existing
@@ -155,11 +166,14 @@ picker whose header mirrors the calendar (§4).
   shrinks to `minmax(0,1fr)` on desktop (`useMediaQuery`) so it fits without horizontal
   scroll; each box column has a header row showing `Box N` + the reservation count. The
   occupied-booking **line** cards use a slightly larger **13px** font (`text-[13px]`) for
-  legibility in the wider grid. In **3 dni**, the first box column of each subsequent day
-  carries a **divider centered in the gutter** (a `::before` placed half a `gap-x` into the
-  gap, on the box-header, quick-slot, and grid-column cells — the grid columns are
-  `overflow-hidden`, so the divider lives on a wrapper) so the two boxes of one day stay
-  grouped and adjacent days are easy to tell apart.
+  legibility in the wider grid. **Gutter dividers** (a `::before` **rounded bar**,
+  `before:w-1.5 before:rounded-lg before:bg-foreground/30`, centred in the `gap-x-2` gutter —
+  the same look as the main calendar) mark every inter-column boundary except the axis edge
+  (`hasDivider = box === 2 || isDayStart`): one **between Box 1 and Box 2** of each day, and —
+  in **3 dni** — one at the **start of each subsequent day**. They're applied to the
+  box-header, quick-slot, and grid-column cells (the grid columns are `overflow-hidden`, so
+  the divider lives on a wrapper) so the two boxes of one day stay grouped and adjacent days
+  are easy to tell apart.
 - **Past cutoff (`lib/orders/slot-grid.ts earliestStartToday`):** for **today**, the earliest
   selectable start is the **start of the slot containing now** — the slot the clock is in
   stays bookable, and a slot closes only once the clock crosses into the next one (at 11:05

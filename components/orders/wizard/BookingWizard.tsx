@@ -125,7 +125,9 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
       setClient(data.client);
       setCars(data.cars);
       setSharedCarIds(data.sharedCarIds);
-      setCarId(null);
+      // If the client owns exactly one car, pre-select it so the user can move
+      // straight on from the Auto step.
+      setCarId(data.cars.length === 1 ? data.cars[0].id : null);
       goTo(1);
     });
   }

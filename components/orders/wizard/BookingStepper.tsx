@@ -20,7 +20,11 @@ export function BookingStepper({
   subtitles?: (string | null | undefined)[];
 }) {
   return (
-    <ol className="flex items-center gap-1" data-stepper aria-label="Postup rezervácie">
+    <ol
+      className="grid grid-cols-2 gap-1 sm:flex sm:items-center"
+      data-stepper
+      aria-label="Postup rezervácie"
+    >
       {WIZARD_STEPS.map((label, i) => {
         const done = i < current;
         const active = i === current;
@@ -35,7 +39,7 @@ export function BookingStepper({
               data-step={i}
               data-active={active || undefined}
               className={cn(
-                "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                "flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors sm:justify-start",
                 active && "bg-accent font-medium text-accent-foreground",
                 !active && reachable && "text-muted-foreground hover:bg-accent/60",
                 !reachable && "text-muted-foreground/50",
@@ -59,7 +63,9 @@ export function BookingStepper({
                 )}
               </span>
             </button>
-            {i < WIZARD_STEPS.length - 1 && <span className="text-muted-foreground/40">›</span>}
+            {i < WIZARD_STEPS.length - 1 && (
+              <span className="hidden text-muted-foreground/40 sm:inline">›</span>
+            )}
           </li>
         );
       })}

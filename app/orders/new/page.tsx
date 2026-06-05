@@ -38,7 +38,13 @@ export default async function NewOrderPage({
       client = data.client;
       cars = data.cars;
       sharedCarIds = data.sharedCarIds;
-      carId = params.carId && data.cars.some((c) => c.id === params.carId) ? params.carId : null;
+      // Honor an explicit ?carId=, else pre-select when the client has one car.
+      carId =
+        params.carId && data.cars.some((c) => c.id === params.carId)
+          ? params.carId
+          : data.cars.length === 1
+            ? data.cars[0].id
+            : null;
       step = 1;
     }
   }

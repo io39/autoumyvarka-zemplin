@@ -7,7 +7,16 @@ import { getCalendar, type CalendarBlock } from "@/lib/actions/orders";
 import { getDayOverrides } from "@/lib/actions/settings";
 import type { DayOverrideRow, OpeningHoursRow } from "@/lib/supabase/types";
 import { getOpenInterval, bratislavaHHMM } from "@/lib/settings/availability";
-import { ROW_PX, SLOT_MIN, addDays, buildRows, formatDMY, pad } from "@/lib/calendar/grid";
+import {
+  ROW_PX,
+  SLOT_MIN,
+  addDays,
+  buildRows,
+  formatDMY,
+  formatWeekRange,
+  pad,
+  skWeekdayShort,
+} from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import {
   computeFreeZones,
@@ -157,7 +166,14 @@ export function Step4TimeSlot({
   }, [days, data]);
 
   const rows = useMemo(() => buildRows(minToHHMM(grid.openMin), minToHHMM(grid.closeMin)), [grid]);
-  const now = new Date();
+  // Ticking clock so the current-time line slides and the past cutoff advances.
+  // Step 4 is only mounted after the user navigates to it (never at SSR), so a
+  // plain `new Date()` initializer is safe (no hydration mismatch).
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
   const nowMin = hhmmToMin(bratislavaHHMM(now));
   const todayK = todayKey(now);
   // Earliest start still bookable today: the slot the clock is currently in is
@@ -169,14 +185,16 @@ export function Step4TimeSlot({
     () => days.flatMap((day) => [{ day, box: 1 as const }, { day, box: 2 as const }]),
     [days],
   );
-  // In the 3-day view, the first box column of each subsequent day starts a new
-  // day — mark it with a thin divider centered in the gutter (a ::before placed
-  // half a gap-width into the gap) so adjacent days are easy to tell apart while
-  // the two boxes of one day stay visually grouped. `gap-x-2` = 8px → 4px in.
+  // Thin divider centered in the gutter (a ::before placed half a gap-width into
+  // the gap), matching the main calendar. `gap-x-2` = 8px → 4px in. It marks two
+  // boundaries: between the two boxes of one day (box 2), and the start of each
+  // new day in the 3-day view (box 1 of a subsequent day).
   const DAY_DIVIDER =
-    "relative before:pointer-events-none before:absolute before:inset-y-0 before:left-[-4px] before:w-px before:bg-foreground/30 before:content-['']";
+    "relative before:pointer-events-none before:absolute before:inset-y-3 before:left-[-7px] before:w-1.5 before:rounded-lg before:bg-foreground/30 before:content-['']";
   const isDayStart = (day: string, box: 1 | 2) =>
     view !== "day" && box === 1 && day !== days[0];
+  // Every inter-column gutter gets a divider except the axis | first-box edge.
+  const hasDivider = (day: string, box: 1 | 2) => box === 2 || isDayStart(day, box);
   // Deň fills the width (2 boxes). 3 dni gives each of the 6 box-columns a wide
   // tap-friendly minimum on mobile (the grid side-scrolls there); on desktop the
   // columns shrink to fit the container so there is no horizontal scroll.
@@ -199,7 +217,7 @@ export function Step4TimeSlot({
       ) : (
         <div className="overflow-x-auto">
           <div
-            className="grid min-w-[420px] gap-x-2 gap-y-1"
+            className="relative grid min-w-[420px] gap-x-2 gap-y-1"
             style={{ gridTemplateColumns: colTemplate }}
           >
             {/* Day-header row (3-day only) */}
@@ -231,7 +249,7 @@ export function Step4TimeSlot({
                   key={`bh-${day}-${box}`}
                   className={cn(
                     "flex items-baseline justify-between gap-1 border-b pb-1",
-                    isDayStart(day, box) && DAY_DIVIDER,
+                    hasDivider(day, box) && DAY_DIVIDER,
                   )}
                 >
                   <span className="text-sm font-semibold">Box {box}</span>
@@ -270,7 +288,7 @@ export function Step4TimeSlot({
               return (
                 <div
                   key={`q-${day}-${box}`}
-                  className={cn("space-y-1", isDayStart(day, box) && DAY_DIVIDER)}
+                  className={cn("space-y-1", hasDivider(day, box) && DAY_DIVIDER)}
                 >
                   <div className="flex flex-wrap gap-1.5">
                     {quick.length === 0 ? (
@@ -328,7 +346,7 @@ export function Step4TimeSlot({
               );
               // The grid column is overflow-hidden, which would clip the gutter
               // divider, so wrap it: the divider ::before lives on the wrapper.
-              return isDayStart(day, box) ? (
+              return hasDivider(day, box) ? (
                 <div key={`g-${day}-${box}`} className={DAY_DIVIDER}>
                   {column}
                 </div>
@@ -336,6 +354,40 @@ export function Step4TimeSlot({
                 <div key={`g-${day}-${box}`}>{column}</div>
               );
             })}
+
+            {/* Current-time line — a single black marker spanning today's two
+                box columns (including the gutter), sliding with the clock, just
+                like the main calendar. Absolutely positioned so it overlays the
+                grid area without reserving cells (which would bump the columns). */}
+            {(() => {
+              const todayIdx = days.indexOf(todayK);
+              if (todayIdx < 0) return null;
+              if (nowMin < grid.openMin || nowMin > grid.openMin + rows.length * SLOT_MIN) return null;
+              const startCol = 2 + todayIdx * 2; // axis is col 1; 2 cols per day
+              const gridRow = view === "day" ? 3 : 4;
+              const top = ((nowMin - grid.openMin) / SLOT_MIN) * ROW_PX;
+              return (
+                <>
+                  {/* Time badge over the axis column (col 1). */}
+                  <div
+                    className="pointer-events-none absolute inset-x-0 z-20 flex -translate-y-1/2 justify-end pr-1"
+                    style={{ gridColumn: "1 / 2", gridRow, top }}
+                  >
+                    <span className="rounded bg-foreground px-1 text-[10px] font-semibold leading-tight text-background tabular-nums">
+                      {minToHHMM(nowMin)}
+                    </span>
+                  </div>
+                  {/* Line across today's two box columns. */}
+                  <div
+                    className="pointer-events-none absolute inset-x-0 z-20 flex -translate-y-1/2 items-center"
+                    style={{ gridColumn: `${startCol} / ${startCol + 2}`, gridRow, top }}
+                  >
+                    <span className="-ml-0.5 size-1.5 shrink-0 rounded-full bg-foreground" />
+                    <span className="h-px flex-1 bg-foreground" />
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -404,8 +456,12 @@ function GridColumn({
   // Past day → whole day closed (cutoff = close); today → after the current
   // 15-min slot; future day → from open.
   const fromMin = isPast ? dayCloseMin : isToday ? Math.max(dayOpenMin, todayCutoff) : dayOpenMin;
-  // No free (VOĽNÉ) zones on a past day — nothing there is bookable.
-  const freeZones = dayInterval && !isPast ? computeFreeZones(dayOpenMin, dayCloseMin, busy) : [];
+  // No free (VOĽNÉ) zones on a past day — nothing there is bookable. On today,
+  // clip each zone to start at `fromMin` so the green never renders under the
+  // MINULOSŤ (past) overlay — only the gray shows there (no confusing overlap).
+  const freeZones = (dayInterval && !isPast ? computeFreeZones(dayOpenMin, dayCloseMin, busy) : [])
+    .map((z) => ({ startMin: Math.max(z.startMin, fromMin), endMin: z.endMin }))
+    .filter((z) => z.endMin > z.startMin);
 
   const top = (min: number) => ((min - gridOpenMin) / SLOT_MIN) * ROW_PX;
   const span = (a: number, b: number) => Math.max(ROW_PX, ((b - a) / SLOT_MIN) * ROW_PX);
@@ -582,8 +638,11 @@ function DateControl({
   const step = view === "day" ? 1 : 3;
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="inline-flex rounded-md border">
+    // Mobile: switch on top, then a full-width row (date left, DNES right).
+    // Desktop: 3 columns — switch left, date+today centered, right empty —
+    // mirroring the main calendar controls row.
+    <div className="flex flex-col items-center gap-2 md:grid md:grid-cols-3 md:items-center md:gap-1 md:mx-13">
+      <div className="inline-flex rounded-md border md:justify-self-start">
         <Button
           size="sm"
           variant={view === "day" ? "default" : "ghost"}
@@ -602,47 +661,52 @@ function DateControl({
         </Button>
       </div>
 
-      <div className="flex items-center gap-1">
-        <Button size="icon" variant="ghost" aria-label="Predošlý" onClick={() => onDateChange(addDays(date, -step))}>
-          <ChevronLeft className="size-4" />
-        </Button>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" className="font-semibold" data-date-trigger>
-              {formatDMY(date)}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="center">
-            <Calendar
-              mode="single"
-              selected={keyToDate(date)}
-              defaultMonth={keyToDate(date)}
-              captionLayout="dropdown"
-              locale={sk}
-              weekStartsOn={1}
-              startMonth={new Date(2020, 0)}
-              endMonth={new Date(2035, 11)}
-              onSelect={(d) => {
-                if (!d) return;
-                setOpen(false);
-                onDateChange(dateToKey(d));
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-        <Button size="icon" variant="ghost" aria-label="Nasledujúci" onClick={() => onDateChange(addDays(date, step))}>
-          <ChevronRight className="size-4" />
-        </Button>
-      </div>
-
-      <div className="h-7">
-        {coversToday ? (
-          <span className="text-xs font-medium text-muted-foreground">DNES</span>
-        ) : (
-          <Button size="sm" variant="outline" onClick={() => onDateChange(todayKey(new Date()))}>
-            Späť na dnes
+      <div className="flex items-center justify-between gap-10 md:justify-center md:gap-1">
+        <div className="flex items-center gap-1">
+          <Button size="icon" variant="ghost" aria-label="Predošlý" onClick={() => onDateChange(addDays(date, -step))}>
+            <ChevronLeft className="size-4" />
           </Button>
-        )}
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" className="font-semibold" data-date-trigger>
+                {view === "day"
+                  ? `${skWeekdayShort(date)} ${formatDMY(date)}`
+                  : formatWeekRange(date, addDays(date, 2))}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <Calendar
+                mode="single"
+                selected={keyToDate(date)}
+                defaultMonth={keyToDate(date)}
+                captionLayout="dropdown"
+                locale={sk}
+                weekStartsOn={1}
+                startMonth={new Date(2020, 0)}
+                endMonth={new Date(2035, 11)}
+                onSelect={(d) => {
+                  if (!d) return;
+                  setOpen(false);
+                  onDateChange(dateToKey(d));
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+          <Button size="icon" variant="ghost" aria-label="Nasledujúci" onClick={() => onDateChange(addDays(date, step))}>
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+        <div className="flex items-center w-32 justify-center">
+          <div className="flex h-7 items-center">
+            {coversToday ? (
+              <span className="text-xs font-medium text-muted-foreground">DNES</span>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => onDateChange(todayKey(new Date()))}>
+                Späť na dnes
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
