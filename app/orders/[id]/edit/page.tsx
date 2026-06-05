@@ -13,9 +13,10 @@ import type { PickedSlot } from "@/components/orders/wizard/types";
 
 /**
  * "Zmeniť čas" edit surface (spec 16 §2.9, manager-only). Mounts the booking
- * wizard in edit mode: client/car prefilled + locked, opened on step 3 (Služby)
- * so the manager can adjust services and pick a new slot; finishing applies the
- * diff to this order (service add/remove + moveOrder) rather than creating one.
+ * wizard in edit mode: client/car prefilled + locked, opened on the Termín
+ * (time) step so the manager can immediately pick a new slot; Služby stays
+ * reachable for service edits. Finishing applies the diff to this order
+ * (service add/remove + moveOrder) rather than creating one.
  */
 export default async function EditOrderPage({
   params,
@@ -70,7 +71,7 @@ export default async function EditOrderPage({
         services={services}
         hours={hours}
         initial={{
-          step: 2,
+          step: 3,
           client,
           cars: [car],
           sharedCarIds: [],

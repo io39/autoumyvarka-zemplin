@@ -219,10 +219,10 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
   — loads the existing order (client, car, services, current box/slot) and mounts
   `BookingWizard` with `mode: 'edit'` + the prefilled state.
 - **Prefill + start step:** client (step 1) and car (step 2) are prefilled and **locked**
-  (the order's client/car don't change here); the wizard **opens on step 3 (Služby)** so
-  the manager can **add/remove services**, then **step 4 (Termín)** to pick a new slot via
-  the same quick-slots + interactive picker. Steps 1–2 are visible/back-navigable but not
-  the point.
+  (the order's client/car don't change here); the wizard **opens on step 4 (Termín)** —
+  the button is "Zmeniť čas", so the slot picker is front and centre — with the current
+  slot preselected. **Služby** stays back-navigable (via the stepper) for service edits, and
+  steps 1–2 are visible but locked.
 - **Apply on finish** (not `createOrder`): persist the diff against the existing order using
   the **existing actions** — `addOrderService`/`removeOrderService` for the service changes,
   `moveOrder({ id, box, startsAt })` for the new slot (spec 06), and `setNote` when the
@@ -305,8 +305,9 @@ grep -rn "return=/orders/new\|redirect(\"/clients" app/orders/new | wc -l
 ### 4.4 Edit mode — Zmeniť čas (e2e, must pass)
 
 - From an order's **Zmeniť čas** (manager): the wizard opens **prefilled** with that order's
-  client/car (locked) on **step 3**; the manager adds/removes a service and picks a new slot;
-  **"Uložiť zmeny"** applies the changes to the **same** order (no new order created) and
+  client/car (locked) on the **Termín step** (slot picker); the manager can step back to
+  Služby to add/remove a service, picks a new slot; **"Uložiť zmeny"** applies the changes to
+  the **same** order (no new order created) and
   **lands on the calendar** at the new date (`/?date=…`) — not back on the order detail.
 - Keeping the same time is **not** flagged as a conflict (own slot excluded).
 - prevádzka has no Zmeniť čas affordance (manager-only).

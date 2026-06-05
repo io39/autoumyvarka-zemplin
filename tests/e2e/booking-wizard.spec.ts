@@ -65,7 +65,7 @@ test.describe("booking wizard — create (manager)", () => {
 test.describe("booking wizard — edit mode / Zmeniť čas", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
 
-  test("Zmeniť čas opens prefilled on step 3; change a service + move slot saves", async ({
+  test("Zmeniť čas opens on the Termín step; change a service + move slot saves", async ({
     page,
   }) => {
     const o = await seedOrder();
@@ -81,9 +81,11 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
     await page.getByRole("link", { name: "Zmeniť čas" }).click();
     await expect(page).toHaveURL(new RegExp(`/orders/${o.orderId}/edit`));
 
-    // Opens on step 3 (Služby) with the existing service preselected.
-    await expect(page.locator('[data-step="services"]')).toBeVisible();
-    // Add another service.
+    // Opens directly on the Termín (time) step.
+    await expect(page.locator('[data-step="termin"]')).toBeVisible();
+
+    // Step back to Služby via the stepper and add another service.
+    await page.locator('[data-stepper] [data-step="2"]').click();
     const services = page.locator('[data-step="services"] label[data-service-id] input');
     const count = await services.count();
     for (let i = 0; i < count; i++) {
