@@ -45,7 +45,9 @@ Deleted and `nedostavil_sa` orders free their slot — keep that `where` clause.
 
 **Soft-delete, never hard-delete domain history.** Use `deleted_at timestamptz` (orders,
 order_services) or `active boolean` (staff, services). Preserve FK references for history
-integrity (PRD §9.1, §10).
+integrity (PRD §9.1, §10). **One documented exception:** a manager **client** delete is a
+permanent cascade (`delete_client_cascade`, migration `0014`) that erases the client + their
+orders/history + non-shared cars; the append-only `audit_log` is kept (spec 17 §2.6).
 
 **Money** as integer cents. **Timestamps** as `timestamptz`. **PKs** `uuid default
 gen_random_uuid()` unless a natural key fits (e.g. `opening_hours.day_of_week`).

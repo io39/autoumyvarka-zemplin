@@ -83,7 +83,8 @@ the 403 view; the read action also asserts `requireManager()`.
   odobratie pracovníka", `order.delete` → "Zrušenie objednávky", `staff.*`, `service.*`
   (incl. `service.activate`/`service.deactivate`), `settings.*`, `sms.resend`, …). The
   `details` summaries are in `summarizeDetails` (e.g. `order.delete` → "Stav pred zrušením:
-  {stav}", not the old confusing "Predtým: …"). **Labels are unique** so the Akcia/Objekt
+  {stav}", not the old confusing "Predtým: …"; `client.delete` → "Trvalo odstránený · {n} obj.,
+  {m} áut" from the hard-delete cascade counts — spec 17 §2.6). **Labels are unique** so the Akcia/Objekt
   filter dropdowns
   show no duplicates: `staff.*` (login accounts) use **"…účtu"** / entity **"Účet"**, while
   `worker.*` use **"…zamestnanca"** / entity **"Zamestnanec"** (Účty vs Zamestnanci, spec 11).

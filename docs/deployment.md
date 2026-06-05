@@ -82,9 +82,12 @@ new migration lands is the normal deploy step (never `db reset --linked`).
 > **Redeploy checklist (on every release that adds a migration):** push code to GitHub
 > `main` **and** `supabase db push` the new migration to Cloud, **before/with** the Coolify
 > redeploy — new app code that references a not-yet-applied column errors until the migration
-> runs. Most recent: **`0013_client_soft_delete.sql`** (adds `clients.deleted_at` + recreates
-> `search_clients`; the client soft-delete/Odstrániť feature needs it). Additive + safe (new
-> nullable column, `create or replace function`) — no data loss, no downtime.
+> runs. Most recent: **`0013_client_soft_delete.sql`** then **`0014_client_hard_delete.sql`**.
+> 0013 added `clients.deleted_at`; 0014 **drops it again** and switches the Odstrániť feature to a
+> hard-delete cascade (adds the `delete_client_cascade` function, restores `search_clients`). If
+> neither has reached Cloud yet they apply in sequence (add-then-drop — harmless). Push both with
+> the redeploy; the new app code calls `delete_client_cascade` and no longer references
+> `clients.deleted_at`.
 
 ### 2.4 Seed reference data  ⚠️ gotcha
 `supabase/seed.sql` is **only** run by local `supabase db reset` — it is **not** run

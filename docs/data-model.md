@@ -10,7 +10,9 @@ internal `YYYY-MM-DD` keys used in URLs and date logic.
 Conventions:
 - Primary keys: `uuid` (`gen_random_uuid()`), except low-cardinality lookup rows.
 - Soft-delete: domain history is deactivated, never hard-deleted (`CLAUDE.md`,
-  PRD §9.1/§10). Tables that carry history use `deleted_at` / `active`.
+  PRD §9.1/§10). Tables that carry history use `deleted_at` / `active`. **One exception:**
+  a manager-triggered **client** delete is a hard cascade (migration `0014`, §4) — the
+  `audit_log` still preserves the record of what happened.
 - Every state change writes `audit_log` (PRD §11) — enforced in Server Actions,
   not triggers (so the actor identity from the edge is recorded).
 
@@ -65,15 +67,19 @@ Identified by phone number (PRD §4).
 | `phone` | text **unique not null** | the client key; normalized (E.164) before insert |
 | `name` | text null | optional (PRD §4 step 1) |
 | `created_at` | timestamptz not null default now() | |
-| `deleted_at` | timestamptz null | soft-delete (migration `0013`); manager removes a client. History preserved; filtered out of search/list/lookup. |
 
 > The client-level free note was removed (migration `0010_drop_client_note.sql`) — not
 > needed. Per-order notes (`orders.note`) are unaffected.
 
-> **Soft-delete (migration `0013_client_soft_delete.sql`):** a manager may delete a client;
-> the row is kept (FK references from history stay intact) with `deleted_at` set, and is
-> excluded from `search_clients`, `listClients`, `findClientByPhone`, and the detail loaders.
-> Supersedes the original "No Phase-1 delete" note.
+> **Hard-delete (migration `0014_client_hard_delete.sql`, supersedes the 0013 soft-delete):**
+> a manager may **permanently** delete a client via `delete_client_cascade(client)`. It removes
+> the client, the orders they booked (with those orders' `order_services` / `sms_messages` /
+> `order_staff`), and the cars linked **only** to them — a car shared with another client (still
+> linked, or still referenced by another client's orders) is kept, only this client's
+> `client_cars` link is dropped. Irreversible; the append-only `audit_log` is preserved (no FK to
+> clients/orders), so the deletion stays recorded. This is the one place the project's
+> soft-delete rule is intentionally overridden (clients only). 0014 also drops the short-lived
+> `clients.deleted_at` column added by 0013.
 
 **Indexes:** unique on `phone` (identity); **trigram GIN** on `name` and `phone`
 (`gin_trgm_ops`) for fuzzy autocomplete search (spec 02 — requires the `pg_trgm`
@@ -383,8 +389,8 @@ skeleton's Realtime slice.
 | `orders` | `deleted_at` (only before `zaplatena`) | cancel ≠ erase; stays in client history (PRD §6, §10) |
 | `order_services` | `removed_at` (only if not performed) | history integrity (PRD §9.3) |
 | `order_staff` | hard add/remove (audited) | a current-assignment association; the audit log preserves the history |
-| `clients` | `deleted_at` (migration `0013`) | manager delete; hidden from search/list/lookup, order history preserved (spec 17 §2.6) |
-| `cars` | hard-delete avoided in Phase 1 | personal data; no delete flow in PRD. GDPR erasure handled ad-hoc by manager if ever needed (out of Phase 1 scope) |
+| `clients` | **hard-delete cascade** (migration `0014`, `delete_client_cascade`) | manager delete; **irreversible** — removes the client + their orders/history + their non-shared cars. The one intentional override of the soft-delete rule (spec 17 §2.6). `audit_log` is preserved |
+| `cars` | hard-deleted **only** as part of a client delete when unshared (`delete_client_cascade`); otherwise no standalone delete flow | personal data; a car shared with another client survives. GDPR erasure otherwise handled ad-hoc by the manager (out of Phase 1 scope) |
 | `audit_log` | append-only, retain ≥3 months | PRD §11.2 |
 | `sms_messages` | append-only | delivery record |
 | `opening_hours`, `day_overrides`, `sms_templates` | mutable config | no history value |

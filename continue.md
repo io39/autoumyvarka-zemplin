@@ -25,13 +25,15 @@ requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.
 A **test** deployment is up; **production hardening (Phase 4) is NOT done.**
 `docs/deployment.md` is the runbook + source of truth for deploy steps.
 
-**⚠️ Pending on Cloud:** migration **`0013_client_soft_delete.sql`** is committed + applied
-locally but **NOT yet `db push`ed to Cloud**. It adds `clients.deleted_at` + recreates
-`search_clients`; the client soft-delete (Odstrániť) feature needs it. Run `supabase db push`
-**with/before** the next app redeploy (new code filters `clients.deleted_at`). Additive + safe.
+**⚠️ Pending on Cloud:** migrations **`0013_client_soft_delete.sql`** + **`0014_client_hard_delete.sql`**
+are committed + applied locally but **NOT yet `db push`ed to Cloud**. 0013 added `clients.deleted_at`;
+**0014 supersedes it** — drops that column and switches Odstrániť to a **hard-delete cascade**
+(`delete_client_cascade`). Run `supabase db push` **with/before** the next app redeploy; they apply
+in sequence (add-then-drop, harmless). New app code calls `delete_client_cascade` and no longer
+references `clients.deleted_at`.
 
 **Done (test box):**
-- **Supabase Cloud EU** (eu-central-1): migrations `0001–0012` pushed (**`0013` pending — see
+- **Supabase Cloud EU** (eu-central-1): migrations `0001–0012` pushed (**`0013`+`0014` pending — see
   above**); reference data loaded via `supabase/seed.prod.sql` (catalog + opening hours +
   manager `staff` row; workers are added in-app). Two Cloud-only gotchas hit + fixed:
   - Cloud pre-installs `pg_trgm`/`unaccent`/`btree_gist` in the **`extensions`** schema, so

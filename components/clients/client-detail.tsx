@@ -450,7 +450,11 @@ function DeleteClientDialog({
     startTransition(async () => {
       const result = await deleteClient({ id: client.id });
       if (result.ok) {
-        toast.success("Zákazník odstránený.");
+        const orders = result.deletedOrders ?? 0;
+        const cars = result.deletedCars ?? 0;
+        toast.success(
+          `Zákazník odstránený · ${orders} objednávok a ${cars} áut zmazaných.`,
+        );
         onDeleted();
       } else {
         toast.error(result.message);
@@ -462,10 +466,17 @@ function DeleteClientDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Odstrániť zákazníka</DialogTitle>
-          <DialogDescription>
-            Naozaj odstrániť zákazníka {client.name ?? client.phone}? Klient zmizne z
-            vyhľadávania a zoznamu; história jeho objednávok ostáva zachovaná.
+          <DialogTitle>Natrvalo odstrániť zákazníka?</DialogTitle>
+          <DialogDescription className="space-y-2">
+            <span className="block">
+              Týmto sa <strong>natrvalo</strong> odstráni zákazník{" "}
+              {client.name ?? client.phone} vrátane <strong>všetkých jeho objednávok</strong> a
+              celej histórie služieb. Odstránia sa aj jeho autá — okrem áut zdieľaných s iným
+              klientom, ktoré zostanú zachované.
+            </span>
+            <span className="block font-medium text-destructive">
+              Túto akciu nie je možné vrátiť späť.
+            </span>
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -473,7 +484,7 @@ function DeleteClientDialog({
             Zrušiť
           </Button>
           <Button type="button" variant="destructive" disabled={pending} onClick={onConfirm}>
-            {pending ? "Odstraňujem…" : "Odstrániť"}
+            {pending ? "Odstraňujem…" : "Natrvalo odstrániť"}
           </Button>
         </DialogFooter>
       </DialogContent>

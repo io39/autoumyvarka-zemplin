@@ -44,7 +44,6 @@ export async function findClientByPhone(input: unknown): Promise<ClientRow | nul
     .from("clients")
     .select("*")
     .eq("phone", phone)
-    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) throw error;
@@ -67,7 +66,6 @@ export async function getClientWithCars(clientId: string): Promise<ClientWithCar
     .from("clients")
     .select("*")
     .eq("id", clientId)
-    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
   if (!client) return null;
@@ -133,7 +131,6 @@ export async function getClientWithHistory(
     .from("clients")
     .select("*")
     .eq("id", clientId)
-    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw error;
   if (!client) return null;
@@ -229,7 +226,6 @@ export async function listClients(input: unknown): Promise<ClientsPage> {
   const { data, count, error } = await getServiceClient()
     .from("clients")
     .select("id, name, phone", { count: "exact" })
-    .is("deleted_at", null)
     .order("name", { ascending: true, nullsFirst: false })
     .order("phone", { ascending: true })
     .range(from, from + pageSize - 1);
@@ -346,13 +342,21 @@ export async function updateClient(input: unknown): Promise<UpdateClientResult> 
   }
 }
 
+export type DeleteClientResult = ActionResult & {
+  deletedOrders?: number;
+  deletedCars?: number;
+};
+
 /**
- * Soft-delete a client (manager only). Sets `deleted_at` so the client drops out
- * of search/browse/lookup while order/car history is preserved (CLAUDE.md
- * soft-delete rule). Idempotent: a second call on an already-deleted client is a
- * no-op success.
+ * Permanently delete a client (manager only). Cascades through
+ * `delete_client_cascade`: removes the client, the orders they booked (with
+ * those orders' services / SMS log / worker assignments), and the cars that
+ * belong to them alone — a car shared with another client is kept, only this
+ * client's link to it is dropped. **Irreversible**; the append-only `audit_log`
+ * is preserved (the deletion stays recorded). Idempotent: deleting an
+ * already-removed client returns a no-op success.
  */
-export async function deleteClient(input: unknown): Promise<ActionResult> {
+export async function deleteClient(input: unknown): Promise<DeleteClientResult> {
   try {
     const { id } = deleteClientSchema.parse(input);
     const actor = await getCurrentStaff();
@@ -361,23 +365,29 @@ export async function deleteClient(input: unknown): Promise<ActionResult> {
 
     const { data: before, error: beforeError } = await db
       .from("clients")
-      .select("id, deleted_at")
+      .select("id, phone, name")
       .eq("id", id)
       .maybeSingle();
     if (beforeError) throw beforeError;
-    if (!before) return { ok: false, message: "Klient sa nenašiel." };
-    if (before.deleted_at) return { ok: true }; // already deleted
+    if (!before) return { ok: true }; // already gone — idempotent
 
-    const { error } = await db
-      .from("clients")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", id);
+    const { data: counts, error } = await db
+      .rpc("delete_client_cascade", { p_client_id: id })
+      .single();
     if (error) throw error;
 
-    await writeAudit(actor, "client.delete", "client", id, {});
+    const deletedOrders = counts?.deleted_orders ?? 0;
+    const deletedCars = counts?.deleted_cars ?? 0;
+
+    await writeAudit(actor, "client.delete", "client", id, {
+      phone: before.phone,
+      name: before.name,
+      deletedOrders,
+      deletedCars,
+    });
 
     revalidatePath("/clients");
-    return { ok: true };
+    return { ok: true, deletedOrders, deletedCars };
   } catch (error) {
     return toActionError(error);
   }

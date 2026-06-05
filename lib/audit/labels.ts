@@ -130,6 +130,11 @@ export function summarizeDetails(action: string, details: Json | null): string {
       return d.to === true ? "Označené ako zaplatené" : "Označené ako nezaplatené";
     case "client.phone_change":
       return d.from && d.to ? `${String(d.from)} → ${String(d.to)}` : "Telefón zmenený";
+    case "client.delete": {
+      const orders = Number(d.deletedOrders ?? 0);
+      const cars = Number(d.deletedCars ?? 0);
+      return `Trvalo odstránený · ${orders} obj., ${cars} áut`;
+    }
     case "car.link":
       return "Auto prepojené s klientom";
     case "staff.activate":

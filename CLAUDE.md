@@ -41,7 +41,7 @@ supabase db push        # apply migrations
 - **All user-facing strings are Slovak.** No i18n framework in Phase 1 (PRD §14, Lokalizácia) — but don't hardcode strings in ways that would make a later extraction impossible.
 - **Secrets never in the repo.** `.env.local` is gitignored. Deployment uses the VPS host's environment store; Supabase keys and the SMS provider credentials live there, never in the repo.
 - **Migrations are checked in.** Never modify the schema through the Supabase dashboard against the live project — write a migration, check it in, `supabase db push`.
-- **Soft-delete, never hard-delete domain history.** Services and orders that carry client history are deactivated, not deleted (PRD §9.1), to preserve history integrity (PRD §10).
+- **Soft-delete, never hard-delete domain history.** Services and orders that carry client history are deactivated, not deleted (PRD §9.1), to preserve history integrity (PRD §10). **Documented exception:** a manager-triggered **client** delete is a permanent hard-delete cascade (`delete_client_cascade`, migration `0014`) — it erases the client, their orders/history, and their non-shared cars; the append-only `audit_log` is still preserved (data-model §4, spec 17 §2.6).
 - **Phone number is the client key.** Clients are identified and searched by phone number (PRD §4). Cars and history hang off the client.
 - **Conventional commits** (`feat:`, `fix:`, `docs:`, `chore:`, etc.).
 - **All Server Action inputs validated with zod**, including the SMS webhook payload.

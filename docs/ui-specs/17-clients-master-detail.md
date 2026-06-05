@@ -47,8 +47,8 @@ Pracovníci/Poznámka/box/€.
 - The client/car/history Server Actions are reused from spec 02 (`searchClients`,
   `getClientWithHistory`, `createClient`, `updateClient`, `addCarToClient`,
   `linkExistingCar`, `updateCar`). Two later additions on this page: `listClients`
-  (alphabetical browse list, §2.x) and `deleteClient` (soft-delete, §2.y) — both
-  read/soft-delete only, no change to existing actions.
+  (alphabetical browse list, §2.x) and `deleteClient` (hard-delete cascade, §2.6) — only
+  these are new, no change to existing actions.
 - **No new car fields** — the schema has ŠPZ, model, `pricing_category` (kategória); the
   doc's "typ/farba" don't exist and are **not** invented here.
 - History aggregation logic (shared-ŠPZ, `buildCarHistories`) is unchanged (spec 08).
@@ -81,7 +81,7 @@ Pracovníci/Poznámka/box/€.
   Results **sorted by meno**; rows = `ClientCard` (meno + telefón).
 - **Browse list + pagination (5 per page).** Empty/short query (<2 chars) shows the **full
   client list, alphabetical**, via a new **`listClients({ page, pageSize: 5 })`** action
-  (server offset pagination + exact count; both roles, read-only, excludes soft-deleted).
+  (server offset pagination + exact count; both roles, read-only).
   ◀ ▶ arrows + "Strana N z M" under the list (`data-client-pagination`); ◀ disabled on page
   1, ▶ at the last page. **Search is also paginated by 5** so the panel never stretches:
   fuzzy search fetches all matches (≤50 — the RPC has no offset) and paginates **client-side**.
@@ -137,21 +137,28 @@ inline. `ClientDetail` → `ClientHeaderCard`, `CarRow` (×N accordion), `Servic
   list still usable (no full-page error).
 - Mutations keep `toast` + `router.refresh()`; refresh re-reads the `?id=` detail.
 
-### 2.6 Delete client — soft-delete (`deleteClient`)
+### 2.6 Delete client — hard-delete (`deleteClient`)
 
-- **Manager only.** A confirm `Dialog` ("Odstrániť zákazníka? … história jeho objednávok
-  ostáva zachovaná") → `deleteClient({ id })`. On success: `toast`, then `router.push('/clients')`
-  (leave the detail, clear `?id=`).
-- **Soft-delete:** migration **`0013_client_soft_delete.sql`** adds `clients.deleted_at
-  timestamptz` and recreates `search_clients` to exclude deleted rows. The action sets
-  `deleted_at = now()` (idempotent), audits **`client.delete`**, and `revalidatePath('/clients')`.
-  Order/car history (FK references) is **preserved** — soft-delete rule (CLAUDE.md, PRD §9.1/§10);
-  supersedes 0002's "No Phase-1 delete" note.
-- A soft-deleted client is filtered out of `searchClients` (RPC), `listClients`,
-  `findClientByPhone`, `getClientWithCars`, and `getClientWithHistory` (a stale `?id=` of a
-  deleted client → "Klient sa nenašiel").
-- **Known edge:** `clients.phone` is `UNIQUE`, so re-adding a soft-deleted client's number
-  currently collides (no resurrect-on-re-add) — acceptable for Phase 1, revisit if needed.
+- **Manager only.** A confirm `Dialog` warns that the delete is **permanent and irreversible**:
+  it removes the client, **all their orders** and service history, and their cars — *except a car
+  shared with another client*, which is kept (only this client's link to it is dropped). Confirm
+  button **"Natrvalo odstrániť"** → `deleteClient({ id })`. On success: a `toast` reporting how many
+  orders / cars were removed, then `router.push('/clients')` (leave the detail, clear `?id=`).
+- **Hard-delete (irreversible).** This intentionally **overrides** the project-wide soft-delete
+  rule for *clients only* (orders/services keep their own `deleted_at` soft-cancel). Migration
+  **`0014_client_hard_delete.sql`** drops the `clients.deleted_at` column (reverting 0013),
+  restores `search_clients` to its unfiltered 0006 form, and adds the transactional
+  **`delete_client_cascade(p_client_id)`** function returning `(deleted_orders, deleted_cars)`.
+  The function deletes, in order: each of the client's orders' `order_services` / `sms_messages` /
+  `order_staff` then the `orders`; the client's `client_cars` links; the cars that are now
+  orphaned (no remaining link **and** no remaining order); finally the client row.
+- `deleteClient` is **manager-only**, calls the RPC, audits **`client.delete`** (with phone, name,
+  and the deleted-orders/cars counts), and `revalidatePath('/clients')`. It is **idempotent** —
+  deleting an already-gone client returns a no-op success.
+- The **append-only `audit_log` is preserved** (its rows carry no FK to clients/orders), so the
+  deletion — and every prior action on that client — stays recorded for the manager.
+- **Re-add after delete:** because the row is truly gone, the client's `phone` is free again, so
+  the number can be re-registered cleanly (no soft-delete UNIQUE collision).
 
 ---
 

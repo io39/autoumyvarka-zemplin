@@ -7,15 +7,15 @@ import {
   createClientViaUI,
 } from "./support";
 
-test.describe("delete client (soft-delete, manager only — spec 17)", () => {
+test.describe("delete client (hard-delete, manager only — spec 17)", () => {
   test("manager deletes a client → it disappears from search", async ({ page }) => {
     await page.context().setExtraHTTPHeaders(accessHeaders(MANAGER_EMAIL));
     const name = "Zmaz Test " + Date.now().toString(36);
     await createClientViaUI(page, { phone: uniquePhone(), name });
 
-    // On the client detail; delete via the red button + confirm.
+    // On the client detail; delete via the red button + confirm the warning.
     await page.locator('[data-action="delete-client"]').click();
-    await page.getByRole("button", { name: "Odstrániť", exact: true }).click();
+    await page.getByRole("button", { name: "Natrvalo odstrániť", exact: true }).click();
 
     // Lands back on /clients with no selection.
     await page.waitForURL(/\/clients(\?.*)?$/);

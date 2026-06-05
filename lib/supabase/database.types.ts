@@ -116,21 +116,18 @@ export type Database = {
       clients: {
         Row: {
           created_at: string
-          deleted_at: string | null
           id: string
           name: string | null
           phone: string
         }
         Insert: {
           created_at?: string
-          deleted_at?: string | null
           id?: string
           name?: string | null
           phone: string
         }
         Update: {
           created_at?: string
-          deleted_at?: string | null
           id?: string
           name?: string | null
           phone?: string
@@ -563,6 +560,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_client_cascade: {
+        Args: { p_client_id: string }
+        Returns: {
+          deleted_orders: number
+          deleted_cars: number
+        }[]
+      }
       search_clients: {
         Args: { lim?: number; q: string }
         Returns: {
