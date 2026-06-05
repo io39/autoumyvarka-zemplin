@@ -123,7 +123,7 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
 | --- | --- | --- | --- |
 | `getOrder` | `{ id }` | both | — (read) |
 | `setStatus` | `{ id, next }` | matrix (see §2.2) | `order.status_change` `{from,to}` |
-| `moveOrder` | `{ id, box, startsAt }` | manager | `order.move` `{from,to}` |
+| `moveOrder` | `{ id, box, startsAt, durationMin? }` | manager | `order.move` `{from,to}` |
 | `deleteOrder` | `{ id }` | manager (pre-`zaplatena`) | `order.delete` |
 | `addOrderWorker` | `{ id, staffId }` | both | `order.assign` `{staffId}` |
 | `removeOrderWorker` | `{ id, staffId }` | both | `order.unassign` `{staffId}` |
@@ -134,6 +134,8 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
 
 - `moveOrder`: re-validates 15-min boundary, opening hours (`isRangeOpen`, spec 04), and
   conflict (DB constraint) — same guarantees as create; friendly Slovak conflict message.
+  Optional `durationMin` (used by the wizard's edit "Trvanie" override) updates the order's
+  duration too, recomputing `ends_at` and re-checking hours/conflict with the new range.
 - `deleteOrder`: rejected if status already `zaplatena` (PRD §6); soft-delete via
   `deleted_at`.
 - `addOrderService`: snapshots name/category/duration/price into `order_services`

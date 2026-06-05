@@ -587,7 +587,7 @@ export async function setStatus(input: unknown): Promise<ActionResult> {
 
 export async function moveOrder(input: unknown): Promise<ActionResult> {
   try {
-    const { id, box, startsAt } = moveOrderSchema.parse(input);
+    const { id, box, startsAt, durationMin } = moveOrderSchema.parse(input);
     const actor = await getCurrentStaff();
     requireManager(actor);
     const db = getServiceClient();
@@ -607,7 +607,9 @@ export async function moveOrder(input: unknown): Promise<ActionResult> {
       return { ok: false, message: NOT_FOUND_MESSAGE };
     }
 
-    const newEnd = new Date(newStart.getTime() + before.duration_min * 60_000);
+    // Optional manual duration override (edit mode); else keep the stored one.
+    const effectiveDuration = durationMin ?? before.duration_min;
+    const newEnd = new Date(newStart.getTime() + effectiveDuration * 60_000);
     if (!(await rangeIsOpen(db, newStart, newEnd))) {
       return { ok: false, message: CLOSED_MESSAGE };
     }
@@ -617,6 +619,7 @@ export async function moveOrder(input: unknown): Promise<ActionResult> {
       .update({
         box,
         starts_at: newStart.toISOString(),
+        duration_min: effectiveDuration,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
@@ -633,8 +636,8 @@ export async function moveOrder(input: unknown): Promise<ActionResult> {
       "order",
       id,
       {
-        from: { box: before.box, starts_at: before.starts_at },
-        to: { box, starts_at: newStart.toISOString() },
+        from: { box: before.box, starts_at: before.starts_at, duration_min: before.duration_min },
+        to: { box, starts_at: newStart.toISOString(), duration_min: effectiveDuration },
       },
       id,
     );

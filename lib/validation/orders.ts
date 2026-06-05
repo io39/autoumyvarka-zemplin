@@ -68,6 +68,9 @@ export const moveOrderSchema = z.object({
   id: idSchema,
   box: boxSchema,
   startsAt: isoInstantSchema,
+  // Optional manual duration (min) — set from the wizard's "Trvanie" override in
+  // edit mode; omitted keeps the order's stored duration.
+  durationMin: z.number().int().positive().max(24 * 60).optional(),
 });
 
 export const deleteOrderSchema = z.object({ id: idSchema });

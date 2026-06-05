@@ -141,9 +141,12 @@ picker whose header mirrors the calendar (§4).
   into **Tepovanie / Čistenie / Ostatné** — each a reused `ServiceGroup` — via the pure
   `addonGroup(name)` helper (`lib/orders/booking.ts`, name-prefix heuristic; unknown →
   Ostatné; unit-tested).
-- Running summary: **Σ min** and **Σ €** via `resolveServicePrice`. Keep the optional
-  **manual duration override** (create-only). The effective duration sets the step-4 slot
-  length.
+- Running summary: **Σ min** and **Σ €** via `resolveServicePrice`. The optional **manual
+  duration override** ("Trvanie (min)", `#override`) is available in **both create and edit**:
+  it sets the effective duration (→ step-4 slot length) and, on save, is persisted
+  (`createOrder.durationOverrideMin` on create; `moveOrder.durationMin` on edit). In edit it
+  is **prefilled** with the order's current duration when that was a manual override (≠ the
+  service-derived sum), so saving untouched keeps the duration.
 - **Poznámka (voliteľné)** textarea at the bottom (`data-order-note`) → wizard `note` state.
 
 ### 2.5 Step 4 — Termín (`Step4TimeSlot`) — the new part
@@ -219,16 +222,17 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
   — loads the existing order (client, car, services, current box/slot) and mounts
   `BookingWizard` with `mode: 'edit'` + the prefilled state.
 - **Prefill + start step:** client (step 1) and car (step 2) are prefilled and **locked**
-  (the order's client/car don't change here); the wizard **opens on step 4 (Termín)** —
-  the button is "Zmeniť čas", so the slot picker is front and centre — with the current
-  slot preselected. **Služby** stays back-navigable (via the stepper) for service edits, and
-  steps 1–2 are visible but locked.
+  (the order's client/car don't change here); the wizard **opens on step 3 (Služby)** so the
+  manager can adjust services **and the manual "Trvanie" duration** (prefilled when overridden
+  — §2.4), then **step 4 (Termín)** to pick a new slot. Steps 1–2 are visible but locked.
 - **Apply on finish** (not `createOrder`): persist the diff against the existing order using
   the **existing actions** — `addOrderService`/`removeOrderService` for the service changes,
-  `moveOrder({ id, box, startsAt })` for the new slot (spec 06), and `setNote` when the
-  Poznámka changed (the field is prefilled from the order's note via `EditContext.originalNote`
-  / `initial.note`). The conflict check must exclude the order's **own** current slot so
-  "same time" isn't a false conflict.
+  `moveOrder({ id, box, startsAt, durationMin? })` for the new slot **and the duration
+  override** (spec 06; `moveOrder` now takes an optional `durationMin` and re-checks
+  conflict/hours with the new end), and `setNote` when the Poznámka changed (prefilled via
+  `EditContext.originalNote` / `initial.note`). `moveOrder` runs when the slot **or** the
+  duration changed (`EditContext.originalDuration`). The conflict check excludes the order's
+  **own** current slot so "same time" isn't a false conflict.
 - **Final label:** "Uložiť zmeny" (not "Vytvoriť rezerváciu"); on success → **redirect to
   the calendar** at the (possibly new) date (`/?date=…`) + toast, **not** back to the order
   detail — so the updated slot is immediately visible in its schedule context.
@@ -305,9 +309,10 @@ grep -rn "return=/orders/new\|redirect(\"/clients" app/orders/new | wc -l
 ### 4.4 Edit mode — Zmeniť čas (e2e, must pass)
 
 - From an order's **Zmeniť čas** (manager): the wizard opens **prefilled** with that order's
-  client/car (locked) on the **Termín step** (slot picker); the manager can step back to
-  Služby to add/remove a service, picks a new slot; **"Uložiť zmeny"** applies the changes to
-  the **same** order (no new order created) and
+  client/car (locked) on **Služby**, where the **manual "Trvanie" duration input is present**;
+  the manager adjusts services/duration, then on Termín picks a new slot; **"Uložiť zmeny"**
+  applies the changes to the **same** order (no new order created; the duration override is
+  persisted) and
   **lands on the calendar** at the new date (`/?date=…`) — not back on the order detail.
 - Keeping the same time is **not** flagged as a conflict (own slot excluded).
 - prevádzka has no Zmeniť čas affordance (manager-only).

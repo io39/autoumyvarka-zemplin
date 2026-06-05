@@ -65,14 +65,14 @@ test.describe("booking wizard — create (manager)", () => {
 test.describe("booking wizard — edit mode / Zmeniť čas", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
 
-  test("Zmeniť čas opens on the Termín step; change a service + move slot saves", async ({
+  test("Zmeniť čas opens on Služby with a manual duration input; saves new duration + slot", async ({
     page,
   }) => {
     const o = await seedOrder();
     const db = serviceClient();
     const { data: before } = await db
       .from("orders")
-      .select("starts_at")
+      .select("starts_at, duration_min")
       .eq("id", o.orderId)
       .single();
 
@@ -81,23 +81,16 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
     await page.getByRole("link", { name: "Zmeniť čas" }).click();
     await expect(page).toHaveURL(new RegExp(`/orders/${o.orderId}/edit`));
 
-    // Opens directly on the Termín (time) step.
-    await expect(page.locator('[data-step="termin"]')).toBeVisible();
+    // Opens on Služby; the manual "Trvanie" override input is available in edit
+    // (it used to be create-only — the bug).
+    await expect(page.locator('[data-step="services"]')).toBeVisible();
+    const override = page.locator("#override");
+    await expect(override).toBeVisible();
 
-    // Step back to Služby via the stepper and add another service.
-    await page.locator('[data-stepper] [data-step="2"]').click();
-    const services = page.locator('[data-step="services"] label[data-service-id] input');
-    const count = await services.count();
-    for (let i = 0; i < count; i++) {
-      const cb = services.nth(i);
-      if (!(await cb.isChecked()) && (await cb.isEnabled())) {
-        await cb.check();
-        break;
-      }
-    }
+    // Set a manual duration, then pick a new slot and save.
+    const newDuration = (before!.duration_min ?? 30) + 15;
+    await override.fill(String(newDuration));
     await page.getByRole("button", { name: "Ďalej" }).click();
-
-    // Move to a different free slot, then save.
     await pickAFreeSlot(page);
     await page.getByRole("button", { name: "Uložiť zmeny" }).click();
     await expect(page.getByText("Zmeny uložené.")).toBeVisible();
@@ -107,9 +100,10 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
 
     const { data: after } = await db
       .from("orders")
-      .select("starts_at")
+      .select("starts_at, duration_min")
       .eq("id", o.orderId)
       .single();
+    expect(after!.duration_min).toBe(newDuration);
     expect(after!.starts_at).not.toBe(before!.starts_at);
   });
 });

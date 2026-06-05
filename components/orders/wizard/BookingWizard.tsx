@@ -38,6 +38,8 @@ export interface EditContext {
   originalLines: Array<{ orderServiceId: string; serviceId: string; quantity: number }>;
   currentSlot: PickedSlot;
   originalNote: string | null;
+  /** The order's duration (min) at load — to detect a duration change on save. */
+  originalDuration: number;
 }
 
 export interface BookingWizardProps {
@@ -52,6 +54,7 @@ export interface BookingWizardProps {
     sharedCarIds: string[];
     carId: string | null;
     selections: Selection[];
+    overrideMin?: string;
     date: string;
     picked: PickedSlot | null;
     note?: string | null;
@@ -78,7 +81,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
   const [sharedCarIds, setSharedCarIds] = useState<string[]>(initial.sharedCarIds);
   const [carId, setCarId] = useState<string | null>(initial.carId);
   const [selections, setSelections] = useState<Selection[]>(initial.selections);
-  const [overrideMin, setOverrideMin] = useState("");
+  const [overrideMin, setOverrideMin] = useState(initial.overrideMin ?? "");
   const [note, setNoteValue] = useState(initial.note ?? "");
   const [view, setView] = useState<SlotView>("day");
   const [date, setDate] = useState(initial.date);
@@ -206,13 +209,15 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
             if (!r.ok) return fail(r.message ?? "Zmena služby zlyhala.");
           }
         }
-        // 2) Move only if the slot actually changed (keeping the time is not a conflict).
-        const moved =
+        // 2) Move when the slot OR the manual duration changed. moveOrder persists
+        //    the slot and (re)applies the duration, re-checking conflict + hours.
+        const slotMoved =
           picked.box !== edit.currentSlot.box ||
           picked.dateKey !== edit.currentSlot.dateKey ||
           picked.localStart !== edit.currentSlot.localStart;
-        if (moved) {
-          const r = await moveOrder({ id: edit.orderId, box: picked.box, startsAt });
+        const durationChanged = durationMin !== edit.originalDuration;
+        if (slotMoved || durationChanged) {
+          const r = await moveOrder({ id: edit.orderId, box: picked.box, startsAt, durationMin });
           if (!r.ok) return fail(r.message);
         }
         // 3) Note diff (only when it actually changed).
@@ -297,7 +302,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
           category={category}
           selections={selections}
           overrideMin={overrideMin}
-          allowOverride={!isEdit}
+          allowOverride
           note={note}
           onToggle={toggleService}
           onQty={setQty}
