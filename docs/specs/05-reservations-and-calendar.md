@@ -135,6 +135,17 @@ All validate with zod; creating writes `audit_log`.
   range using the **server-minted JWT** (spec 01 / data-model §3.1); deny-by-default
   RLS means the anon key alone reads nothing. New/changed/removed orders update the grid
   in place.
+- **Token lifecycle (decoupled from the subscription).** The minted JWT is short-lived
+  (1h, data-model §3.1) and the page re-mints it on every render — including the implicit
+  re-render a revalidating Server Action (e.g. `setStatus` → `revalidatePath("/")`) causes.
+  The subscription must **not** tear down and re-subscribe when only the token changes:
+  doing so opened an unsubscribe→resubscribe gap in which the actor's own `postgres_changes`
+  echo could be lost (their grid color wouldn't update, while other tabs got it). So token
+  changes are pushed onto the live connection with `setAuth` **in place**, and the channel
+  re-subscribes **only** when the view/date changes. A periodic re-mint keeps a long-idle
+  tab (no nav, no actions) from crossing the 1h TTL. Encapsulated in the shared
+  `useRealtimeChannel` hook (`lib/realtime/use-realtime.ts`), used by the calendar and the
+  unpaid widgets.
 
 ### 2.6 Data & migrations
 
