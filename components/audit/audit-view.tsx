@@ -17,6 +17,7 @@ import { STATE_LABEL } from "@/types";
 import type { AuditLogRow } from "@/lib/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -178,116 +179,203 @@ export function AuditView({
         </div>
       )}
 
-      {/* Desktop: table (≥sm) with a filter row in the header so each filter sits
-          directly above its column. The e2e selectors scope to this data-section. */}
-      <div className="hidden overflow-x-auto rounded-lg border sm:block" data-section="audit">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="whitespace-nowrap">Čas</TableHead>
-              <TableHead>Účet</TableHead>
-              <TableHead>Akcia</TableHead>
-              <TableHead>Objekt</TableHead>
-              <TableHead>Detail</TableHead>
-            </TableRow>
-            <TableRow className="align-top hover:bg-transparent">
-              <TableHead className="space-y-1 py-2 align-top font-normal">
-                <DateField
-                  id="from"
-                  value={filters.from}
-                  onChange={(v) => applyFilters({ ...filters, from: v })}
-                />
-                <DateField
-                  id="to"
-                  value={filters.to}
-                  onChange={(v) => applyFilters({ ...filters, to: v })}
-                />
-              </TableHead>
-              <TableHead className="py-2 align-top font-normal">
-                <Select
-                  value={filters.account}
-                  onValueChange={(v) => applyFilters({ ...filters, account: v })}
-                >
-                  <SelectTrigger id="account" aria-label="Účet" className="min-w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Všetky účty</SelectItem>
-                    {accounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </TableHead>
-              <TableHead className="py-2 align-top font-normal">
-                <Select
-                  value={filters.action}
-                  onValueChange={(v) => applyFilters({ ...filters, action: v })}
-                >
-                  <SelectTrigger id="action" aria-label="Akcia" className="min-w-44">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Všetky akcie</SelectItem>
-                    {ACTION_OPTIONS.map(([code, label]) => (
-                      <SelectItem key={code} value={code}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </TableHead>
-              <TableHead className="py-2 align-top font-normal">
-                <Select
-                  value={filters.entityType}
-                  onValueChange={(v) => applyFilters({ ...filters, entityType: v })}
-                >
-                  <SelectTrigger id="entity" aria-label="Objekt" className="min-w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Všetky objekty</SelectItem>
-                    {ENTITY_OPTIONS.map(([type, label]) => (
-                      <SelectItem key={type} value={type}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </TableHead>
-              <TableHead className="py-2 align-top font-normal">
-                {filtersActive && (
-                  <Button variant="ghost" size="sm" onClick={() => applyFilters(EMPTY)}>
-                    Vymazať filtre
-                  </Button>
-                )}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {prepared.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                  Žiadne záznamy pre zvolený filter
-                </TableCell>
-              </TableRow>
-            ) : (
-              prepared.map((e) => (
-                <TableRow key={e.id} data-action={e.action} data-id={e.id}>
-                  <TableCell className="whitespace-nowrap text-sm">{e.time}</TableCell>
-                  <TableCell className="text-sm">{e.actor}</TableCell>
-                  <TableCell className="text-sm">{e.actionLbl}</TableCell>
-                  <TableCell className="text-sm">
-                    <EntityLabel orderId={e.orderId} label={e.entityLbl} onOpen={setSummaryId} />
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{e.summary}</TableCell>
+      {filtersActive && (
+        <Button variant="ghost" size="sm" onClick={() => applyFilters(EMPTY)}>
+          Vymazať filtre
+        </Button>
+      )}
+
+      {/* Mobile filters (<sm): stacked. Distinct ids so they don't collide with
+          the desktop ids the e2e drives. */}
+      <div className="space-y-3 sm:hidden">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="from-m">Od dátumu</Label>
+            <DateField
+              id="from-m"
+              value={filters.from}
+              onChange={(v) => applyFilters({ ...filters, from: v })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="to-m">Do dátumu</Label>
+            <DateField
+              id="to-m"
+              value={filters.to}
+              onChange={(v) => applyFilters({ ...filters, to: v })}
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="account-m">Účet</Label>
+          <Select
+            value={filters.account}
+            onValueChange={(v) => applyFilters({ ...filters, account: v })}
+          >
+            <SelectTrigger id="account-m" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Všetky účty</SelectItem>
+              {accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="action-m">Akcia</Label>
+          <Select
+            value={filters.action}
+            onValueChange={(v) => applyFilters({ ...filters, action: v })}
+          >
+            <SelectTrigger id="action-m" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Všetky akcie</SelectItem>
+              {ACTION_OPTIONS.map(([code, label]) => (
+                <SelectItem key={code} value={code}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="entity-m">Objekt</Label>
+          <Select
+            value={filters.entityType}
+            onValueChange={(v) => applyFilters({ ...filters, entityType: v })}
+          >
+            <SelectTrigger id="entity-m" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Všetky objekty</SelectItem>
+              {ENTITY_OPTIONS.map(([type, label]) => (
+                <SelectItem key={type} value={type}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Desktop (≥sm): a column-aligned filter bar ABOVE the table. Both live in
+          one horizontal-scroll container with the same fixed column widths so the
+          filters stay above their columns. The e2e drives the desktop ids. */}
+      <div className="hidden overflow-x-auto sm:block">
+        <div className="min-w-[60rem] space-y-2">
+          <div className="flex items-start">
+            <div className="w-44 shrink-0 space-y-1 px-2">
+              <DateField
+                id="from"
+                value={filters.from}
+                onChange={(v) => applyFilters({ ...filters, from: v })}
+              />
+              <DateField
+                id="to"
+                value={filters.to}
+                onChange={(v) => applyFilters({ ...filters, to: v })}
+              />
+            </div>
+            <div className="w-56 shrink-0 px-2">
+              <Select
+                value={filters.account}
+                onValueChange={(v) => applyFilters({ ...filters, account: v })}
+              >
+                <SelectTrigger id="account" aria-label="Účet" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Všetky účty</SelectItem>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-52 shrink-0 px-2">
+              <Select
+                value={filters.action}
+                onValueChange={(v) => applyFilters({ ...filters, action: v })}
+              >
+                <SelectTrigger id="action" aria-label="Akcia" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Všetky akcie</SelectItem>
+                  {ACTION_OPTIONS.map(([code, label]) => (
+                    <SelectItem key={code} value={code}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-40 shrink-0 px-2">
+              <Select
+                value={filters.entityType}
+                onValueChange={(v) => applyFilters({ ...filters, entityType: v })}
+              >
+                <SelectTrigger id="entity" aria-label="Objekt" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Všetky objekty</SelectItem>
+                  {ENTITY_OPTIONS.map(([type, label]) => (
+                    <SelectItem key={type} value={type}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="rounded-lg border" data-section="audit">
+            <Table className="table-fixed">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-44">Čas</TableHead>
+                  <TableHead className="w-56">Účet</TableHead>
+                  <TableHead className="w-52">Akcia</TableHead>
+                  <TableHead className="w-40">Objekt</TableHead>
+                  <TableHead>Detail</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {prepared.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                      Žiadne záznamy pre zvolený filter
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  prepared.map((e) => (
+                    <TableRow key={e.id} data-action={e.action} data-id={e.id}>
+                      <TableCell className="whitespace-nowrap text-sm">{e.time}</TableCell>
+                      <TableCell className="truncate text-sm">{e.actor}</TableCell>
+                      <TableCell className="text-sm">{e.actionLbl}</TableCell>
+                      <TableCell className="text-sm">
+                        <EntityLabel orderId={e.orderId} label={e.entityLbl} onOpen={setSummaryId} />
+                      </TableCell>
+                      <TableCell className="whitespace-normal text-sm text-muted-foreground">
+                        {e.summary}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
 
       {/* Mobile: stacked cards (<sm) so rows stay readable at 360px (spec §2.1). */}
