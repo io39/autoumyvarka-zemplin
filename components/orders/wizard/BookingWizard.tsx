@@ -147,9 +147,12 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
     });
   }
 
-  // In edit mode the slot length depends on the services; if they change, the
-  // pre-selected (current) slot may no longer fit, so force a fresh pick.
-  function invalidatePickIfEdit() {
+  // Any service change recomputes the duration from the services — clearing a
+  // manual "Trvanie" override (it's overwritten on every tick/untick/qty change).
+  // In edit mode the slot length depends on the services, so also force a fresh
+  // pick (the pre-selected slot may no longer fit).
+  function onServicesChanged() {
+    setOverrideMin("");
     if (isEdit) setPicked(null);
   }
   function toggleService(serviceId: string) {
@@ -158,13 +161,13 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
         ? prev.filter((s) => s.serviceId !== serviceId)
         : [...prev, { serviceId, quantity: 1 }],
     );
-    invalidatePickIfEdit();
+    onServicesChanged();
   }
   function setQty(serviceId: string, qty: number) {
     setSelections((prev) =>
       prev.map((s) => (s.serviceId === serviceId ? { ...s, quantity: Math.max(1, qty) } : s)),
     );
-    invalidatePickIfEdit();
+    onServicesChanged();
   }
 
   const stepValid = [

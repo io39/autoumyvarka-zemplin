@@ -143,10 +143,12 @@ picker whose header mirrors the calendar (§4).
   Ostatné; unit-tested).
 - Running summary: **Σ min** and **Σ €** via `resolveServicePrice`. The optional **manual
   duration override** ("Trvanie (min)", `#override`) is available in **both create and edit**
-  and **starts empty** in both — so the duration tracks the **live service sum** (adding /
-  removing a service updates Σ min and the step-4 slot length). Only when a positive value is
-  typed does it override the sum. On save it's persisted (`createOrder.durationOverrideMin`
-  on create; `moveOrder.durationMin` on edit, when the effective duration changed).
+  and **starts empty** — the duration tracks the **live service sum** (Σ min + step-4 slot
+  length). A typed positive value overrides the sum, but **any service change (tick / untick /
+  qty) clears the override** and recomputes from the services, so the duration always reflects
+  the current selection unless the user re-enters a manual value afterwards. On save the
+  effective duration is persisted (`createOrder.durationOverrideMin` on create;
+  `moveOrder.durationMin` on edit, when it changed).
 - **Poznámka (voliteľné)** textarea at the bottom (`data-order-note`) → wizard `note` state.
 
 ### 2.5 Step 4 — Termín (`Step4TimeSlot`) — the new part
