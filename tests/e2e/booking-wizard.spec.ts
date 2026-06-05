@@ -146,6 +146,44 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
       .is("removed_at", null);
     expect((linesAfter.data ?? []).length).toBe((linesBefore.data ?? []).length + 1);
   });
+
+  test("Zmeniť čas: add a service but a shorter manual duration wins (no false hours error)", async ({
+    page,
+  }) => {
+    const o = await seedOrder({ time: "11:00" });
+    const db = serviceClient();
+
+    await page.goto(`/orders/${o.orderId}`);
+    await page.getByRole("link", { name: "Zmeniť čas" }).click();
+    await expect(page.locator('[data-step="services"]')).toBeVisible();
+
+    // Add another (longer) service…
+    const services = page.locator('[data-step="services"] label[data-service-id] input');
+    const count = await services.count();
+    for (let i = 0; i < count; i++) {
+      const cb = services.nth(i);
+      if (!(await cb.isChecked()) && (await cb.isEnabled())) {
+        await cb.check();
+        break;
+      }
+    }
+    // …but set a SHORT manual duration (must win; the service-sum must not be
+    // re-derived and falsely rejected on opening hours).
+    await page.locator("#override").fill("15");
+
+    await page.getByRole("button", { name: "Ďalej" }).click();
+    await pickAFreeSlot(page);
+    await page.getByRole("button", { name: "Uložiť zmeny" }).click();
+    await expect(page.getByText("Zmeny uložené.")).toBeVisible();
+    await expect(page).toHaveURL(/\/\?date=\d{4}-\d{2}-\d{2}/);
+
+    const { data: after } = await db
+      .from("orders")
+      .select("duration_min")
+      .eq("id", o.orderId)
+      .single();
+    expect(after!.duration_min).toBe(15);
+  });
 });
 
 test.describe("booking wizard — edit route gating (prevádzka)", () => {

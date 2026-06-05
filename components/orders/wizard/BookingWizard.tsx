@@ -209,10 +209,16 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
           if (!r.ok) return fail(r.message);
         }
         // 2) Service diff (add/remove; a quantity change = remove + re-add).
+        //    `recomputeDuration: false` — moveOrder above already set the final
+        //    duration the user chose; the diff only syncs the line rows and must
+        //    NOT re-derive (and re-validate) duration from the service sums.
         for (const o of edit.originalLines) {
           const c = selections.find((s) => s.serviceId === o.serviceId);
           if (!c || c.quantity !== o.quantity) {
-            const r = await removeOrderService({ orderServiceId: o.orderServiceId });
+            const r = await removeOrderService({
+              orderServiceId: o.orderServiceId,
+              recomputeDuration: false,
+            });
             if (!r.ok) return fail(r.message ?? "Zmena služby zlyhala.");
           }
         }
@@ -223,6 +229,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
               id: edit.orderId,
               serviceId: c.serviceId,
               quantity: c.quantity,
+              recomputeDuration: false,
             });
             if (!r.ok) return fail(r.message ?? "Zmena služby zlyhala.");
           }

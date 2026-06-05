@@ -895,9 +895,11 @@ export async function addOrderService(input: unknown): Promise<ActionResult> {
     // Recompute the duration to Σ active lines + this new line (overwriting any
     // manual override), and validate the longer booking BEFORE inserting the
     // line: it must stay within opening hours and not overlap another booking in
-    // the box — i.e. check whether the service can be added at all.
+    // the box — i.e. check whether the service can be added at all. Skipped when
+    // the caller owns the duration (wizard edit, where moveOrder already set it).
+    const recompute = data.recomputeDuration ?? true;
     const newDuration = baselineDuration + lineDuration;
-    if (newDuration > 0 && newDuration !== order.duration_min) {
+    if (recompute && newDuration > 0 && newDuration !== order.duration_min) {
       const start = new Date(order.starts_at);
       const newEnd = new Date(start.getTime() + newDuration * 60_000);
       if (!(await rangeIsOpen(db, start, newEnd))) {
@@ -955,7 +957,7 @@ export async function addOrderService(input: unknown): Promise<ActionResult> {
 
 export async function removeOrderService(input: unknown): Promise<ActionResult> {
   try {
-    const { orderServiceId } = removeOrderServiceSchema.parse(input);
+    const { orderServiceId, recomputeDuration } = removeOrderServiceSchema.parse(input);
     const actor = await getCurrentStaff();
     requireManager(actor);
     const db = getServiceClient();
@@ -989,8 +991,9 @@ export async function removeOrderService(input: unknown): Promise<ActionResult> 
 
     // Mirror addOrderService: shrink duration_min only when no manual
     // override is in effect (parent.duration_min === Σ active line durations
-    // BEFORE the removal). With override active, leave the slot alone.
-    if (parent) {
+    // BEFORE the removal). With override active, leave the slot alone. Skipped
+    // entirely when the caller owns the duration (wizard edit, moveOrder).
+    if (parent && (recomputeDuration ?? true)) {
       const baseline = await sumActiveLineDuration(db, line.order_id);
       const removedDuration = line.duration_min_snapshot ?? 0;
       // baseline already excludes the just-removed line; pre-removal baseline

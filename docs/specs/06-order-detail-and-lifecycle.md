@@ -139,12 +139,15 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
 - `deleteOrder`: rejected if status already `zaplatena` (PRD §6); soft-delete via
   `deleted_at`.
 - `addOrderService`: snapshots name/category/duration/price into `order_services`
-  (data-model §2.8); **recomputes `duration_min` to Σ active lines + the new line**
+  (data-model §2.8); by default **recomputes `duration_min` to Σ active lines + the new line**
   (overwriting any manual override — services drive the time), then **validates the longer
   booking before inserting the line**: within opening hours (`SERVICE_WOULD_CLOSE_MESSAGE`)
   and no box overlap with the next booking (`SERVICE_WOULD_OVERLAP_MESSAGE`). So the action
   also answers "can this service be added at all" — if it can't fit, it's refused and no line
-  is created.
+  is created. `recomputeDuration: false` skips both the recompute and the validation — used by
+  the wizard **edit** flow, where `moveOrder` has already set (and validated) the final
+  duration the user chose, so the service diff must only sync line rows. `removeOrderService`
+  takes the same flag.
 - `removeOrderService`: allowed only while the line is not performed (soft `removed_at`).
 - `setStatus(next='hotova')` from `vytvorena` emits ORDER_READY after the commit.
 - `setStatus(next='zaplatena')` **cascades all non-removed `order_services` lines to

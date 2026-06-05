@@ -89,10 +89,16 @@ export const addOrderServiceSchema = z.object({
   id: idSchema,
   serviceId: idSchema,
   quantity: z.number().int().positive().max(99).optional(),
+  // When false, don't recompute/validate the order's duration here — the caller
+  // (the wizard edit flow) owns the final duration via moveOrder. Default true:
+  // the order-detail "add service" extends the booking and checks it fits.
+  recomputeDuration: z.boolean().optional(),
 });
 
 export const removeOrderServiceSchema = z.object({
   orderServiceId: idSchema,
+  // See addOrderServiceSchema: when false, leave the order's duration untouched.
+  recomputeDuration: z.boolean().optional(),
 });
 
 export const setOrderServicePaidSchema = z.object({
