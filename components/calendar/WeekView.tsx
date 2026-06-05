@@ -12,7 +12,7 @@ const WEEKDAY_SHORT = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"];
 // the gap) marking the start of a new day so adjacent days are easy to tell
 // apart on the shared time axis. `gap-1` = 4px → 2px in.
 const DAY_DIVIDER =
-  "relative before:pointer-events-none before:absolute before:inset-y-0 before:left-[-2px] before:w-px before:bg-foreground/30 before:content-['']";
+  "relative before:pointer-events-none before:absolute before:inset-y-0 before:left-[-5px] before:rounded-lg before:w-1 before:bg-foreground/30 before:content-['']";
 
 /**
  * Week view (spec 14 §2.7): 7 days × 2 boxes on a shared time axis, horizontally
@@ -34,7 +34,7 @@ export function WeekView({
   return (
     <div className="overflow-x-auto rounded-lg border">
       <div
-        className="grid min-w-[800px] gap-1 p-2"
+        className="grid min-w-[800px] gap-1.5 p-2"
         style={{ gridTemplateColumns: `60px repeat(${weekDays.length}, minmax(120px, 1fr))` }}
       >
         <div />

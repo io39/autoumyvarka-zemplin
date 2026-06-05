@@ -4,7 +4,7 @@ import { useState } from "react";
 import { sk } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CalendarView } from "@/lib/calendar/types";
-import { formatDMY, pad, weekDateKeys } from "@/lib/calendar/grid";
+import { formatDMY, formatWeekRange, pad, skWeekdayShort, weekDateKeys } from "@/lib/calendar/grid";
 import { viewCoversToday } from "@/lib/calendar/today";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -20,9 +20,9 @@ function dateToKey(d: Date): string {
 }
 
 function formatLabel(view: CalendarView, dateKey: string): string {
-  if (view !== "week") return formatDMY(dateKey);
+  if (view !== "week") return `${skWeekdayShort(dateKey)} ${formatDMY(dateKey)}`;
   const keys = weekDateKeys(dateKey);
-  return `${formatDMY(keys[0])} – ${formatDMY(keys[6])}`;
+  return formatWeekRange(keys[0], keys[6]);
 }
 
 /**
@@ -52,7 +52,7 @@ export function DateNav({
   const coversToday = viewCoversToday(view, date, new Date());
 
   return (
-    <div className="flex items-center justify-between gap-10 md:flex-col md:justify-center md:gap-1">
+    <div className="flex items-center justify-between gap-10 md:justify-center md:gap-1">
       <div className="flex items-center gap-1">
         <Button
           size="icon"

@@ -3,6 +3,8 @@ import {
   buildRows,
   diffMinutes,
   formatDMY,
+  formatWeekRange,
+  skWeekdayShort,
   toMinutes,
   weekDateKeys,
   weekRange,
@@ -12,6 +14,29 @@ describe("formatDMY", () => {
   it("renders a YYYY-MM-DD key as DD.MM.YYYY", () => {
     expect(formatDMY("2026-06-03")).toBe("03.06.2026");
     expect(formatDMY("2026-12-31")).toBe("31.12.2026");
+  });
+});
+
+describe("skWeekdayShort", () => {
+  it("returns the Slovak short weekday with a trailing dot", () => {
+    // 2026-06-01 is a Monday.
+    expect(skWeekdayShort("2026-06-01")).toBe("Po.");
+    expect(skWeekdayShort("2026-06-04")).toBe("Št."); // Thursday
+    expect(skWeekdayShort("2026-06-07")).toBe("Ne."); // Sunday
+  });
+});
+
+describe("formatWeekRange", () => {
+  it("collapses the shared month+year", () => {
+    expect(formatWeekRange("2026-06-01", "2026-06-07")).toBe("01 – 07.06.2026");
+  });
+
+  it("keeps both months when the week crosses a month boundary", () => {
+    expect(formatWeekRange("2026-06-29", "2026-07-05")).toBe("29.06 – 05.07.2026");
+  });
+
+  it("shows full both ends across a year boundary", () => {
+    expect(formatWeekRange("2025-12-29", "2026-01-04")).toBe("29.12.2025 – 04.01.2026");
   });
 });
 

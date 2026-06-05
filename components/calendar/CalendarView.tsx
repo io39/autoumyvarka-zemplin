@@ -18,6 +18,7 @@ import { StatusLegend } from "./StatusLegend";
 import { BoxFilter } from "./BoxFilter";
 import { DayView } from "./DayView";
 import { WeekView } from "./WeekView";
+import Link from "next/link";
 
 const DEFAULT_INTERVAL: Interval = { open: "08:00", close: "17:00" };
 
@@ -177,7 +178,7 @@ export function CalendarView({
       />
 
       {/* Mobile: toggle on top, then date (left) + DNES (right); desktop: centered stack. */}
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-2 md:flex-row md:justify-between md:gap-1">
         <div className="inline-flex rounded-md border">
           <Button
             size="sm"
@@ -206,6 +207,10 @@ export function CalendarView({
           onToday={onToday}
           onPick={onPick}
         />
+
+        <Button asChild className="w-auto">
+        <Link href={`/orders/new?date=${date}`}>Nová objednávka</Link>
+        </Button>
       </div>
 
       <div className="flex items-center justify-between gap-2">
@@ -214,7 +219,13 @@ export function CalendarView({
       </div>
 
       {view === "day" ? (
-        <DayView activeBox={activeBox} rows={rows} interval={interval} blocks={dayBlocks} />
+        <DayView
+          activeBox={activeBox}
+          date={date}
+          rows={rows}
+          interval={interval}
+          blocks={dayBlocks}
+        />
       ) : (
         <WeekView
           weekDays={weekDays}

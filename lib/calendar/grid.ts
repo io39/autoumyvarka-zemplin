@@ -27,6 +27,34 @@ export function formatDMY(key: string): string {
   return `${d}.${m}.${y}`;
 }
 
+/** Slovak short weekday names, Monday-first (0=Mon..6=Sun). */
+const SK_WEEKDAY_SHORT = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"] as const;
+
+/** Day-of-week for a "YYYY-MM-DD" key: 0=Mon..6=Sun (TZ-safe). */
+export function dayOfWeek(key: string): number {
+  const [y, m, d] = key.split("-").map(Number);
+  const probe = new Date(Date.UTC(y, m - 1, d, 12));
+  return (probe.getUTCDay() + 6) % 7;
+}
+
+/** Slovak short weekday with trailing dot for a key, e.g. "Po." */
+export function skWeekdayShort(key: string): string {
+  return `${SK_WEEKDAY_SHORT[dayOfWeek(key)]}.`;
+}
+
+/**
+ * Compact "from – to" label for a week range, collapsing the shared parts:
+ * same month+year → "01 – 07.06.2026"; same year → "30.06 – 06.07.2026";
+ * else the full both-ends form "30.12.2025 – 06.01.2026".
+ */
+export function formatWeekRange(fromKey: string, toKey: string): string {
+  const [fy, fm, fd] = fromKey.split("-");
+  const [ty, tm, td] = toKey.split("-");
+  if (fy === ty && fm === tm) return `${fd} – ${td}.${tm}.${ty}`;
+  if (fy === ty) return `${fd}.${fm} – ${td}.${tm}.${ty}`;
+  return `${formatDMY(fromKey)} – ${formatDMY(toKey)}`;
+}
+
 export function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;

@@ -75,22 +75,33 @@ available space inside the shell. The **actions row is `md:hidden`** (mobile-onl
 desktop the sidebar covers it). Top→bottom:
 
 1. **Actions row (mobile only)** — the **identity chip** (`{display_name} • {ROLE_LABEL}`)
-   and the manager-only **`UnpaidBadge`** (→ `/unpaid`). (Nová rezervácia is reached from
-   the nav — sidebar/bottom-nav — so there's no header button.)
+   and the manager-only **`UnpaidBadge`** (→ `/unpaid`). (This identity/badge row is `md:hidden`;
+   the primary **Nová objednávka** action lives in the controls row below — see item 4.)
 2. **Deň / Týždeň** — toggle (existing, restyled), applies to both views.
 3. **Date + ◀ ▶** — date label; clicking it opens the **Calendar popover** (§2.2). ◀ ▶
-   step one day (Day) / one week (Week). Week shows the week range. The label uses the
-   **app-wide UI date format `DD.MM.YYYY`** (`formatDMY` in `lib/calendar/grid.ts` for
-   `YYYY-MM-DD` keys; `bratislavaDateDisplay` in `lib/settings/availability.ts` for
-   timestamp instants) — distinct from the internal `YYYY-MM-DD` keys used in URLs/logic.
+   step one day (Day) / one week (Week). The label (`formatLabel` in `DateNav`) is
+   view-dependent, built from pure helpers in `lib/calendar/grid.ts`:
+   - **Day view** — the Slovak short weekday prefixes the date: `{Po.|Ut.|St.|Št.|Pi.|So.|
+     Ne.} DD.MM.YYYY` (e.g. `Po. 01.06.2026`), via `skWeekdayShort(key)` + `formatDMY(key)`.
+   - **Week view** — a compact Monday→Sunday range that collapses the shared parts
+     (`formatWeekRange(from, to)`): same month+year → `01 – 07.06.2026`; crosses a month →
+     `29.06 – 05.07.2026`; crosses a year → the full `29.12.2025 – 04.01.2026`.
+
+   The base date format is the **app-wide UI date `DD.MM.YYYY`** (`formatDMY` in
+   `lib/calendar/grid.ts` for `YYYY-MM-DD` keys; `bratislavaDateDisplay` in
+   `lib/settings/availability.ts` for timestamp instants) — distinct from the internal
+   `YYYY-MM-DD` keys used in URLs/logic.
 4. **Today state** — `DNES` if the current view covers today, else a **`Späť na dnes`**
    button (§2.3). Wrapped in a **fixed-width reserve** (`w-32`) so the layout doesn't reflow
    when the short `DNES` pill swaps to the wider button.
-   - **Layout:** on **desktop** items 2–4 are a centered vertical stack (toggle → date →
-     today state). On **mobile** the toggle stays centered on top and items 3–4 share the row
-     below it with the **date on the left** and the **DNES/Späť na dnes on the right**
-     (`DateNav` is a full-width `justify-between` row on mobile, `md:flex-col` centered on
-     desktop); the date label uses a smaller font on mobile (`text-sm md:text-base`).
+   - **Layout:** the controls row is `flex flex-col items-center` on mobile and
+     **`md:flex-row md:justify-between`** on desktop, holding three items: the **Deň/Týždeň
+     toggle** (left), **`DateNav`** (centre), and the **Nová objednávka** action `Link`
+     (right; `w-auto`, full-width when stacked on mobile). Within `DateNav`, the **date + ◀▶
+     group** and the **today-state** sit on **one horizontal row** — `justify-between` on
+     mobile (date left, DNES right), `md:justify-center` on desktop (the two centred together,
+     no longer a vertical stack). The date label uses a smaller font on mobile
+     (`text-sm md:text-base`).
 5. **Legenda (left) + Box filter (right)** — one row directly above the grid (§2.4–2.5).
 
 ### 2.2 Date picker — shadcn `Calendar` popover
@@ -168,12 +179,32 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
   are grid items spanning `grid-row: start / end`. Because the rows are `auto`-growable, a
   card taller than its span grows **only those** rows — the slot expands across both boxes,
   the axis label moves with it, and slots above/below stay put. Mobile single-box via
-  `useMediaQuery` (SSR-safe); `data-box` preserved.
+  `useMediaQuery` (SSR-safe); `data-box` preserved. The header cells have **explicit grid
+  positions** (`gridRow: 1`) so the spanning overlay items below can't displace them via
+  auto-placement. Box separation (desktop, both boxes shown):
+  - **Per-box frame** — each box column gets a grid item spanning its slot rows with
+    `rounded-lg border` and `-m-1`, so the rounded border sits a few px **outside** the
+    cells (a small inset all around, reading slightly bigger than the box). The grid's
+    `gap-x-4` gives the two frames room.
+  - **Centre divider** — a short **rounded bar** drawn as a `::before` in the gutter between
+    Box 1 and Box 2 (`before:w-1.5 before:rounded-lg before:bg-foreground/30`, inset
+    vertically via `before:inset-y-3`), centred in the 16px gutter. Matches the same rounded
+    `DAY_DIVIDER` bar used by the Week view and the Step-4 picker. Rendered only when both
+    boxes show.
+- **Current-time line (`DayView`)** — a black marker that **slides with the clock**. A
+  client-only ticking `now` (`useState(null)` → set in an effect every 30 s, so SSR and the
+  first client render agree — no hydration mismatch) is shown **only when the displayed day
+  is today** (`todayKey(now) === date`) and the moment falls inside the open-hours grid. It's
+  placed in the slot row containing `now` at the fractional offset within that 15-min slot
+  (`pointer-events-none`, `z-20`): a small `HH:MM` badge over the axis column and a 1px line
+  with a left dot spanning **across Box 1 and Box 2**. `DayView` receives `date` for the
+  today check.
 - **`WeekView`** keeps absolute-positioned **compact** cards on a fixed `ROW_PX` grid (14
   box-columns sharing an axis make per-row growth impractical). Each day's two box columns
-  are grouped: the start of every new day (header + cell) carries a **divider centered in the
-  gutter** (a `::before` placed half a `gap` into the gap) so adjacent days are easy to tell
-  apart on the shared axis.
+  are grouped: the start of every new day (header + cell) carries a **rounded-bar divider
+  centred in the gutter** (a `::before`, `before:w-1 before:rounded-lg before:bg-foreground/30`,
+  placed half a `gap-1.5` into the gap) so adjacent days are easy to tell apart on the shared
+  axis.
 
 ### 2.8 Error handling & states
 
@@ -208,6 +239,10 @@ Ordered; complexity S/M/L; deps in parentheses.
 11. **(M)** Tests: unit (today helpers, row math); e2e (date popover navigates; ◀▶ steps;
     `Späť na dnes` returns to today; mobile box filter Box 1/Box 2; legend present;
     `unpaid-alerts` badge `:visible`). (dep: 7,8,9,10)
+12. **(S)** Calendar refinements (§2.1/§2.9): view-dependent date label (`skWeekdayShort`,
+    `formatWeekRange` in `lib/calendar/grid.ts`, unit-tested); Day-view box separation
+    (per-box rounded frame + centre divider); the sliding **current-time line** on today.
+    (dep: 9)
 
 ---
 
@@ -228,6 +263,8 @@ grep -rn 'type="date"' components/calendar | wc -l
 test -e components/ui/calendar.tsx && test -e components/ui/popover.tsx && echo OK
 # shared card replaces the old BookingBlock — expect: BookingCard present, BookingBlock gone
 test -e components/calendar/BookingCard.tsx && ! test -e components/calendar/BookingBlock.tsx && echo OK
+# view-dependent date-label helpers exist — expect: both names present
+grep -q 'export function skWeekdayShort' lib/calendar/grid.ts && grep -q 'export function formatWeekRange' lib/calendar/grid.ts && echo OK
 ```
 
 ### 4.3 Behavior (e2e, must pass)
@@ -245,6 +282,11 @@ test -e components/calendar/BookingCard.tsx && ! test -e components/calendar/Boo
 - Time axis labels only `:00`/`:30`; all 15-min lines render. Day cards show
   time · model–services · category · note; a single-slot card with overflowing content grows
   its row without overlapping neighbours.
+- The date label is **view-dependent**: Day shows a Slovak weekday prefix (`Po. 01.06.2026`);
+  Week shows the collapsed range (`01 – 07.06.2026`, widening across month/year boundaries).
+- **Day view, today**: a black current-time line spans both boxes and tracks the clock; it is
+  absent on any non-today date and outside open hours. Desktop Day view shows the two boxes as
+  bordered frames with a centre divider between them.
 
 ```bash
 pnpm test e2e/calendar-header        # exits 0
