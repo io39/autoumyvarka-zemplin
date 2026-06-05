@@ -131,7 +131,11 @@ picker whose header mirrors the calendar (§4).
 
 ### 2.4 Step 3 — Služby (`Step3Services`)
 
-- Reuse `ServiceGroup` (per-unit qty, availability dimming). **Hlavné** renders directly;
+- Reuse `ServiceGroup` (per-unit qty, availability dimming). The per-unit (`is_per_unit`,
+  "/ks") **quantity field is a strict positive integer**: `type="number"` `min=1` `step=1`,
+  non-digit keys (`e`/`E`/`+`/`-`/`.`/`,`) blocked on key-down, and `onChange` strips
+  non-digits and clamps to **≥ 1** (empty/invalid → 1) so it can never be text, negative, or
+  `NaN`. **Hlavné** renders directly;
   **Doplnkové** is wrapped in a shadcn `Accordion` (**collapsed by default**; `value` forced
   open + an `N vybraté` count badge when `addonSelectedCount > 0`). Inside, add-ons are split
   into **Tepovanie / Čistenie / Ostatné** — each a reused `ServiceGroup` — via the pure

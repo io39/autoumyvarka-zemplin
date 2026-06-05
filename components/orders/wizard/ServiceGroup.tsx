@@ -60,10 +60,22 @@ export function ServiceGroup({
               )}
               {sel && it.service.is_per_unit && (
                 <Input
-                  className="w-16"
+                  type="number"
+                  min={1}
+                  step={1}
                   inputMode="numeric"
+                  className="w-16"
                   value={sel.quantity}
-                  onChange={(e) => onQty(it.service.id, Number(e.target.value || 1))}
+                  aria-label="Počet ks"
+                  // Block non-digit keys (e/E/+/-/.,) that a number input still allows.
+                  onKeyDown={(e) => {
+                    if (["e", "E", "+", "-", ".", ","].includes(e.key)) e.preventDefault();
+                  }}
+                  // Keep only digits; empty/invalid → 1, never below 1.
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "");
+                    onQty(it.service.id, digits === "" ? 1 : Math.max(1, parseInt(digits, 10)));
+                  }}
                 />
               )}
               {unavailable && <span className="text-xs text-muted-foreground">nedostupné</span>}
