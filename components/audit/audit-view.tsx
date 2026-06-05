@@ -172,22 +172,45 @@ export function AuditView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="space-y-1">
-          <Label htmlFor="from">Od dátumu</Label>
-          <DateField
-            id="from"
-            value={filters.from}
-            onChange={(v) => applyFilters({ ...filters, from: v })}
-          />
+      {/* Filters laid out to match the table column order:
+          Čas (Od + Do stacked) · Účet · Akcia · Objekt. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <Label htmlFor="from">Od dátumu</Label>
+            <DateField
+              id="from"
+              value={filters.from}
+              onChange={(v) => applyFilters({ ...filters, from: v })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="to">Do dátumu</Label>
+            <DateField
+              id="to"
+              value={filters.to}
+              onChange={(v) => applyFilters({ ...filters, to: v })}
+            />
+          </div>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="to">Do dátumu</Label>
-          <DateField
-            id="to"
-            value={filters.to}
-            onChange={(v) => applyFilters({ ...filters, to: v })}
-          />
+          <Label htmlFor="account">Účet</Label>
+          <Select
+            value={filters.account}
+            onValueChange={(v) => applyFilters({ ...filters, account: v })}
+          >
+            <SelectTrigger id="account">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Všetky účty</SelectItem>
+              {accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1">
           <Label htmlFor="action">Akcia</Label>
@@ -222,25 +245,6 @@ export function AuditView({
               {ENTITY_OPTIONS.map(([type, label]) => (
                 <SelectItem key={type} value={type}>
                   {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="account">Účet</Label>
-          <Select
-            value={filters.account}
-            onValueChange={(v) => applyFilters({ ...filters, account: v })}
-          >
-            <SelectTrigger id="account">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Všetky účty</SelectItem>
-              {accounts.map((a) => (
-                <SelectItem key={a.id} value={a.id}>
-                  {a.label}
                 </SelectItem>
               ))}
             </SelectContent>
