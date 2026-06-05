@@ -208,7 +208,7 @@ export function CalendarView({
           onPick={onPick}
         />
 
-        <Button asChild className="w-auto">
+        <Button asChild className="w-auto max-md:hidden">
         <Link href={`/orders/new?date=${date}`}>Nová objednávka</Link>
         </Button>
       </div>
