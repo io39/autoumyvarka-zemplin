@@ -189,87 +189,92 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
     const overrideArg = Number.isFinite(override) && override > 0 ? override : undefined;
 
     setSubmitting(true);
+    // NOTE: on the success paths we deliberately navigate and do NOT reset
+    // `submitting` — a setState right after `router.push` can cancel the
+    // navigation (symptom: the success toast shows but the page stays on the
+    // edit step). The component unmounts on navigation, so no stuck state.
+    // `submitting` is reset only on the paths that stay on the page.
     void (async () => {
-      try {
-        if (isEdit && edit) {
-          // The diff is applied via several non-transactional actions; if one
-          // fails mid-way some changes are already committed. Re-sync
-          // `edit.originalLines` from the server (router.refresh re-runs the edit
-          // page) so a retry diffs against the actual state instead of re-sending
-          // already-applied removes.
-          const fail = (message: string) => {
-            toast.error(message);
-            router.refresh();
-          };
-          // 1) Move FIRST, to the picked slot with the *final* duration. Doing the
-          //    service diff first would widen the order at its OLD position (where
-          //    a neighbour may sit) and falsely conflict before it ever moves.
-          //    moveOrder re-checks conflict + hours at the new slot (own slot
-          //    excluded); the subsequent add/remove won't re-resize because
-          //    duration_min now differs from the service-sum baseline.
-          const slotMoved =
-            slot.box !== edit.currentSlot.box ||
-            slot.dateKey !== edit.currentSlot.dateKey ||
-            slot.localStart !== edit.currentSlot.localStart;
-          const durationChanged = durationMin !== edit.originalDuration;
-          if (slotMoved || durationChanged) {
-            const r = await moveOrder({ id: edit.orderId, box: slot.box, startsAt, durationMin });
-            if (!r.ok) return fail(r.message);
-          }
-          // 2) Service diff (add/remove; a quantity change = remove + re-add).
-          //    `recomputeDuration: false` — moveOrder already set the final
-          //    duration; the diff only syncs the line rows.
-          for (const o of edit.originalLines) {
-            const c = selections.find((s) => s.serviceId === o.serviceId);
-            if (!c || c.quantity !== o.quantity) {
-              const r = await removeOrderService({
-                orderServiceId: o.orderServiceId,
-                recomputeDuration: false,
-              });
-              if (!r.ok) return fail(r.message ?? "Zmena služby zlyhala.");
-            }
-          }
-          for (const c of selections) {
-            const o = edit.originalLines.find((x) => x.serviceId === c.serviceId);
-            if (!o || o.quantity !== c.quantity) {
-              const r = await addOrderService({
-                id: edit.orderId,
-                serviceId: c.serviceId,
-                quantity: c.quantity,
-                recomputeDuration: false,
-              });
-              if (!r.ok) return fail(r.message ?? "Zmena služby zlyhala.");
-            }
-          }
-          // 3) Note diff (only when it actually changed).
-          if (note.trim() !== (edit.originalNote ?? "").trim()) {
-            const r = await setNote({ id: edit.orderId, note: note.trim() || null });
-            if (!r.ok) return fail(r.message ?? "Uloženie poznámky zlyhalo.");
-          }
-          toast.success("Zmeny uložené.");
-          // Land on the calendar at the (possibly new) date so the updated slot is
-          // immediately visible in context, rather than back on the order detail.
-          router.push(`/?date=${slot.dateKey}`);
-          return;
+      if (isEdit && edit) {
+        // The diff is applied via several non-transactional actions; if one
+        // fails mid-way some changes are already committed. Re-sync
+        // `edit.originalLines` from the server (router.refresh re-runs the edit
+        // page) so a retry diffs against the actual state instead of re-sending
+        // already-applied removes.
+        const fail = (message: string) => {
+          toast.error(message);
+          setSubmitting(false);
+          router.refresh();
+        };
+        // 1) Move FIRST, to the picked slot with the *final* duration. Doing the
+        //    service diff first would widen the order at its OLD position (where
+        //    a neighbour may sit) and falsely conflict before it ever moves.
+        //    moveOrder re-checks conflict + hours at the new slot (own slot
+        //    excluded); the subsequent add/remove won't re-resize because
+        //    duration_min now differs from the service-sum baseline.
+        const slotMoved =
+          slot.box !== edit.currentSlot.box ||
+          slot.dateKey !== edit.currentSlot.dateKey ||
+          slot.localStart !== edit.currentSlot.localStart;
+        const durationChanged = durationMin !== edit.originalDuration;
+        if (slotMoved || durationChanged) {
+          const r = await moveOrder({ id: edit.orderId, box: slot.box, startsAt, durationMin });
+          if (!r.ok) return fail(r.message);
         }
+        // 2) Service diff (add/remove; a quantity change = remove + re-add).
+        //    `recomputeDuration: false` — moveOrder already set the final
+        //    duration; the diff only syncs the line rows.
+        for (const o of edit.originalLines) {
+          const c = selections.find((s) => s.serviceId === o.serviceId);
+          if (!c || c.quantity !== o.quantity) {
+            const r = await removeOrderService({
+              orderServiceId: o.orderServiceId,
+              recomputeDuration: false,
+            });
+            if (!r.ok) return fail(r.message ?? "Zmena služby zlyhala.");
+          }
+        }
+        for (const c of selections) {
+          const o = edit.originalLines.find((x) => x.serviceId === c.serviceId);
+          if (!o || o.quantity !== c.quantity) {
+            const r = await addOrderService({
+              id: edit.orderId,
+              serviceId: c.serviceId,
+              quantity: c.quantity,
+              recomputeDuration: false,
+            });
+            if (!r.ok) return fail(r.message ?? "Zmena služby zlyhala.");
+          }
+        }
+        // 3) Note diff (only when it actually changed).
+        if (note.trim() !== (edit.originalNote ?? "").trim()) {
+          const r = await setNote({ id: edit.orderId, note: note.trim() || null });
+          if (!r.ok) return fail(r.message ?? "Uloženie poznámky zlyhalo.");
+        }
+        toast.success("Zmeny uložené.");
+        // Land on the calendar at the (possibly new) date. Do not setState after.
+        router.push(`/?date=${slot.dateKey}`);
+        return;
+      }
 
-        if (!client || !carId) return;
-        const r = await createOrder({
-          clientId: client.id,
-          carId,
-          box: slot.box,
-          startsAt,
-          services: selections,
-          durationOverrideMin: overrideArg,
-          note: note.trim() || undefined,
-        });
-        if (r.ok) {
-          toast.success("Objednávka vytvorená.");
-          router.push(`/?date=${slot.dateKey}`);
-        } else {
-          toast.error(r.message);
-        }
-      } finally {
+      if (!client || !carId) {
+        setSubmitting(false);
+        return;
+      }
+      const r = await createOrder({
+        clientId: client.id,
+        carId,
+        box: slot.box,
+        startsAt,
+        services: selections,
+        durationOverrideMin: overrideArg,
+        note: note.trim() || undefined,
+      });
+      if (r.ok) {
+        toast.success("Objednávka vytvorená.");
+        router.push(`/?date=${slot.dateKey}`);
+      } else {
+        toast.error(r.message);
         setSubmitting(false);
       }
     })();
