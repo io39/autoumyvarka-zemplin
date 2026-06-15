@@ -16,6 +16,7 @@ import {
   type RecentVisit,
 } from "@/lib/actions/orders";
 import type { ClientFlags } from "@/lib/orders/unpaid";
+import { effectiveTotalCents } from "@/lib/orders/booking";
 import { resendSms } from "@/lib/actions/sms";
 import type { ServiceWithPrices } from "@/lib/actions/services";
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
@@ -68,7 +69,9 @@ export function OrderDetailBody({
   const isManager = role === "manazer";
 
   const activeServices = detail.services.filter((s) => !s.removed_at);
-  const totalCents = activeServices.reduce((a, l) => a + l.price_cents_snapshot, 0);
+  const lineSumCents = activeServices.reduce((a, l) => a + l.price_cents_snapshot, 0);
+  const totalCents = effectiveTotalCents(lineSumCents, order.price_override_cents);
+  const priceOverridden = order.price_override_cents != null;
   const startHHMM = bratislavaHHMM(new Date(order.starts_at));
   const endHHMM = bratislavaHHMM(new Date(order.ends_at));
   const dateDisplay = bratislavaDateDisplay(new Date(order.starts_at));
@@ -164,6 +167,7 @@ export function OrderDetailBody({
           call("Platba zmenená.", () => setOrderServicePaid({ orderServiceId, paid }))
         }
         totalCents={totalCents}
+        priceOverridden={priceOverridden}
       />
 
       {/* SMS */}

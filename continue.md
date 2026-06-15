@@ -26,11 +26,13 @@ A **test** deployment is up; **production hardening (Phase 4) is NOT done.**
 `docs/deployment.md` is the runbook + source of truth for deploy steps.
 
 **⚠️ Pending on Cloud:** migrations **`0013_client_soft_delete.sql`** + **`0014_client_hard_delete.sql`**
-are committed + applied locally but **NOT yet `db push`ed to Cloud**. 0013 added `clients.deleted_at`;
-**0014 supersedes it** — drops that column and switches Odstrániť to a **hard-delete cascade**
-(`delete_client_cascade`). Run `supabase db push` **with/before** the next app redeploy; they apply
-in sequence (add-then-drop, harmless). New app code calls `delete_client_cascade` and no longer
-references `clients.deleted_at`.
++ **`0015_order_price_override.sql`** are committed + applied locally but **NOT yet `db push`ed to
+Cloud**. 0013 added `clients.deleted_at`; **0014 supersedes it** — drops that column and switches
+Odstrániť to a **hard-delete cascade** (`delete_client_cascade`). **0015** adds
+`orders.price_override_cents` (nullable int, manager-only manual order total). Run `supabase db push`
+**with/before** the next app redeploy; they apply in sequence (harmless). New app code calls
+`delete_client_cascade`, no longer references `clients.deleted_at`, and reads
+`orders.price_override_cents` (a fresh checkout without 0015 will fail the price-override paths).
 
 **Done (test box):**
 - **Supabase Cloud EU** (eu-central-1): migrations `0001–0012` pushed (**`0013`+`0014` pending — see

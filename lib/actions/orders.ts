@@ -35,6 +35,7 @@ import {
   orderWorkerSchema,
   removeOrderServiceSchema,
   setNoteSchema,
+  setOrderPriceSchema,
   setOrderServicePaidSchema,
   setStatusSchema,
   suggestSlotsSchema,
@@ -217,7 +218,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     // Spec §2.3 / PRD §3: workers may book at the computed duration but
     // cannot override it (order-data editing is manager-only). Gate before
     // we accept the override value.
-    if (data.durationOverrideMin !== undefined) {
+    if (data.durationOverrideMin !== undefined || data.priceOverrideCents !== undefined) {
       requireManager(actor);
     }
     const durationMin = data.durationOverrideMin ?? totalDurationMin(lines);
@@ -250,9 +251,10 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
         duration_min: durationMin,
         ends_at: endsAt.toISOString(),
         note: data.note ?? null,
+        price_override_cents: data.priceOverrideCents ?? null,
         created_by: actor.id,
       })
-      .select("id, starts_at, ends_at, box, duration_min")
+      .select("id, starts_at, ends_at, box, duration_min, price_override_cents")
       .single();
 
     if (orderErr) {
@@ -292,6 +294,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       starts_at: orderRow.starts_at,
       ends_at: orderRow.ends_at,
       duration_min: orderRow.duration_min,
+      price_override_cents: orderRow.price_override_cents,
       services: snapshots.map((s) => ({
         service_id: s.service_id,
         quantity: s.quantity,
@@ -515,7 +518,7 @@ export async function getClientFlags(input: { clientId: string }): Promise<Clien
   const db = getServiceClient();
   const { data, error } = await db
     .from("orders")
-    .select("status, starts_at, deleted_at, services:order_services(paid, removed_at, price_cents_snapshot)")
+    .select("status, starts_at, deleted_at, price_override_cents, services:order_services(paid, removed_at, price_cents_snapshot)")
     .eq("client_id", input.clientId)
     .is("deleted_at", null);
   if (error) throw error;
@@ -900,6 +903,50 @@ export async function setNote(input: unknown): Promise<ActionResult> {
   }
 }
 
+/**
+ * Manager-only manual order total override (cents). `priceOverrideCents = null`
+ * clears it (the total reverts to the line sum). Audited as
+ * `order.price_override` with from/to. Does not touch the per-line `paid` rows.
+ */
+export async function setOrderPrice(input: unknown): Promise<ActionResult> {
+  try {
+    const { id, priceOverrideCents } = setOrderPriceSchema.parse(input);
+    const actor = await getCurrentStaff();
+    requireManager(actor);
+    const db = getServiceClient();
+
+    const { data: before, error: beforeErr } = await db
+      .from("orders")
+      .select("price_override_cents, deleted_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (beforeErr) throw beforeErr;
+    if (!before || before.deleted_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+
+    const { error: updErr } = await db
+      .from("orders")
+      .update({ price_override_cents: priceOverrideCents, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (updErr) throw updErr;
+
+    await writeAudit(
+      actor,
+      "order.price_override",
+      "order",
+      id,
+      { from: before.price_override_cents, to: priceOverrideCents },
+      id,
+    );
+
+    revalidatePath(`/orders/${id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
 export async function addOrderService(input: unknown): Promise<ActionResult> {
   try {
     const data = addOrderServiceSchema.parse(input);
@@ -1216,6 +1263,7 @@ interface UnpaidCandidate {
   starts_at: string;
   status: OrderRow["status"];
   deleted_at: string | null;
+  price_override_cents: number | null;
   client: Pick<ClientRow, "name" | "phone"> | null;
   car: Pick<CarRow, "spz" | "brand" | "model"> | null;
   services: Array<
@@ -1234,7 +1282,7 @@ async function fetchUnpaidCandidates(): Promise<UnpaidCandidate[]> {
   const { data, error } = await getServiceClient()
     .from("orders")
     .select(
-      "id, starts_at, status, deleted_at, client:client_id(name, phone), car:car_id(spz, brand, model), services:order_services(paid, removed_at, price_cents_snapshot, name_snapshot)",
+      "id, starts_at, status, deleted_at, price_override_cents, client:client_id(name, phone), car:car_id(spz, brand, model), services:order_services(paid, removed_at, price_cents_snapshot, name_snapshot)",
     )
     .is("deleted_at", null)
     .in("status", ["hotova", "zaplatena"]);

@@ -13,8 +13,10 @@ export default async function NewOrderPage({
 }: {
   searchParams: Promise<{ clientId?: string; carId?: string }>;
 }) {
+  let canPriceOverride = false;
   try {
-    await getCurrentStaff(); // both roles may create
+    const actor = await getCurrentStaff(); // both roles may create
+    canPriceOverride = actor.role === "manazer"; // only managers may set the price
   } catch (error) {
     if (isUnauthenticatedError(error)) return <UnauthenticatedView />;
     throw error;
@@ -58,6 +60,7 @@ export default async function NewOrderPage({
         mode="create"
         services={services}
         hours={hours}
+        canPriceOverride={canPriceOverride}
         initial={{
           step,
           client,

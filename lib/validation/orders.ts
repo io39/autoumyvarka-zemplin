@@ -21,6 +21,10 @@ const selectionSchema = z.object({
   quantity: z.number().int().positive().max(99).optional(),
 });
 
+// Manual order total in cents (manager-only). Capped at 100 000 € to catch
+// fat-finger entries; 0 is allowed (a free wash).
+const priceOverrideCentsSchema = z.number().int().min(0).max(10_000_000);
+
 export const getCalendarSchema = z.object({
   view: z.enum(["day", "week"], { message: "Neplatný typ pohľadu." }),
   date: dateOnlySchema,
@@ -41,6 +45,8 @@ export const createOrderSchema = z.object({
   startsAt: isoInstantSchema,
   services: z.array(selectionSchema).min(1, "Vyberte aspoň jednu službu."),
   durationOverrideMin: z.number().int().positive().max(24 * 60).optional(),
+  // Manager-only manual order total (cents); omitted keeps the computed line sum.
+  priceOverrideCents: priceOverrideCentsSchema.optional(),
   note: z.string().trim().max(2000).optional(),
 });
 
@@ -104,6 +110,12 @@ export const removeOrderServiceSchema = z.object({
 export const setOrderServicePaidSchema = z.object({
   orderServiceId: idSchema,
   paid: z.boolean(),
+});
+
+export const setOrderPriceSchema = z.object({
+  id: idSchema,
+  // null clears the override → the order total reverts to the line sum.
+  priceOverrideCents: priceOverrideCentsSchema.nullable(),
 });
 
 export const getUnpaidOrdersSchema = z.object({

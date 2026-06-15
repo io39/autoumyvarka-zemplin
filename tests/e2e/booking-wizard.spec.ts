@@ -39,6 +39,43 @@ test.describe("booking wizard — create (manager)", () => {
     await expect(page).toHaveURL(/\/\?date=\d{4}-\d{2}-\d{2}/);
   });
 
+  test("manager can set a manual order price (override) on create", async ({ page }) => {
+    const { clientId, phone } = await seedClientWithCar();
+
+    await page.goto("/orders/new");
+    await page.getByLabel(/Hľadať klienta/).fill(phone);
+    await page.locator(`[data-client-id="${clientId}"]`).click();
+    await page.locator('[data-step="car"] [data-car-id]').first().click();
+    await page.getByRole("button", { name: "Ďalej" }).click();
+    await page.locator('[data-step="services"] label[data-service-id]').first().click();
+
+    // Manager-only price field: typing replaces the running total and flags it.
+    await page.locator("[data-price-override]").fill("99,90");
+    await expect(page.locator("[data-summary-price]")).toContainText("99,90");
+    await expect(page.locator("[data-summary-price]")).toContainText("upravená");
+
+    await page.getByRole("button", { name: "Ďalej" }).click();
+    await pickAFreeSlot(page);
+    await page.getByRole("button", { name: "Vytvoriť rezerváciu" }).click();
+    await expect(page.getByText("Objednávka vytvorená.")).toBeVisible();
+
+    // Persisted as cents; the order detail shows the override as the total.
+    const db = serviceClient();
+    const { data: order } = await db
+      .from("orders")
+      .select("id, price_override_cents")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    expect(order!.price_override_cents).toBe(9990);
+
+    await page.goto(`/orders/${order!.id}`);
+    const services = page.locator('[data-section="services"]');
+    await expect(services).toContainText("99,90");
+    await expect(services).toContainText("upravená cena");
+  });
+
   test("an unregistered number shows a Nový zákazník row → dialog (phone pre-filled) creates + selects, landing on step 2", async ({ page }) => {
     await page.goto("/orders/new");
     // Typing a full, unregistered number appends a "Nový zákazník" row (styled
@@ -184,6 +221,27 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
       .single();
     expect(after!.duration_min).toBe(15);
   });
+
+  test("Zmeniť čas: manager can set a manual price; it persists", async ({ page }) => {
+    const o = await seedOrder();
+    const db = serviceClient();
+
+    await page.goto(`/orders/${o.orderId}/edit`);
+    await expect(page.locator('[data-step="services"]')).toBeVisible();
+    await page.locator("[data-price-override]").fill("123,45");
+
+    await page.getByRole("button", { name: "Ďalej" }).click();
+    await pickAFreeSlot(page);
+    await page.getByRole("button", { name: "Uložiť zmeny" }).click();
+    await expect(page.getByText("Zmeny uložené.")).toBeVisible();
+
+    const { data: after } = await db
+      .from("orders")
+      .select("price_override_cents")
+      .eq("id", o.orderId)
+      .single();
+    expect(after!.price_override_cents).toBe(12345);
+  });
 });
 
 test.describe("booking wizard — edit route gating (prevádzka)", () => {
@@ -193,5 +251,18 @@ test.describe("booking wizard — edit route gating (prevádzka)", () => {
     const o = await seedOrder();
     await page.goto(`/orders/${o.orderId}/edit`);
     await expect(page.getByText("Nemáte oprávnenie")).toBeVisible();
+  });
+
+  test("prevádzka does not see the price override input in the wizard", async ({ page }) => {
+    const { clientId, phone } = await seedClientWithCar();
+
+    await page.goto("/orders/new");
+    await page.getByLabel(/Hľadať klienta/).fill(phone);
+    await page.locator(`[data-client-id="${clientId}"]`).click();
+    await page.locator('[data-step="car"] [data-car-id]').first().click();
+    await page.getByRole("button", { name: "Ďalej" }).click();
+
+    await expect(page.locator('[data-step="services"]')).toBeVisible();
+    await expect(page.locator("[data-price-override]")).toHaveCount(0);
   });
 });

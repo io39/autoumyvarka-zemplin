@@ -101,6 +101,7 @@ describe("summarizeDetails", () => {
       "order.assign",
       "order.unassign",
       "order.note_edit",
+      "order.price_override",
       "order_service.add",
       "order_service.remove",
       "order_service.paid",

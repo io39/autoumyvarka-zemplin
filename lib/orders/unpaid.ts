@@ -27,6 +27,8 @@ export interface UnpaidOrderInput {
   status: OrderStatus;
   deleted_at: string | null;
   starts_at: string;
+  /** Manager total override (cents); when set it is the order's whole price. */
+  price_override_cents: number | null;
   services: UnpaidLineInput[];
 }
 
@@ -46,8 +48,15 @@ export function isOverdue(o: UnpaidOrderInput, todayKey: string): boolean {
   return bratislavaDateKey(new Date(o.starts_at)) < todayKey;
 }
 
-/** Display-only sum (cents) of the non-removed, unpaid lines. */
-export function unpaidAmountCents(o: Pick<UnpaidOrderInput, "services">): number {
+/**
+ * Display-only amount owed (cents). When the order carries a manager price
+ * override, that override IS the order's whole price, so it is the amount owed;
+ * otherwise it's the sum of the non-removed, unpaid lines.
+ */
+export function unpaidAmountCents(
+  o: Pick<UnpaidOrderInput, "services" | "price_override_cents">,
+): number {
+  if (o.price_override_cents != null) return o.price_override_cents;
   return o.services
     .filter((l) => l.removed_at === null && !l.paid)
     .reduce((sum, l) => sum + l.price_cents_snapshot, 0);

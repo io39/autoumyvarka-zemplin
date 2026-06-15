@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   addonGroup,
+  effectiveTotalCents,
   finishHHMM,
   resolveSelectionLines,
   totalDurationMin,
@@ -50,6 +51,13 @@ describe("booking wizard math (spec 16)", () => {
     expect(finishHHMM("09:00", 90)).toBe("10:30");
     expect(finishHHMM("23:30", 60)).toBe("00:30");
     expect(finishHHMM("09:00", 0)).toBe("");
+  });
+
+  it("effectiveTotalCents: override replaces the line sum, null/undefined falls back", () => {
+    expect(effectiveTotalCents(1700, null)).toBe(1700);
+    expect(effectiveTotalCents(1700, undefined)).toBe(1700);
+    expect(effectiveTotalCents(1700, 2500)).toBe(2500);
+    expect(effectiveTotalCents(1700, 0)).toBe(0); // a free wash overrides to 0
   });
 
   it("addonGroup buckets add-ons by name prefix (with/without diacritics)", () => {

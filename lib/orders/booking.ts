@@ -61,6 +61,18 @@ export function totalPriceCents(lines: ResolvedLine[]): number {
 }
 
 /**
+ * The order's effective total in cents. A manager-set `overrideCents` REPLACES
+ * the summed line price everywhere the total is shown (order detail, client
+ * history, unpaid amount); null/undefined falls back to the line sum.
+ */
+export function effectiveTotalCents(
+  lineSumCents: number,
+  overrideCents: number | null | undefined,
+): number {
+  return overrideCents == null ? lineSumCents : overrideCents;
+}
+
+/**
  * Sub-group for an add-on (Doplnkové) service, derived from its name prefix
  * (the catalog has no sub-category column). Used to render Tepovanie / Čistenie
  * / Ostatné headers in step 3. Anything that isn't clearly tepovanie/čistenie

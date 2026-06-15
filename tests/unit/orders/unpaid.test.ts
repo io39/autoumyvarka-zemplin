@@ -17,6 +17,7 @@ function order(p: Partial<UnpaidOrderInput>): UnpaidOrderInput {
     status: "hotova",
     deleted_at: null,
     starts_at: TODAY_TS,
+    price_override_cents: null,
     services: [],
     ...p,
   };
@@ -107,5 +108,19 @@ describe("unpaidAmountCents", () => {
       services: [paidLine, unpaidLine, unpaidLine, removedUnpaidLine],
     });
     expect(unpaidAmountCents(o)).toBe(3780); // two unpaid lines × 1890
+  });
+
+  it("a manager price override IS the amount owed, ignoring the line sum", () => {
+    const o = order({
+      status: "hotova",
+      price_override_cents: 5000,
+      services: [unpaidLine, unpaidLine], // would sum to 3780
+    });
+    expect(unpaidAmountCents(o)).toBe(5000);
+  });
+
+  it("an override of 0 (free wash) means nothing owed", () => {
+    const o = order({ status: "hotova", price_override_cents: 0, services: [unpaidLine] });
+    expect(unpaidAmountCents(o)).toBe(0);
   });
 });

@@ -10,7 +10,9 @@ import {
   moveOrder,
   removeOrderService,
   setNote,
+  setOrderPrice,
 } from "@/lib/actions/orders";
+import { parseEurosToCents } from "@/lib/services/format";
 import { getClientWithCars } from "@/lib/actions/clients";
 import type { ServiceWithPrices } from "@/lib/actions/services";
 import type { CarRow, ClientRow, OpeningHoursRow, PricingCategory } from "@/lib/supabase/types";
@@ -40,6 +42,8 @@ export interface EditContext {
   originalNote: string | null;
   /** The order's duration (min) at load — to detect a duration change on save. */
   originalDuration: number;
+  /** The order's price override (cents) at load — to detect a price change on save. */
+  originalPriceOverrideCents: number | null;
 }
 
 export interface BookingWizardProps {
@@ -47,6 +51,8 @@ export interface BookingWizardProps {
   services: ServiceWithPrices[];
   /** Weekly opening hours — drives the step-4 grid range + free-slot validation. */
   hours: OpeningHoursRow[];
+  /** Only managers may override the order's duration/price (PRD §3). */
+  canPriceOverride: boolean;
   initial: {
     step: number;
     client: ClientRow | null;
@@ -55,6 +61,7 @@ export interface BookingWizardProps {
     carId: string | null;
     selections: Selection[];
     overrideMin?: string;
+    priceOverride?: string;
     date: string;
     picked: PickedSlot | null;
     note?: string | null;
@@ -70,7 +77,14 @@ export interface BookingWizardProps {
  */
 const ZERO_FLAGS: ClientFlags = { overdueUnpaidCount: 0, unpaidAmountCents: 0, noShowCount: 0 };
 
-export function BookingWizard({ mode, services, hours, initial, edit }: BookingWizardProps) {
+export function BookingWizard({
+  mode,
+  services,
+  hours,
+  canPriceOverride,
+  initial,
+  edit,
+}: BookingWizardProps) {
   const router = useRouter();
   const [pending, start] = useTransition();
   // Submit runs OUTSIDE the transition: a router.push that follows the server
@@ -86,6 +100,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
   const [carId, setCarId] = useState<string | null>(initial.carId);
   const [selections, setSelections] = useState<Selection[]>(initial.selections);
   const [overrideMin, setOverrideMin] = useState(initial.overrideMin ?? "");
+  const [priceOverride, setPriceOverride] = useState(initial.priceOverride ?? "");
   const [note, setNoteValue] = useState(initial.note ?? "");
   const [view, setView] = useState<SlotView>("day");
   const [date, setDate] = useState(initial.date);
@@ -187,6 +202,8 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
     const startsAt = bratislavaLocalToISO(slot.dateKey, slot.localStart);
     const override = Number(overrideMin);
     const overrideArg = Number.isFinite(override) && override > 0 ? override : undefined;
+    // Manager-only manual price (cents); null = no override typed.
+    const priceCents = canPriceOverride ? parseEurosToCents(priceOverride) : null;
 
     setSubmitting(true);
     // NOTE: on the success paths we deliberately navigate and do NOT reset
@@ -251,6 +268,11 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
           const r = await setNote({ id: edit.orderId, note: note.trim() || null });
           if (!r.ok) return fail(r.message ?? "Uloženie poznámky zlyhalo.");
         }
+        // 4) Price-override diff (manager only; null clears it).
+        if (canPriceOverride && priceCents !== edit.originalPriceOverrideCents) {
+          const r = await setOrderPrice({ id: edit.orderId, priceOverrideCents: priceCents });
+          if (!r.ok) return fail(r.message ?? "Uloženie ceny zlyhalo.");
+        }
         toast.success("Zmeny uložené.");
         // Land on the calendar at the (possibly new) date. Do not setState after.
         router.push(`/?date=${slot.dateKey}`);
@@ -268,6 +290,7 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
         startsAt,
         services: selections,
         durationOverrideMin: overrideArg,
+        priceOverrideCents: priceCents ?? undefined,
         note: note.trim() || undefined,
       });
       if (r.ok) {
@@ -330,10 +353,13 @@ export function BookingWizard({ mode, services, hours, initial, edit }: BookingW
           selections={selections}
           overrideMin={overrideMin}
           allowOverride
+          priceOverride={priceOverride}
+          allowPriceOverride={canPriceOverride}
           note={note}
           onToggle={toggleService}
           onQty={setQty}
           onOverrideChange={setOverrideMin}
+          onPriceOverrideChange={setPriceOverride}
           onNoteChange={setNoteValue}
         />
       )}

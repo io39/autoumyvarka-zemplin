@@ -117,12 +117,18 @@ All validate with zod; creating writes `audit_log`.
 | --- | --- | --- | --- |
 | `getCalendar` | `{ view: 'day'\|'week', date, box? }` | both | — (read) |
 | `suggestSlots` | `{ box?, date, durationMin }` | both | — (read) |
-| `createOrder` | `{ clientId, carId, box, startsAt, serviceIds[], quantities?, durationOverrideMin? }` | both | `order.create` |
+| `createOrder` | `{ clientId, carId, box, startsAt, serviceIds[], quantities?, durationOverrideMin?, priceOverrideCents?, note? }` | both | `order.create` |
 
 - `createOrder` validation: `box ∈ {1,2}`; `startsAt` on a 15-min boundary; ≥1 service;
   each service active and priced for the car's category (else reject — spec 03 lookup);
   the whole `[startsAt, ends_at)` must be **open** (`isRangeOpen`, spec 04); inserts the
   order + snapshotted `order_services` rows (data-model §2.8) in one transaction.
+- **Manager-only overrides:** both `durationOverrideMin` and `priceOverrideCents` are
+  gated behind `requireManager` (PRD §3 — order-data editing is manager-only); a worker
+  passing either is rejected. `priceOverrideCents` (≥ 0, capped at 100 000 €) is stored on
+  `orders.price_override_cents` and, when set, **replaces** the summed line price as the
+  order total everywhere (order detail, client history, unpaid amount — data-model §2.7).
+  It can also be changed later on an existing order via `setOrderPrice` (spec 06).
 - **Conflict:** relies on the DB exclusion constraint `orders_no_box_overlap`
   (data-model §2.7). On a unique/exclusion violation, return a friendly Slovak message
   ("Termín v tomto boxe je obsadený") — never a raw error. Belt-and-suspenders: also

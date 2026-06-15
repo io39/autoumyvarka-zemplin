@@ -1,4 +1,5 @@
 import type { CarRow, OrderStatus } from "@/lib/supabase/types";
+import { effectiveTotalCents } from "@/lib/orders/booking";
 
 /**
  * Pure shaping of a client's per-car service history (spec 08).
@@ -60,6 +61,7 @@ export interface HistoryOrderInput {
   note: string | null;
   box: number;
   deleted_at: string | null;
+  price_override_cents: number | null;
   services: Array<{
     name_snapshot: string;
     quantity: number;
@@ -77,9 +79,10 @@ function toEntry(o: HistoryOrderInput): HistoryEntry {
     status: o.status,
     note: o.note,
     box: o.box,
-    totalCents: o.services
-      .filter((s) => s.removed_at === null)
-      .reduce((a, s) => a + s.price_cents_snapshot, 0),
+    totalCents: effectiveTotalCents(
+      o.services.filter((s) => s.removed_at === null).reduce((a, s) => a + s.price_cents_snapshot, 0),
+      o.price_override_cents,
+    ),
     services: o.services.map((s) => ({
       name: s.name_snapshot,
       quantity: s.quantity,

@@ -24,6 +24,7 @@ function order(o: Partial<HistoryOrderInput> & { id: string; car_id: string }): 
     note: null,
     box: 1,
     deleted_at: null,
+    price_override_cents: null,
     services: [],
     workers: [],
     ...o,
@@ -120,6 +121,22 @@ describe("buildCarHistories", () => {
     expect(entry.box).toBe(2);
     expect(entry.endsAt).toBe("2026-01-01T10:30:00Z");
     expect(entry.totalCents).toBe(1700); // 1200 + 500, removed 9000 excluded
+  });
+
+  it("a manager price override replaces the line-sum total", () => {
+    const orders: HistoryOrderInput[] = [
+      order({
+        id: "o1",
+        car_id: "X",
+        price_override_cents: 2500,
+        services: [
+          { name_snapshot: "Umytie", quantity: 1, price_cents_snapshot: 1200, removed_at: null },
+          { name_snapshot: "Vosk", quantity: 1, price_cents_snapshot: 500, removed_at: null },
+        ],
+      }),
+    ];
+    const [history] = buildCarHistories([car("X")], orders, new Set());
+    expect(history.entries[0].totalCents).toBe(2500); // override wins over 1700
   });
 
   it("groups by car and gives an empty list for a car with no orders", () => {

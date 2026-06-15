@@ -1,6 +1,7 @@
 import type { Json } from "@/lib/supabase/database.types";
 import type { OrderStatus } from "@/lib/supabase/types";
 import { STATE_LABEL } from "@/types";
+import { formatPriceCents } from "@/lib/services/format";
 
 /**
  * Slovak presentation of audit_log entries (spec 09). Pure — no I/O — so the
@@ -21,6 +22,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "order.assign": "Priradenie pracovníka",
   "order.unassign": "Odobratie pracovníka",
   "order.note_edit": "Úprava poznámky",
+  "order.price_override": "Úprava ceny",
   "order_service.add": "Pridanie služby",
   "order_service.remove": "Odobratie služby",
   "order_service.paid": "Zmena úhrady služby",
@@ -119,6 +121,10 @@ export function summarizeDetails(action: string, details: Json | null): string {
     }
     case "order.note_edit":
       return d.to ? "Poznámka upravená" : "Poznámka zmazaná";
+    case "order.price_override":
+      return d.to == null
+        ? "Cena vrátená na súčet služieb"
+        : `Cena upravená na ${formatPriceCents(Number(d.to))}`;
     case "order.assign":
     case "order.unassign":
       return action === "order.assign" ? "Pracovník priradený" : "Pracovník odobratý";

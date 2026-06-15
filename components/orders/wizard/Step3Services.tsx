@@ -10,7 +10,7 @@ import {
   totalPriceCents,
   type Selection,
 } from "@/lib/orders/booking";
-import { formatPriceCents } from "@/lib/services/format";
+import { formatPriceCents, parseEurosToCents } from "@/lib/services/format";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,10 +40,13 @@ export function Step3Services({
   selections,
   overrideMin,
   allowOverride = true,
+  priceOverride,
+  allowPriceOverride = false,
   note,
   onToggle,
   onQty,
   onOverrideChange,
+  onPriceOverrideChange,
   onNoteChange,
 }: {
   services: ServiceWithPrices[];
@@ -52,10 +55,15 @@ export function Step3Services({
   overrideMin: string;
   /** The manual duration override is create-only; in edit mode it isn't persisted. */
   allowOverride?: boolean;
+  /** Manager-entered manual order total (euros, as typed). */
+  priceOverride: string;
+  /** Only managers may override the price (PRD §3). */
+  allowPriceOverride?: boolean;
   note: string;
   onToggle: (id: string) => void;
   onQty: (id: string, qty: number) => void;
   onOverrideChange: (value: string) => void;
+  onPriceOverrideChange: (value: string) => void;
   onNoteChange: (value: string) => void;
 }) {
   const lines = useMemo(
@@ -63,7 +71,11 @@ export function Step3Services({
     [selections, services, category],
   );
   const duration = totalDurationMin(lines, Number(overrideMin));
-  const price = totalPriceCents(lines);
+  const lineSum = totalPriceCents(lines);
+  // The override (when a manager has typed a valid amount) replaces the summed
+  // line price in the running total; otherwise the line sum shows.
+  const overrideCents = allowPriceOverride ? parseEurosToCents(priceOverride) : null;
+  const price = overrideCents ?? lineSum;
 
   const addonItems = useMemo(
     () => services.filter((s) => s.service.kind === "addon"),
@@ -132,19 +144,35 @@ export function Step3Services({
         </Accordion>
       )}
 
-      {allowOverride && (
-        <div className="space-y-1">
-          <Label htmlFor="override">Trvanie (min, voliteľné)</Label>
-          <Input
-            id="override"
-            inputMode="numeric"
-            className="w-32"
-            value={overrideMin}
-            onChange={(e) => onOverrideChange(e.target.value)}
-            placeholder={String(totalDurationMin(lines))}
-          />
-        </div>
-      )}
+      <div className="flex flex-wrap gap-4">
+        {allowOverride && (
+          <div className="space-y-1">
+            <Label htmlFor="override">Trvanie (min, voliteľné)</Label>
+            <Input
+              id="override"
+              inputMode="numeric"
+              className="w-32"
+              value={overrideMin}
+              onChange={(e) => onOverrideChange(e.target.value)}
+              placeholder={String(totalDurationMin(lines))}
+            />
+          </div>
+        )}
+        {allowPriceOverride && (
+          <div className="space-y-1">
+            <Label htmlFor="price-override">Cena (€, voliteľné)</Label>
+            <Input
+              id="price-override"
+              data-price-override
+              inputMode="decimal"
+              className="w-32"
+              value={priceOverride}
+              onChange={(e) => onPriceOverrideChange(e.target.value)}
+              placeholder={(lineSum / 100).toFixed(2).replace(".", ",")}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 p-3 text-sm">
         <div data-summary-duration>
@@ -152,6 +180,9 @@ export function Step3Services({
         </div>
         <div data-summary-price>
           Cena spolu: <span className="font-medium">{formatPriceCents(price)}</span>
+          {overrideCents !== null && (
+            <span className="ml-1 text-xs text-muted-foreground">(upravená)</span>
+          )}
         </div>
       </div>
 

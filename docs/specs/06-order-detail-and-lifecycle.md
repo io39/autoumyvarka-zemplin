@@ -128,6 +128,7 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
 | `addOrderWorker` | `{ id, staffId }` | both | `order.assign` `{staffId}` |
 | `removeOrderWorker` | `{ id, staffId }` | both | `order.unassign` `{staffId}` |
 | `setNote` | `{ id, note }` | manager | `order.note_edit` |
+| `setOrderPrice` | `{ id, priceOverrideCents }` | manager | `order.price_override` `{from,to}` |
 | `addOrderService` | `{ id, serviceId, quantity? }` | manager | `order_service.add` |
 | `removeOrderService` | `{ orderServiceId }` | manager (if not performed) | `order_service.remove` |
 | `setOrderServicePaid` | `{ orderServiceId, paid }` | manager | `order_service.paid` |
@@ -136,6 +137,14 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
   conflict (DB constraint) — same guarantees as create; friendly Slovak conflict message.
   Optional `durationMin` (used by the wizard's edit "Trvanie" override) updates the order's
   duration too, recomputing `ends_at` and re-checking hours/conflict with the new range.
+- `setOrderPrice`: manager-only manual order total. `priceOverrideCents` (≥ 0, capped at
+  100 000 €) sets `orders.price_override_cents`; `null` clears it (the total reverts to the
+  summed lines). It does **not** touch the per-line `paid` rows. The effective total
+  (`effectiveTotalCents` = override ?? line sum) is what the order-detail **Cena spolu**
+  shows (with an "(upravená cena)" marker when overridden), and the same override drives the
+  client-history total (spec 08) and the unpaid amount (spec 10). The order-detail edit
+  surface for the price is the wizard's **Zmeniť čas** edit mode (spec 16), not an inline
+  control.
 - `deleteOrder`: rejected if status already `zaplatena` (PRD §6); soft-delete via
   `deleted_at`.
 - `addOrderService`: snapshots name/category/duration/price into `order_services`

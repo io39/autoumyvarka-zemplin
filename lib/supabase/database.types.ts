@@ -307,6 +307,7 @@ export type Database = {
           ends_at: string
           id: string
           note: string | null
+          price_override_cents: number | null
           reminded_at: string | null
           starts_at: string
           status: Database["public"]["Enums"]["order_status"]
@@ -323,6 +324,7 @@ export type Database = {
           ends_at: string
           id?: string
           note?: string | null
+          price_override_cents?: number | null
           reminded_at?: string | null
           starts_at: string
           status?: Database["public"]["Enums"]["order_status"]
@@ -339,6 +341,7 @@ export type Database = {
           ends_at?: string
           id?: string
           note?: string | null
+          price_override_cents?: number | null
           reminded_at?: string | null
           starts_at?: string
           status?: Database["public"]["Enums"]["order_status"]
@@ -563,8 +566,8 @@ export type Database = {
       delete_client_cascade: {
         Args: { p_client_id: string }
         Returns: {
-          deleted_orders: number
           deleted_cars: number
+          deleted_orders: number
         }[]
       }
       search_clients: {

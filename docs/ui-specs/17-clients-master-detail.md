@@ -122,7 +122,9 @@ Pracovníci/Poznámka/box/€.
   **stav** badge (`STATE_COLOR`/`STATE_LABEL` — retire the local `HISTORY_STATUS_BADGE`).
 - **Expanded order**: each visit's detail (**Pracovníci** + **Poznámka** + box + total €)
   is **also expanded by default** (`defaultValue` = all order ids), so the full history is
-  visible on open; each visit stays individually collapsible.
+  visible on open; each visit stays individually collapsible. The **total €** is the order's
+  effective total (`effectiveTotalCents`): the manager **price override** when set, else the
+  sum of the non-removed line snapshots (spec 05/06).
 - **Open full order**: the row links to `/orders/[id]` (spec 15 detailed surface).
 
 ### 2.4 Components (§9)

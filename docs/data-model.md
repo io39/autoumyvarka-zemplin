@@ -176,6 +176,7 @@ The central entity (PRD §6). One car, one box, one time slot, a status lifecycl
 | `duration_min` | int not null | default = Σ line durations; **manually editable** (PRD §4 step 3) |
 | `ends_at` | timestamptz **generated** | `starts_at + duration_min` (stored generated, for the overlap constraint) |
 | `status` | `order_status` not null default `'vytvorena'` | |
+| `price_override_cents` | int null | `check (>= 0)`; manager-only manual order total (cents). When set it **replaces** the summed line price everywhere the total is shown (order detail, client history, unpaid amount). NULL = use the line sum. Migration `0015`. |
 | `note` | text null | manager-only edit (PRD §7) |
 | `created_by` | uuid fk → staff not null | audit (PRD §11) |
 | `reminded_at` | timestamptz null | idempotency marker for the 30-min SMS (architecture §6) |

@@ -154,6 +154,16 @@ picker whose header mirrors the calendar (§4).
   the current selection unless the user re-enters a manual value afterwards. On save the
   effective duration is persisted (`createOrder.durationOverrideMin` on create;
   `moveOrder.durationMin` on edit, when it changed).
+- **Manual price override — manager only** (`canPriceOverride`, hidden for `prevadzka` —
+  PRD §3). A **"Cena (€, voliteľné)"** field (`#price-override`, `data-price-override`, beside
+  the duration override) lets a manager type the order's total in euros (comma or dot decimal,
+  `parseEurosToCents`). When a valid amount is entered it **replaces** the Σ-€ running total
+  (shown with an "(upravená)" marker); placeholder = the live line sum. Unlike the duration
+  override it is **not** cleared by a service change (it's an explicit decision). On save it is
+  persisted as cents and becomes the order's total everywhere (order detail, client history,
+  unpaid amount): `createOrder.priceOverrideCents` on create; on edit, the diff calls
+  `setOrderPrice` only when the value changed (`null` clears it). Prefilled from
+  `order.price_override_cents` (formatted euros) in edit mode.
 - **Poznámka (voliteľné)** textarea at the bottom (`data-order-note`) → wizard `note` state.
 
 ### 2.5 Step 4 — Termín (`Step4TimeSlot`) — the new part
@@ -246,10 +256,12 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
   the **existing actions** — `addOrderService`/`removeOrderService` for the service changes,
   `moveOrder({ id, box, startsAt, durationMin? })` for the new slot **and the duration
   override** (spec 06; `moveOrder` now takes an optional `durationMin` and re-checks
-  conflict/hours with the new end), and `setNote` when the Poznámka changed (prefilled via
-  `EditContext.originalNote` / `initial.note`). `moveOrder` runs when the slot **or** the
-  duration changed (`EditContext.originalDuration`). The conflict check excludes the order's
-  **own** current slot so "same time" isn't a false conflict.
+  conflict/hours with the new end), `setNote` when the Poznámka changed (prefilled via
+  `EditContext.originalNote` / `initial.note`), and **`setOrderPrice` when the manager price
+  override changed** (`EditContext.originalPriceOverrideCents`; `null` clears it — manager
+  only). `moveOrder` runs when the slot **or** the duration changed
+  (`EditContext.originalDuration`). The conflict check excludes the order's **own** current
+  slot so "same time" isn't a false conflict.
 - **Final label:** "Uložiť zmeny" (not "Vytvoriť rezerváciu"); on success → **redirect to
   the calendar** at the (possibly new) date (`/?date=…`) + toast, **not** back to the order
   detail — so the updated slot is immediately visible in its schedule context.
@@ -354,5 +366,8 @@ grep -rn "return=/orders/new\|redirect(\"/clients" app/orders/new | wc -l
 - [ ] On a phone, the /ks quantity can be cleared and retyped (not just appended), only digits
       are accepted, and the − / + buttons step it; no stray gray ghost lingers after picking a
       different slot.
+- [ ] As manager, the **Cena (€)** field in step 3 overrides the Σ-€ total ("(upravená)");
+      the created/edited order shows that price as **Cena spolu** ("upravená cena") and it
+      flows to client history + the unpaid amount. As **prevádzka** the field is absent.
 - [ ] New client + car persist (visible afterwards in `/clients`).
 - [ ] Slovak throughout.

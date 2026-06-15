@@ -70,7 +70,8 @@ should see it too" — but since workers can't act on payment, default manager-o
 - Badge shows the **overdue** count (0 → no badge, or a calm "0"); a banner appears only
   when overdue > 0 ("Pozor: {n} nezaplatených objednávok z minulých dní").
 - `/unpaid` list: order date, client (name/phone), car (ŠPZ + model), services + unpaid
-  amount (display-only cents sum of unpaid lines), status, and an **overdue** marker;
+  amount (display-only; the sum of unpaid lines, **or the manager price override when set** —
+  see §2.2), status, and an **overdue** marker;
   sorted newest-first (overdue still marked with the "Po termíne" badge). Each row → `/orders/[id]` (spec 06) to mark paid.
 - shadcn/ui: `Badge`, `Alert`/banner, `Table`. Mobile-first ≥360px; Slovak copy;
   empty-state "Žiadne nezaplatené objednávky".
@@ -79,6 +80,9 @@ should see it too" — but since workers can't act on payment, default manager-o
 
 - `isUnpaid(order)` and `isOverdue(order, today)` pure predicates encoding §1.2 — unit-
   tested, single place to tune the definition.
+- `unpaidAmountCents(order)` is the amount owed: when the order carries a manager price
+  **override** (`price_override_cents`, spec 05/06) that override **is** the order's whole
+  price, so it's the amount; otherwise it's the sum of the non-removed unpaid lines.
 - The query selects candidate orders (`status='hotova'` OR exists an unpaid, non-removed
   `order_services` line), excluding deleted, then partitions overdue vs today.
 

@@ -8,6 +8,7 @@ import { getOrder } from "@/lib/actions/orders";
 import { listServices } from "@/lib/actions/services";
 import { getOpeningHours } from "@/lib/actions/settings";
 import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
+import { formatCentsForInput } from "@/lib/services/format";
 import { BookingWizard } from "@/components/orders/wizard/BookingWizard";
 import type { PickedSlot } from "@/components/orders/wizard/types";
 
@@ -70,6 +71,7 @@ export default async function EditOrderPage({
         mode="edit"
         services={services}
         hours={hours}
+        canPriceOverride // edit is manager-only
         initial={{
           step: 2,
           client,
@@ -77,6 +79,8 @@ export default async function EditOrderPage({
           sharedCarIds: [],
           carId: car.id,
           selections,
+          priceOverride:
+            order.price_override_cents != null ? formatCentsForInput(order.price_override_cents) : "",
           date: currentSlot.dateKey,
           picked: currentSlot,
           note: order.note,
@@ -87,6 +91,7 @@ export default async function EditOrderPage({
           currentSlot,
           originalNote: order.note,
           originalDuration: order.duration_min,
+          originalPriceOverrideCents: order.price_override_cents,
         }}
       />
     </div>

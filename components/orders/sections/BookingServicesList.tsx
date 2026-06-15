@@ -28,6 +28,7 @@ export function BookingServicesList({
   onRemove,
   onPaid,
   totalCents,
+  priceOverridden,
 }: {
   lines: OrderDetail["services"];
   canEdit: boolean;
@@ -39,6 +40,8 @@ export function BookingServicesList({
   onRemove: (id: string) => void;
   onPaid: (id: string, paid: boolean) => void;
   totalCents: number;
+  /** True when the total is a manager override (not the summed lines). */
+  priceOverridden?: boolean;
 }) {
   const [selected, setSelected] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("1");
@@ -95,8 +98,9 @@ export function BookingServicesList({
         ))}
       </ul>
 
-      <div className="flex justify-end text-sm">
-        Cena spolu: <span className="ml-1 font-medium">{formatPriceCents(totalCents)}</span>
+      <div className="flex items-baseline justify-end gap-1 text-sm">
+        {priceOverridden && <span className="text-xs text-muted-foreground">(upravená cena)</span>}
+        Cena spolu: <span className="font-medium">{formatPriceCents(totalCents)}</span>
       </div>
 
       {canEdit && (
