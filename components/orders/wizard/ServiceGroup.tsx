@@ -6,7 +6,7 @@ import type { Selection } from "@/lib/orders/booking";
 import { resolveServicePrice } from "@/lib/services/price-lookup";
 import { formatPriceCents } from "@/lib/services/format";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { QuantityStepper } from "./QuantityStepper";
 
 /**
  * A titled group of selectable services (Hlavné / Doplnkové) with per-unit
@@ -59,23 +59,9 @@ export function ServiceGroup({
                 </Badge>
               )}
               {sel && it.service.is_per_unit && (
-                <Input
-                  type="number"
-                  min={1}
-                  step={1}
-                  inputMode="numeric"
-                  className="w-16"
+                <QuantityStepper
                   value={sel.quantity}
-                  aria-label="Počet ks"
-                  // Block non-digit keys (e/E/+/-/.,) that a number input still allows.
-                  onKeyDown={(e) => {
-                    if (["e", "E", "+", "-", ".", ","].includes(e.key)) e.preventDefault();
-                  }}
-                  // Keep only digits; empty/invalid → 1, never below 1.
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, "");
-                    onQty(it.service.id, digits === "" ? 1 : Math.max(1, parseInt(digits, 10)));
-                  }}
+                  onChange={(qty) => onQty(it.service.id, qty)}
                 />
               )}
               {unavailable && <span className="text-xs text-muted-foreground">nedostupné</span>}

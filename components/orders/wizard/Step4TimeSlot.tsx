@@ -199,6 +199,10 @@ export function Step4TimeSlot({
   // tap-friendly minimum on mobile (the grid side-scrolls there); on desktop the
   // columns shrink to fit the container so there is no horizontal scroll.
   const isDesktop = useMediaQuery("(min-width: 640px)");
+  // Touch devices don't fire mouseleave, so a hover-preview ghost would linger on
+  // the first-tapped column after picking elsewhere (a stray gray box). Only do
+  // the hover preview on hover-capable (mouse) pointers.
+  const canHover = useMediaQuery("(hover: hover)");
   const colTemplate =
     view === "day"
       ? "2.75rem repeat(2, minmax(0, 1fr))"
@@ -339,6 +343,7 @@ export function Step4TimeSlot({
                   isToday={day === todayK}
                   isPast={day < todayK}
                   todayCutoff={todayCutoff}
+                  canHover={canHover}
                   picked={picked}
                   currentSlot={currentSlot}
                   onPick={onPick}
@@ -428,6 +433,7 @@ function GridColumn({
   isToday,
   isPast,
   todayCutoff,
+  canHover,
   picked,
   currentSlot,
   onPick,
@@ -443,6 +449,7 @@ function GridColumn({
   isToday: boolean;
   isPast: boolean;
   todayCutoff: number;
+  canHover: boolean;
   picked: PickedSlot | null;
   currentSlot?: PickedSlot | null;
   onPick: (slot: PickedSlot) => void;
@@ -453,15 +460,14 @@ function GridColumn({
 
   const dayOpenMin = dayInterval ? hhmmToMin(dayInterval.open) : 0;
   const dayCloseMin = dayInterval ? hhmmToMin(dayInterval.close) : 0;
-  // Past day → whole day closed (cutoff = close); today → after the current
-  // 15-min slot; future day → from open.
+  // Future-only floor for the quick-slots and the keyboard "nearest free" pick:
+  // past day → nothing suggested (floor = close); today → after the current
+  // 15-min slot; future day → from open. Manual grid picking ignores this floor
+  // (past slots are pickable), but the suggestions stay anchored to "now".
   const fromMin = isPast ? dayCloseMin : isToday ? Math.max(dayOpenMin, todayCutoff) : dayOpenMin;
-  // No free (VOĽNÉ) zones on a past day — nothing there is bookable. On today,
-  // clip each zone to start at `fromMin` so the green never renders under the
-  // MINULOSŤ (past) overlay — only the gray shows there (no confusing overlap).
-  const freeZones = (dayInterval && !isPast ? computeFreeZones(dayOpenMin, dayCloseMin, busy) : [])
-    .map((z) => ({ startMin: Math.max(z.startMin, fromMin), endMin: z.endMin }))
-    .filter((z) => z.endMin > z.startMin);
+  // Free (VOĽNÉ) zones span the whole open interval — including the past — so a
+  // historic slot is visibly clickable. A subtle MINULOSŤ tint sits behind them.
+  const freeZones = dayInterval ? computeFreeZones(dayOpenMin, dayCloseMin, busy) : [];
 
   const top = (min: number) => ((min - gridOpenMin) / SLOT_MIN) * ROW_PX;
   const span = (a: number, b: number) => Math.max(ROW_PX, ((b - a) / SLOT_MIN) * ROW_PX);
@@ -470,7 +476,9 @@ function GridColumn({
     if (!dayInterval || !ref.current) return null;
     const y = e.clientY - ref.current.getBoundingClientRect().top;
     const start = offsetToStartMin(y, gridOpenMin, ROW_PX);
-    if (start < fromMin) return null;
+    // Past slots are allowed to be picked manually; only open hours + overlap
+    // (via fitsAt) gate the click. The future-only `fromMin` floor still drives
+    // the quick-slots and the keyboard "nearest free" pick.
     return fitsAt(start, durationMin, dayOpenMin, dayCloseMin, busy) ? start : null;
   }
 
@@ -490,7 +498,7 @@ function GridColumn({
       tabIndex={0}
       aria-label={`Box ${box} · klikom vyberte čas`}
       title={`Box ${box} · klikom vyberte čas`}
-      onMouseMove={(e) => setHoverMin(startFromEvent(e))}
+      onMouseMove={(e) => canHover && setHoverMin(startFromEvent(e))}
       onMouseLeave={() => setHoverMin(null)}
       onClick={(e) => {
         const s = startFromEvent(e);
@@ -534,16 +542,9 @@ function GridColumn({
         </div>
       )}
 
-      {/* Free zones — green overlay only, no label */}
-      {freeZones.map((z) => (
-        <div
-          key={z.startMin}
-          className="pointer-events-none absolute inset-x-1 rounded border border-dashed border-green-500/60 bg-green-50/50 dark:bg-green-950/40"
-          style={{ top: top(z.startMin) + 1, height: span(z.startMin, z.endMin) - 2 }}
-        />
-      ))}
-
-      {/* Past (MINULOSŤ) overlay: today up to the cutoff, or a whole past day */}
+      {/* Past (MINULOSŤ) tint: today up to the cutoff, or a whole past day.
+          Rendered behind the free zones — a hint, not a block: past slots stay
+          pickable, so the green VOĽNÉ zones sit on top and remain clickable. */}
       {(isToday || isPast) && fromMin > gridOpenMin && (
         <div
           className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-center bg-foreground/5 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground"
@@ -552,6 +553,15 @@ function GridColumn({
           Minulosť
         </div>
       )}
+
+      {/* Free zones — green overlay only, no label */}
+      {freeZones.map((z) => (
+        <div
+          key={z.startMin}
+          className="pointer-events-none absolute inset-x-1 rounded border border-dashed border-green-500/60 bg-green-50/50 dark:bg-green-950/40"
+          style={{ top: top(z.startMin) + 1, height: span(z.startMin, z.endMin) - 2 }}
+        />
+      ))}
 
       {/* Occupied bookings — read-only context (click passes through to picking) */}
       {blocks.map((b) => {
@@ -581,8 +591,8 @@ function GridColumn({
         />
       )}
 
-      {/* Hover preview ghost */}
-      {hoverMin !== null && hoverMin !== selMin && (
+      {/* Hover preview ghost — mouse only (touch leaves no mouseleave to clear it) */}
+      {canHover && hoverMin !== null && hoverMin !== selMin && (
         <div
           className="pointer-events-none absolute inset-x-1 rounded border-2 border-primary/50 bg-primary/10"
           style={{ top: top(hoverMin) + 1, height: span(hoverMin, hoverMin + durationMin) - 2 }}

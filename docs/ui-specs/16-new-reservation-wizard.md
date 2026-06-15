@@ -132,10 +132,15 @@ picker whose header mirrors the calendar (§4).
 ### 2.4 Step 3 — Služby (`Step3Services`)
 
 - Reuse `ServiceGroup` (per-unit qty, availability dimming). The per-unit (`is_per_unit`,
-  "/ks") **quantity field is a strict positive integer**: `type="number"` `min=1` `step=1`,
-  non-digit keys (`e`/`E`/`+`/`-`/`.`/`,`) blocked on key-down, and `onChange` strips
-  non-digits and clamps to **≥ 1** (empty/invalid → 1) so it can never be text, negative, or
-  `NaN`. **Hlavné** renders directly;
+  "/ks") quantity uses a touch-friendly **`QuantityStepper`** (`components/orders/wizard/`):
+  large **− / + buttons** (`size="icon"`, − disabled at the minimum of 1) flanking a digit-only
+  field. Native number spinners are hidden on mobile, so the buttons are the primary control.
+  The field is `inputMode="numeric"` `pattern="[0-9]*"`, blocks non-digit keys
+  (`e`/`E`/`+`/`-`/`.`/`,`) on key-down, and strips non-digits on input — but it **may be
+  transiently empty while editing** (so the value is deletable/retypable on a phone) and only
+  **settles to ≥ 1 on blur**, so it can never persist as text, empty, negative, or `NaN`. The
+  committed value is kept in sync with external changes (the buttons, switching service) via the
+  adjust-state-during-render pattern. **Hlavné** renders directly;
   **Doplnkové** is wrapped in a shadcn `Accordion` (**collapsed by default**; `value` forced
   open + an `N vybraté` count badge when `addonSelectedCount > 0`). Inside, add-ons are split
   into **Tepovanie / Čistenie / Ostatné** — each a reused `ServiceGroup` — via the pure
@@ -166,10 +171,14 @@ picker whose header mirrors the calendar (§4).
   box** as one-tap buttons; picking one sets `pickedSlot = { box, localStart }`.
 - **Full picker:** for each visible day × box, render free ranges computed from existing
   orders + the open interval (reuse `lib/orders/slots.ts` + `getOpenInterval`) as an
-  **unlabeled dashed-green overlay** (no "Voľné" text), with a **MINULOSŤ** overlay over past
-  times. Tapping a free range sets `pickedSlot` (box
-  implicit). Enforce no overlap with the chosen duration (the DB constraint is the backstop;
-  the picker pre-filters). Occupied bookings render with the shared `BookingCardContent`
+  **unlabeled dashed-green overlay** (no "Voľné" text). Free zones span the **whole open
+  interval, including the past**, so a historic slot is visibly clickable; a subtle **MINULOSŤ**
+  tint sits **behind** the green zones (a hint, not a block). Tapping a free range sets
+  `pickedSlot` (box implicit). Enforce no overlap with the chosen duration (the DB constraint is
+  the backstop; the picker pre-filters). The **hover-preview ghost is mouse-only**
+  (`useMediaQuery("(hover: hover)")`): touch devices don't fire `mouseleave`, so a touch hover
+  would otherwise leave a stray gray ghost on the first-tapped column after picking elsewhere.
+  Occupied bookings render with the shared `BookingCardContent`
   **line** density (time + brand, **centered** — like the chosen-slot box). The grid uses a **fixed** `ROW_PX` (its click maps Y→time,
   so rows stay uniform — unlike the Day view's dynamic rows). The **3-dni** column template
   shrinks to `minmax(0,1fr)` on desktop (`useMediaQuery`) so it fits without horizontal
@@ -183,12 +192,16 @@ picker whose header mirrors the calendar (§4).
   box-header, quick-slot, and grid-column cells (the grid columns are `overflow-hidden`, so
   the divider lives on a wrapper) so the two boxes of one day stay grouped and adjacent days
   are easy to tell apart.
-- **Past cutoff (`lib/orders/slot-grid.ts earliestStartToday`):** for **today**, the earliest
-  selectable start is the **start of the slot containing now** — the slot the clock is in
-  stays bookable, and a slot closes only once the clock crosses into the next one (at 11:05
-  the 11:00 slot is still pickable; at 13:16 the 13:00 slot is closed and 13:15 is the
-  earliest). A day **entirely in the past** is fully blocked: no free zones, no quick slots,
-  the MINULOSŤ overlay covers the whole open range, and clicks/keyboard picks are rejected.
+- **Past slots are bookable** (a manager may record a reservation that already happened):
+  manual grid clicks are gated only by open hours + overlap (`fitsAt`), not by a past cutoff.
+  The **quick slots and the keyboard "nearest free" pick stay anchored to "now"** via
+  `lib/orders/slot-grid.ts earliestStartToday`: for **today** the nearest suggested start is the
+  **start of the slot containing now** (the slot the clock is in stays bookable; a slot drops
+  out of the suggestions only once the clock crosses into the next one — at 11:05 the 11:00
+  slot is still suggested, at 13:16 the 13:00 slot is gone and 13:15 is nearest). A day
+  **entirely in the past** offers **no quick slots** (`—`), but its free zones remain clickable
+  in the grid. `createOrder` carries no past-time guard — only the 15-min boundary, box-overlap
+  exclusion constraint, and open-hours check — so allowing the past is a UI-layer change only.
 - The **selected slot** ghost shows the **start–end** range (`HH:MM–HH:MM`), not just the
   start.
 - **Submit:** `bratislavaLocalToISO(date, pickedSlot.localStart)` → `createOrder({ clientId,
@@ -203,8 +216,9 @@ picker whose header mirrors the calendar (§4).
 
 ### 2.7 Decomposition (§6)
 
-`BookingWizard → BookingStepper, Step1Client, Step2Car, Step3Services, Step4TimeSlot,
-WizardActions`. Pure helpers (finish-time, slot/range math) live in `lib/` (reuse existing;
+`BookingWizard → BookingStepper, Step1Client, Step2Car, Step3Services (→ ServiceGroup →
+QuantityStepper), Step4TimeSlot, WizardActions`. Pure helpers (finish-time, slot/range math)
+live in `lib/` (reuse existing;
 add range-building if not already there). `Step4` shares the date-popover + today helpers
 from spec 14 (`lib/calendar/`).
 
@@ -333,8 +347,12 @@ grep -rn "return=/orders/new\|redirect(\"/clients" app/orders/new | wc -l
 
 - [ ] Each step usable at 360px; stepper shows progress; Späť/Ďalej gating correct.
 - [ ] Step-4 header matches §4 (Deň/3 dni, date popover, Dnes/Späť na dnes, today gray).
-- [ ] Past times show the MINULOSŤ overlay; box is implicit from the picked slot. The
-      slot the clock is currently in stays selectable (closes only once the clock crosses
-      into the next slot), and a day entirely in the past is fully blocked.
+- [ ] Past times show the MINULOSŤ tint **behind** the free zones but stay **clickable**
+      (a past reservation is bookable); box is implicit from the picked slot. The quick slots
+      stay anchored to now (the slot the clock is in stays suggested; a day entirely in the
+      past offers no quick slots, only grid clicks).
+- [ ] On a phone, the /ks quantity can be cleared and retyped (not just appended), only digits
+      are accepted, and the − / + buttons step it; no stray gray ghost lingers after picking a
+      different slot.
 - [ ] New client + car persist (visible afterwards in `/clients`).
 - [ ] Slovak throughout.
