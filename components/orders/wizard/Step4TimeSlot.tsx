@@ -48,6 +48,11 @@ interface DayData {
 
 const DEFAULT_INTERVAL: Interval = { open: "08:00", close: "17:00" };
 
+// Min width of one lane in the picker (occupied or the reserved free lane): wide
+// enough for a car name. A column = lanes × this; when the columns don't fit, the
+// grid scrolls horizontally rather than squeezing the lanes below readable width.
+const PICKER_MIN_LANE_PX = 96;
+
 function keyToDate(key: string): Date {
   const [y, m, d] = key.split("-").map(Number);
   return new Date(y, m - 1, d);
@@ -210,18 +215,24 @@ export function Step4TimeSlot({
     view !== "day" && box === 1 && day !== days[0];
   // Every inter-column gutter gets a divider except the axis | first-box edge.
   const hasDivider = (day: string, box: 1 | 2) => box === 2 || isDayStart(day, box);
-  // Deň fills the width (2 boxes). 3 dni gives each of the 6 box-columns a wide
-  // tap-friendly minimum on mobile (the grid side-scrolls there); on desktop the
-  // columns shrink to fit the container so there is no horizontal scroll.
-  const isDesktop = useMediaQuery("(min-width: 640px)");
   // Touch devices don't fire mouseleave, so a hover-preview ghost would linger on
   // the first-tapped column after picking elsewhere (a stray gray box). Only do
   // the hover preview on hover-capable (mouse) pointers.
   const canHover = useMediaQuery("(hover: hover)");
-  const colTemplate =
-    view === "day"
-      ? "2.75rem repeat(2, minmax(0, 1fr))"
-      : `2.75rem repeat(${columns.length}, minmax(${isDesktop ? "0" : "8.5rem"}, 1fr))`;
+  // Each box column is sized for its lanes (occupied + the reserved free lane) so
+  // every lane stays a readable width; the grid scrolls when they don't all fit.
+  const lanesForColumn = (day: string, box: 1 | 2) => {
+    const occ = (data.byDay[day]?.blocks ?? []).filter(
+      (b) => b.order.box === box && b.order.id !== excludeOrderId,
+    );
+    const placed = assignLanes(
+      occ.map((b) => ({ startMin: blockStartMin(b), endMin: blockEndMin(b) })),
+    );
+    return placed.reduce((m, p) => Math.max(m, p.lanes), 0) + 1;
+  };
+  const colTemplate = `2.75rem ${columns
+    .map(({ day, box }) => `minmax(${lanesForColumn(day, box) * PICKER_MIN_LANE_PX}px, 1fr)`)
+    .join(" ")}`;
 
   return (
     <section className="space-y-4" data-step="termin">

@@ -195,11 +195,11 @@ picker whose header mirrors the calendar (§4).
   **line** density (car name). **Variable row heights** (`computeRowLayout`, shared with the
   Day view): a short occupied booking grows its 15-min row(s) — across all columns + the
   shared axis — so it stays readable; the click→time mapping follows the variable rows
-  (`slotAtOffset`). The **3-dni** column template
-  shrinks to `minmax(0,1fr)` on desktop (`useMediaQuery`) so it fits without horizontal
-  scroll; each box column has a header row showing `Box N` + the reservation count. The
-  occupied-booking **line** cards use a slightly larger **13px** font (`text-[13px]`) for
-  legibility in the wider grid. **Gutter dividers** (a `::before` **rounded bar**,
+  (`slotAtOffset`). **Lane-aware column width:** each box column is
+  `minmax(lanes × PICKER_MIN_LANE_PX, 1fr)` where `lanes` = occupied + the reserved free lane,
+  so every lane stays a readable width; when the columns don't all fit the grid **scrolls
+  horizontally** (same as the Day/Week views). Each box column has a header row showing
+  `Box N` + the reservation count. The occupied-booking **line** cards show the car name. **Gutter dividers** (a `::before` **rounded bar**,
   `before:w-1.5 before:rounded-lg before:bg-foreground/30`, centred in the `gap-x-2` gutter —
   the same look as the main calendar) mark every inter-column boundary except the axis edge
   (`hasDivider = box === 2 || isDayStart`): one **between Box 1 and Box 2** of each day, and —
