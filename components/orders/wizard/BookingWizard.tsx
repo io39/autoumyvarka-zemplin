@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -93,6 +93,10 @@ export function BookingWizard({
   // actions can be dropped when their revalidatePath re-renders the current
   // route inside a transition (intermittent "stays on step 4, no redirect").
   const [submitting, setSubmitting] = useState(false);
+  // Goes false when the component unmounts (i.e. a successful navigation away),
+  // so the post-submit hard-nav fallback knows the soft push actually took.
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const [step, setStep] = useState(initial.step);
   const [maxReached, setMaxReached] = useState(initial.step);
@@ -219,11 +223,20 @@ export function BookingWizard({
     };
 
     setSubmitting(true);
-    // NOTE: on the success paths we deliberately navigate and do NOT reset
-    // `submitting` — a setState right after `router.push` can cancel the
-    // navigation (symptom: the success toast shows but the page stays on the
-    // edit step). The component unmounts on navigation, so no stuck state.
-    // `submitting` is reset only on the paths that stay on the page.
+    // NOTE: success paths navigate via `goToCalendar` and do NOT reset
+    // `submitting` — the component unmounts on navigation. A soft `router.push`
+    // shows the toast and keeps SPA nav, but the action's `revalidatePath("/")`
+    // (and, on the overlap-confirm retry, the closing dialog) can DROP it, leaving
+    // the button stuck on "Ukladám…" even though the order was saved. So we add a
+    // hard-navigation fallback that fires only if the push was dropped (the
+    // component is still mounted shortly after).
+    const goToCalendar = () => {
+      const url = `/?date=${slot.dateKey}`;
+      router.push(url);
+      window.setTimeout(() => {
+        if (mountedRef.current) window.location.assign(url);
+      }, 600);
+    };
     void (async () => {
       if (isEdit && edit) {
         // The diff is applied via several non-transactional actions; if one
@@ -296,8 +309,8 @@ export function BookingWizard({
           if (!r.ok) return fail(r.message ?? "Uloženie ceny zlyhalo.");
         }
         toast.success("Zmeny uložené.");
-        // Land on the calendar at the (possibly new) date. Do not setState after.
-        router.push(`/?date=${slot.dateKey}`);
+        // Land on the calendar at the (possibly new) date (hard nav — reliable).
+        goToCalendar();
         return;
       }
 
@@ -318,7 +331,7 @@ export function BookingWizard({
       });
       if (r.ok) {
         toast.success("Objednávka vytvorená.");
-        router.push(`/?date=${slot.dateKey}`);
+        goToCalendar();
       } else if (r.conflict && !allowOverlap) {
         promptOverlap(r.conflict, "Vytvoriť aj tak");
       } else {
