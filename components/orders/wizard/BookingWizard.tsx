@@ -22,6 +22,8 @@ import {
   type Selection,
 } from "@/lib/orders/booking";
 import { type ClientFlags } from "@/lib/orders/unpaid";
+import type { OverlapInfo } from "@/lib/orders/overlap";
+import { OverlapConfirmDialog } from "@/components/orders/OverlapConfirmDialog";
 import { bratislavaLocalToISO } from "@/lib/time/bratislava";
 import { formatCarLabel } from "@/lib/cars/format";
 import { ClientFlagBadges } from "@/components/clients/client-flag-badges";
@@ -106,6 +108,12 @@ export function BookingWizard({
   const [date, setDate] = useState(initial.date);
   const [picked, setPicked] = useState<PickedSlot | null>(initial.picked);
   const [flags, setFlags] = useState<ClientFlags>(ZERO_FLAGS);
+  // Overlap "warn but allow" prompt (migration 0016): confirming re-runs submit
+  // with allowOverlap=true.
+  const [overlapPrompt, setOverlapPrompt] = useState<{
+    conflict: OverlapInfo;
+    confirmLabel: string;
+  } | null>(null);
 
   // Warning flags for the selected client (overdue unpaid / no-shows). Re-fetched
   // whenever the client changes (initial prefill, edit mode, or in-wizard select).
@@ -196,7 +204,7 @@ export function BookingWizard({
     picked !== null,
   ];
 
-  function submit() {
+  function submit(allowOverlap = false) {
     if (!picked) return;
     const slot = picked;
     const startsAt = bratislavaLocalToISO(slot.dateKey, slot.localStart);
@@ -204,6 +212,11 @@ export function BookingWizard({
     const overrideArg = Number.isFinite(override) && override > 0 ? override : undefined;
     // Manager-only manual price (cents); null = no override typed.
     const priceCents = canPriceOverride ? parseEurosToCents(priceOverride) : null;
+    // On a soft overlap, stop and open the confirm dialog (it re-runs submit(true)).
+    const promptOverlap = (conflict: OverlapInfo, confirmLabel: string) => {
+      setOverlapPrompt({ conflict, confirmLabel });
+      setSubmitting(false);
+    };
 
     setSubmitting(true);
     // NOTE: on the success paths we deliberately navigate and do NOT reset
@@ -235,8 +248,17 @@ export function BookingWizard({
           slot.localStart !== edit.currentSlot.localStart;
         const durationChanged = durationMin !== edit.originalDuration;
         if (slotMoved || durationChanged) {
-          const r = await moveOrder({ id: edit.orderId, box: slot.box, startsAt, durationMin });
-          if (!r.ok) return fail(r.message);
+          const r = await moveOrder({
+            id: edit.orderId,
+            box: slot.box,
+            startsAt,
+            durationMin,
+            allowOverlap,
+          });
+          if (!r.ok) {
+            if (r.conflict && !allowOverlap) return promptOverlap(r.conflict, "Uložiť aj tak");
+            return fail(r.message);
+          }
         }
         // 2) Service diff (add/remove; a quantity change = remove + re-add).
         //    `recomputeDuration: false` — moveOrder already set the final
@@ -292,10 +314,13 @@ export function BookingWizard({
         durationOverrideMin: overrideArg,
         priceOverrideCents: priceCents ?? undefined,
         note: note.trim() || undefined,
+        allowOverlap,
       });
       if (r.ok) {
         toast.success("Objednávka vytvorená.");
         router.push(`/?date=${slot.dateKey}`);
+      } else if (r.conflict && !allowOverlap) {
+        promptOverlap(r.conflict, "Vytvoriť aj tak");
       } else {
         toast.error(r.message);
         setSubmitting(false);
@@ -388,9 +413,20 @@ export function BookingWizard({
           finalLabel={isEdit ? "Uložiť zmeny" : "Vytvoriť rezerváciu"}
           onBack={() => setStep((s) => Math.max(0, s - 1))}
           onNext={() => goTo(step + 1)}
-          onFinish={submit}
+          onFinish={() => submit()}
         />
       </div>
+
+      <OverlapConfirmDialog
+        conflict={overlapPrompt?.conflict ?? null}
+        confirmLabel={overlapPrompt?.confirmLabel}
+        pending={submitting}
+        onConfirm={() => {
+          setOverlapPrompt(null);
+          submit(true);
+        }}
+        onCancel={() => setOverlapPrompt(null)}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -16,7 +16,9 @@ import {
   type RecentVisit,
 } from "@/lib/actions/orders";
 import type { ClientFlags } from "@/lib/orders/unpaid";
+import type { OverlapInfo } from "@/lib/orders/overlap";
 import { effectiveTotalCents } from "@/lib/orders/booking";
+import { OverlapConfirmDialog } from "./OverlapConfirmDialog";
 import { resendSms } from "@/lib/actions/sms";
 import type { ServiceWithPrices } from "@/lib/actions/services";
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
@@ -65,6 +67,13 @@ export function OrderDetailBody({
   onRefresh,
 }: OrderDetailBodyProps) {
   const [pending, startTransition] = useTransition();
+  // Overlap "warn but allow" prompt (migration 0016): when a mutation returns a
+  // soft conflict, stash it + a confirm that retries with allowOverlap=true.
+  const [overlapPrompt, setOverlapPrompt] = useState<{
+    conflict: OverlapInfo;
+    confirmLabel: string;
+    confirm: () => void;
+  } | null>(null);
   const { order, client, car } = detail;
   const isManager = role === "manazer";
 
@@ -79,15 +88,37 @@ export function OrderDetailBody({
     (w0) => !detail.workers.some((w) => w.worker_id === w0.id),
   );
 
-  function call<T extends { ok: boolean; message?: string }>(label: string, fn: () => Promise<T>) {
-    startTransition(async () => {
-      const r = await fn();
+  function call<T extends { ok: boolean; message?: string; conflict?: OverlapInfo }>(
+    label: string,
+    fn: (allowOverlap?: boolean) => Promise<T>,
+    // Slovak verb for the confirm button when the action overlaps a booking.
+    overlapConfirmLabel = "Pokračovať aj tak",
+  ) {
+    const settle = (r: T) => {
       if (r.ok) {
         toast.success(label);
         onRefresh();
       } else {
         toast.error(r.message ?? "Operácia zlyhala.");
       }
+    };
+    startTransition(async () => {
+      const r = await fn();
+      // Soft overlap → confirm, then retry the same action with allowOverlap.
+      if (!r.ok && r.conflict) {
+        setOverlapPrompt({
+          conflict: r.conflict,
+          confirmLabel: overlapConfirmLabel,
+          confirm: () =>
+            startTransition(async () => {
+              const retry = await fn(true);
+              setOverlapPrompt(null);
+              settle(retry);
+            }),
+        });
+        return;
+      }
+      settle(r);
     });
   }
 
@@ -158,7 +189,12 @@ export function OrderDetailBody({
         services={services}
         existingServiceIds={new Set(activeServices.map((l) => l.service_id))}
         onAdd={(serviceId, quantity) =>
-          call("Služba pridaná.", () => addOrderService({ id: order.id, serviceId, quantity }))
+          call(
+            "Služba pridaná.",
+            (allowOverlap) =>
+              addOrderService({ id: order.id, serviceId, quantity, allowOverlap }),
+            "Pridať aj tak",
+          )
         }
         onRemove={(orderServiceId) =>
           call("Služba odstránená.", () => removeOrderService({ orderServiceId }))
@@ -184,8 +220,20 @@ export function OrderDetailBody({
         role={role}
         pending={pending}
         onAdvance={(next: OrderStatus) =>
-          call(`Stav: ${STATE_LABEL[next]}.`, () => setStatus({ id: order.id, next }))
+          call(
+            `Stav: ${STATE_LABEL[next]}.`,
+            (allowOverlap) => setStatus({ id: order.id, next, allowOverlap }),
+            "Obnoviť aj tak",
+          )
         }
+      />
+
+      <OverlapConfirmDialog
+        conflict={overlapPrompt?.conflict ?? null}
+        confirmLabel={overlapPrompt?.confirmLabel}
+        pending={pending}
+        onConfirm={() => overlapPrompt?.confirm()}
+        onCancel={() => setOverlapPrompt(null)}
       />
     </div>
   );

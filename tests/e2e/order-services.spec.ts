@@ -129,7 +129,7 @@ test.describe("order services on existing order (manager)", () => {
     expect(after!.paid).toBe(true);
   });
 
-  test("adding a service is refused when the longer booking would overlap the next one", async ({
+  test("adding a service that would overlap the next booking warns, then allows on confirm", async ({
     page,
   }) => {
     const db = serviceClient();
@@ -168,13 +168,24 @@ test.describe("order services on existing order (manager)", () => {
     await page.getByRole("option", { name: candidate!.name }).click();
     await page.getByRole("button", { name: "Pridať službu" }).click();
 
-    // Refused with a clear message; the line is NOT added.
-    await expect(page.getByText(/prekrýval s ďalšou rezerváciou/)).toBeVisible();
-    const { data: lines } = await db
+    // Warn-but-allow (migration 0016): a confirm dialog names the clash and the
+    // line is NOT added yet.
+    await expect(page.getByRole("heading", { name: "Termín sa prekrýva" })).toBeVisible();
+    const before = await db
       .from("order_services")
       .select("id")
       .eq("order_id", a.orderId)
       .is("removed_at", null);
-    expect(lines!.length).toBe(1);
+    expect(before.data!.length).toBe(1);
+
+    // Confirm → the service is added despite the overlap.
+    await page.locator("[data-overlap-confirm]").click();
+    await expect(page.getByText("Služba pridaná.")).toBeVisible();
+    const after = await db
+      .from("order_services")
+      .select("id")
+      .eq("order_id", a.orderId)
+      .is("removed_at", null);
+    expect(after.data!.length).toBe(2);
   });
 });
