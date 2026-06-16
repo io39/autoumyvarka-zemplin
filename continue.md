@@ -12,7 +12,7 @@ pushing is hook-blocked here. A **TEST deployment is now live** (Coolify + Supab
 EU + Cloudflare Access) — see the **Deployment status** section below and the full runbook
 `docs/deployment.md`. **Production hardening (Phase 4) is NOT done** and the VPS origin is
 unhardened (no tunnel) — test/fake data only. Still ahead: the real SMS provider and the
-client's open questions. **Last updated:** 2026-06-04.
+client's open questions. **Last updated:** 2026-06-17.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -68,6 +68,22 @@ Odstrániť to a **hard-delete cascade** (`delete_client_cascade`). **0015** add
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- `feat(orders)` (`6a1112f`, 2026-06-17): **optional "ready" SMS toggle on vytvorená →
+  hotová.** A **"Odoslať SMS o dokončení"** checkbox sits above the status actions whenever
+  `hotova` is an available next status — checked by default, toggleable by **both roles**
+  (customer already on site). Unchecking it makes `setStatus` skip the `ORDER_READY` emit
+  (no "ready" SMS) and record `sms_suppressed: true` in the `order.status_change` audit
+  (rendered "Zrušenie odosielania SMS"). A suppressed (no-row) ready SMS then shows in the
+  SMS block as a synthetic **Neodoslaná** entry with an **Odoslať** button (**both roles**,
+  for an accidental suppression) → new `sendOrderSms({ orderId, type: "ready" })` action:
+  **ready-only**, **idempotent** (returns the existing row if one exists), audited
+  `sms.send` ("Manuálne odoslanie SMS"). The manager-only "Poslať znova" on real rows is
+  unchanged. Added the shadcn `checkbox` primitive (unified `radix-ui` import). Specs 06
+  (§2.2) + 07 (§1.1/§2.6/§2.7/§4.4) updated in place. New/extended e2e in `sms-ready.spec.ts`
+  (suppress → no row + audit → Neodoslaná → Odoslať sends a real `sent` row + `sms.send`
+  audit). code-reviewer: 1 blocker (sendOrderSms accepted `type:"reminder"` → restricted to
+  `z.literal("ready")`) + 3 should-fix (idempotency guard, order-not-found message, audit
+  label) applied; `zaplatená`-window and failed-row cases left as-is by design.
 - `fix(realtime)` (`c59c63b`): calendar/unpaid live updates broke after a status change —
   `setStatus`'s `revalidatePath("/")` re-minted `realtimeJwt`, which (being a subscription
   dep) churned the channel and dropped the actor's own `postgres_changes` echo in the
