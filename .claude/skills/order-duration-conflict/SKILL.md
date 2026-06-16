@@ -33,13 +33,22 @@ Strict step order — the UI walks the manager through it, mobile-first:
 - There is **no multiplier**: durations are an explicit per-category table
   (`docs/services.md` ratios are irregular). Look up the row, don't compute a factor.
 
-## Conflict rule (PRD §4, acceptance §15.3)
+## Conflict rule — "warn but allow" (migration 0016, docs/navrh-prekryvajuce-rezervacie.md)
 
-Two orders may not occupy the same **box** with overlapping `[starts_at, ends_at)`.
-Enforced at the **database level** by the `orders_no_box_overlap` exclusion constraint
-— do not rely on app-side checks alone. The constraint **excludes** `deleted_at IS NOT
-NULL` and `status = 'nedostavil_sa'` orders, because those **free the slot**. Surface
-the DB conflict error as a friendly Slovak message; never swallow it.
+Overlapping reservations in the same **box** are **ALLOWED** (client decision). There is
+**no hard DB constraint** any more — `orders_no_box_overlap` was dropped in migration 0016.
+Instead it's a **soft, confirmable** check in the action layer:
+
+- `findBoxOverlaps()` (`lib/actions/orders.ts`) + the pure `lib/orders/overlap.ts` detect
+  live orders overlapping `[starts_at, ends_at)` in the box (excluding the order itself,
+  `deleted_at IS NOT NULL`, and `status = 'nedostavil_sa'` — those **free the slot**).
+- `createOrder` / `moveOrder` / `addOrderService` / `setStatus` (no-show→active revert)
+  return a soft `{ ok:false, conflict, message }` when an overlap is found **unless** the
+  caller passes `allowOverlap: true`. The UI (`OverlapConfirmDialog`) names the clash and
+  retries with `allowOverlap`. Unlimited concurrency per box.
+- **Opening hours are still enforced** (`isRangeOpen`) — only the box-overlap rule is soft.
+- The calendar shows overlapping bookings in **side-by-side lanes** (`lib/calendar/lanes.ts`
+  `assignLanes`); the Step-4 picker reserves a free lane and lets you pick occupied times.
 
 ## Status lifecycle (PRD §6) — enforce role + transition rules
 
@@ -67,4 +76,5 @@ vytvorena ──(any role)──► hotova ──(manager only)──► zaplate
 
 - Don't let workers move/delete orders or mark `nedostavil_sa` (manager-only, PRD §3).
 - Don't compute durations with a per-type multiplier.
-- Don't check conflicts only in app code — keep the DB exclusion constraint.
+- Don't re-add the box-overlap DB constraint or hard-reject overlaps — they're allowed
+  now (migration 0016); detect + confirm via `findBoxOverlaps` / `allowOverlap` instead.

@@ -179,18 +179,20 @@ picker whose header mirrors the calendar (§4).
   widening across month/year boundaries).
 - **Quick slots:** call `suggestSlots({ date, durationMin })` → nearest free slots **per
   box** as one-tap buttons; picking one sets `pickedSlot = { box, localStart }`.
-- **Full picker:** for each visible day × box, render free ranges computed from existing
-  orders + the open interval (reuse `lib/orders/slots.ts` + `getOpenInterval`) as an
-  **unlabeled dashed-green overlay** (no "Voľné" text). Free zones span the **whole open
-  interval, including the past**, so a historic slot is visibly clickable; a subtle **MINULOSŤ**
-  tint sits **behind** the green zones (a hint, not a block). Tapping a free range sets
-  `pickedSlot` (box implicit). Enforce no overlap with the chosen duration (the DB constraint is
-  the backstop; the picker pre-filters). The **hover-preview ghost is mouse-only**
-  (`useMediaQuery("(hover: hover)")`): touch devices don't fire `mouseleave`, so a touch hover
-  would otherwise leave a stray gray ghost on the first-tapped column after picking elsewhere.
-  Occupied bookings render with the shared `BookingCardContent`
-  **line** density (time + brand, **centered** — like the chosen-slot box). The grid uses a **fixed** `ROW_PX` (its click maps Y→time,
-  so rows stay uniform — unlike the Day view's dynamic rows). The **3-dni** column template
+- **Full picker (overlapping-reservations redesign):** for each visible day × box, the
+  occupied bookings are **lane-placed** (`assignLanes`) with **one extra reserved "free"
+  lane** for the new booking — 1 existing → halves, 2 → thirds, 3 → fourths (UI-STRUCTURE
+  §8). The reserved lane is the rightmost (a faint dashed `bg-primary/5` strip); the pick
+  ghost renders there. **Any open-hours time is clickable — including occupied ones**
+  (overlap is allowed, migration 0016): clicking maps Y→time, gated only by the open window
+  (`fitsAt` with empty `busy`), so picking over an existing booking is allowed and the wizard
+  **confirms the overlap on save** (`OverlapConfirmDialog`). Past slots stay clickable with a
+  **MINULOSŤ** tint behind. The green free-zone overlay is **gone** (superseded by the lanes +
+  reserved lane); the quick-slots above still suggest the nearest **free** times. The
+  **hover-preview ghost is mouse-only** (`useMediaQuery("(hover: hover)")`): touch devices
+  don't fire `mouseleave`, so a touch hover would otherwise leave a stray ghost on the
+  first-tapped column. Occupied bookings render with the shared `BookingCardContent`
+  **line** density (car name). The grid uses a **fixed** `ROW_PX`. The **3-dni** column template
   shrinks to `minmax(0,1fr)` on desktop (`useMediaQuery`) so it fits without horizontal
   scroll; each box column has a header row showing `Box N` + the reservation count. The
   occupied-booking **line** cards use a slightly larger **13px** font (`text-[13px]`) for
@@ -369,5 +371,8 @@ grep -rn "return=/orders/new\|redirect(\"/clients" app/orders/new | wc -l
 - [ ] As manager, the **Cena (€)** field in step 3 overrides the Σ-€ total ("(upravená)");
       the created/edited order shows that price as **Cena spolu** ("upravená cena") and it
       flows to client history + the unpaid amount. As **prevádzka** the field is absent.
+- [ ] Step 4 shows occupied bookings in lanes with a reserved free lane (1 → halves,
+      2 → thirds …); clicking an occupied time is allowed and, on **Vytvoriť rezerváciu**,
+      the overlap confirm dialog names the clash → confirming creates the overlapping booking.
 - [ ] New client + car persist (visible afterwards in `/clients`).
 - [ ] Slovak throughout.

@@ -184,21 +184,16 @@ The central entity (PRD §6). One car, one box, one time slot, a status lifecycl
 | `created_at` | timestamptz not null default now() | |
 | `updated_at` | timestamptz not null default now() | |
 
-**Conflict prevention (PRD §4, acceptance §15.3)** — Postgres exclusion constraint
-(requires `btree_gist`):
-
-```sql
-alter table orders add constraint orders_no_box_overlap
-  exclude using gist (
-    box with =,
-    tstzrange(starts_at, ends_at) with &&
-  )
-  where (deleted_at is null and status <> 'nedostavil_sa');
-```
-
-Deleted and *nedostavil sa* orders free their slot (PRD §6); all other states
-occupy it. This makes a conflicting reservation impossible at the DB level, not
-just in app code.
+**Box overlap — allowed, soft-checked (migration 0016, `docs/navrh-prekryvajuce-rezervacie.md`).**
+Overlapping reservations in the same box are **permitted** (unlimited concurrency). The
+original `0006` exclusion constraint `orders_no_box_overlap` (`exclude using gist (box with =,
+tstzrange(starts_at, ends_at) with &&) where (deleted_at is null and status <> 'nedostavil_sa')`)
+was **dropped in `0016`**. Collision is now a **soft, confirmable** check in the action layer:
+`findBoxOverlaps()` + the pure `lib/orders/overlap.ts` detect overlapping live orders
+(excluding the order itself, deleted, and *nedostavil sa* — those free the slot); the actions
+return a `conflict` the UI confirms, then retries with `allowOverlap`. Opening-hours checks are
+unchanged. The DB no longer guards against accidental double-booking — that's the documented
+trade-off. The calendar renders overlaps in side-by-side lanes (`lib/calendar/lanes.ts`).
 
 **Assigned workers:** an order may have **multiple** assigned workers — modeled M:N
 via `order_staff` (§2.14), not a column here.
