@@ -1,14 +1,75 @@
 import { describe, it, expect } from "vitest";
 import {
+  ROW_PX,
   buildRows,
+  computeRowLayout,
   diffMinutes,
   formatDMY,
   formatWeekRange,
   skWeekdayShort,
+  slotAtOffset,
   toMinutes,
   weekDateKeys,
   weekRange,
 } from "@/lib/calendar/grid";
+
+describe("computeRowLayout", () => {
+  it("all rows are ROW_PX when nothing is short", () => {
+    // a 60-min booking spans 4 rows (4×20=80 ≥ 42), no growth.
+    const { heights, top } = computeRowLayout([{ startMin: 0, endMin: 60 }], 8);
+    expect(heights.every((h) => h === ROW_PX)).toBe(true);
+    expect(top).toEqual([0, 20, 40, 60, 80, 100, 120, 140, 160]);
+  });
+
+  it("a 15-min booking grows its single row to MIN_CARD_PX", () => {
+    const { heights, top } = computeRowLayout([{ startMin: 0, endMin: 15 }], 4);
+    expect(heights[0]).toBe(42); // grew
+    expect(heights.slice(1)).toEqual([20, 20, 20]);
+    expect(top[1] - top[0]).toBe(42); // the booking's rendered height
+  });
+
+  it("back-to-back short bookings each grow their own row", () => {
+    const { heights } = computeRowLayout(
+      [
+        { startMin: 0, endMin: 15 },
+        { startMin: 15, endMin: 30 },
+      ],
+      4,
+    );
+    expect(heights[0]).toBe(42);
+    expect(heights[1]).toBe(42);
+    expect(heights[2]).toBe(20);
+  });
+
+  it("a row shared by lanes takes the max growth (not the sum)", () => {
+    const { heights } = computeRowLayout(
+      [
+        { startMin: 0, endMin: 15 },
+        { startMin: 0, endMin: 15 }, // same row, another lane
+      ],
+      2,
+    );
+    expect(heights[0]).toBe(42); // max, not 42+extra
+  });
+});
+
+describe("slotAtOffset", () => {
+  it("maps a pixel offset to the slot whose band contains it (uniform rows)", () => {
+    const top = [0, 20, 40, 60, 80];
+    expect(slotAtOffset(top, 0)).toBe(0);
+    expect(slotAtOffset(top, 19)).toBe(0);
+    expect(slotAtOffset(top, 20)).toBe(1);
+    expect(slotAtOffset(top, 75)).toBe(3);
+    expect(slotAtOffset(top, 999)).toBe(3); // clamped to last
+  });
+
+  it("respects variable row heights (a grown first row)", () => {
+    const top = [0, 42, 62, 82]; // first row grown to 42
+    expect(slotAtOffset(top, 30)).toBe(0); // still inside the tall first row
+    expect(slotAtOffset(top, 42)).toBe(1);
+    expect(slotAtOffset(top, 70)).toBe(2);
+  });
+});
 
 describe("formatDMY", () => {
   it("renders a YYYY-MM-DD key as DD.MM.YYYY", () => {

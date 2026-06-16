@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import type { CalendarBlock } from "@/lib/actions/orders";
 import { bratislavaHHMM } from "@/lib/settings/availability";
-import { ROW_PX, SLOT_MIN, diffMinutes, type Interval } from "@/lib/calendar/grid";
+import { ROW_PX, SLOT_MIN, computeRowLayout, diffMinutes, type Interval } from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils";
@@ -14,35 +14,6 @@ import { placeBoxLanes } from "./placeLanes";
 // for the car name. When a box needs more lanes than fit, the grid scrolls
 // horizontally rather than squeezing cards below this.
 const MIN_LANE_PX = 104;
-
-// A booking shorter than this (e.g. 15 min ≈ 20px) grows its grid ROW(s) so its
-// two lines (car name + services) fit. The whole row grows — pushing the time
-// axis and everything below down — so the card stays taller AND its bottom still
-// lines up with the correct time line (the lane-compatible row-growth).
-const MIN_CARD_PX = 42;
-
-/**
- * Per-15-min-row heights: each row is `ROW_PX`, plus any extra a short card
- * needs spread across the rows it spans (max wins where rows are shared between
- * lanes/boxes). Cards then sum to ≥ their readable minimum and the axis stays
- * aligned. Returns `[height per row]` and the cumulative `top` offsets (len n+1).
- */
-function computeRows(items: { startMin: number; endMin: number }[], n: number) {
-  const extra = new Array<number>(n).fill(0);
-  for (const it of items) {
-    const s = Math.max(0, Math.min(n - 1, Math.round(it.startMin / SLOT_MIN)));
-    const e = Math.min(n, Math.max(s + 1, Math.round(it.endMin / SLOT_MIN)));
-    const span = e - s;
-    const deficit = Math.max(0, MIN_CARD_PX - span * ROW_PX);
-    if (deficit === 0) continue;
-    const perRow = deficit / span;
-    for (let i = s; i < e; i++) extra[i] = Math.max(extra[i], perRow);
-  }
-  const heights = extra.map((x) => ROW_PX + x);
-  const top = [0];
-  for (let i = 0; i < n; i++) top.push(top[i] + heights[i]);
-  return { heights, top };
-}
 
 /**
  * Day view (overlapping-reservations redesign): a CSS grid of the time axis +
@@ -76,7 +47,7 @@ export function DayView({
   // Row heights are shared across both boxes (one time axis), so a short booking
   // in either box grows that row for the whole grid.
   const allPlaced = boxes.flatMap((box) => placedByBox.get(box)?.placed ?? []);
-  const { heights: rowHeights, top: rowTop } = computeRows(allPlaced, n);
+  const { heights: rowHeights, top: rowTop } = computeRowLayout(allPlaced, n);
 
   // "Now" indicator: a ticking clock so the line slides during the day. Only
   // shown when the displayed day is today and the moment falls inside the grid.

@@ -6,15 +6,58 @@
 /** One time-grid row = 15 minutes. */
 export const SLOT_MIN = 15;
 /**
- * Base pixel height of one 15-min row. On the main Day view this is the *minimum*
- * row height (rows grow to fit a booking card's content); on the Week view and
- * the Step-4 picker it is a fixed row height.
+ * Base pixel height of one 15-min row, and the *minimum* on the Day view and the
+ * Step-4 picker (rows grow to fit a short booking — see `computeRowLayout`). The
+ * Week view keeps a fixed row height.
  */
 export const ROW_PX = 20;
+
+/**
+ * A booking shorter than this many px (e.g. 15 min ≈ ROW_PX) grows its 15-min
+ * grid row(s) so its content (car name + services) stays readable and its bottom
+ * still lines up with the time axis. Shared by the Day view and the Step-4 picker.
+ */
+export const MIN_CARD_PX = 42;
 
 export interface Interval {
   open: string; // "HH:MM"
   close: string; // "HH:MM"
+}
+
+/**
+ * Variable row heights for `n` 15-min slots: every row is `ROW_PX`, plus any
+ * extra a short booking needs, spread across the rows it spans (the max wins
+ * where rows are shared between lanes/boxes). Returns the per-row `heights` and
+ * the cumulative `top` offsets (length `n + 1`, so `top[n]` is the total height).
+ * Items are `{ startMin, endMin }` in minutes-from-grid-open.
+ */
+export function computeRowLayout(
+  items: { startMin: number; endMin: number }[],
+  n: number,
+): { heights: number[]; top: number[] } {
+  const extra = new Array<number>(n).fill(0);
+  for (const it of items) {
+    const s = Math.max(0, Math.min(n - 1, Math.round(it.startMin / SLOT_MIN)));
+    const e = Math.min(n, Math.max(s + 1, Math.round(it.endMin / SLOT_MIN)));
+    const span = e - s;
+    const deficit = Math.max(0, MIN_CARD_PX - span * ROW_PX);
+    if (deficit === 0) continue;
+    const perRow = deficit / span;
+    for (let i = s; i < e; i++) extra[i] = Math.max(extra[i], perRow);
+  }
+  const heights = extra.map((x) => ROW_PX + x);
+  const top = [0];
+  for (let i = 0; i < n; i++) top.push(top[i] + heights[i]);
+  return { heights, top };
+}
+
+/** The 15-min slot index a pixel offset falls in, given cumulative row `top`s. */
+export function slotAtOffset(top: number[], offsetPx: number): number {
+  if (offsetPx <= 0) return 0;
+  for (let i = 0; i < top.length - 1; i++) {
+    if (offsetPx < top[i + 1]) return i;
+  }
+  return Math.max(0, top.length - 2);
 }
 
 export function pad(n: number): string {

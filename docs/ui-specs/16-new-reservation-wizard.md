@@ -192,7 +192,10 @@ picker whose header mirrors the calendar (§4).
   **hover-preview ghost is mouse-only** (`useMediaQuery("(hover: hover)")`): touch devices
   don't fire `mouseleave`, so a touch hover would otherwise leave a stray ghost on the
   first-tapped column. Occupied bookings render with the shared `BookingCardContent`
-  **line** density (car name). The grid uses a **fixed** `ROW_PX`. The **3-dni** column template
+  **line** density (car name). **Variable row heights** (`computeRowLayout`, shared with the
+  Day view): a short occupied booking grows its 15-min row(s) — across all columns + the
+  shared axis — so it stays readable; the click→time mapping follows the variable rows
+  (`slotAtOffset`). The **3-dni** column template
   shrinks to `minmax(0,1fr)` on desktop (`useMediaQuery`) so it fits without horizontal
   scroll; each box column has a header row showing `Box N` + the reservation count. The
   occupied-booking **line** cards use a slightly larger **13px** font (`text-[13px]`) for

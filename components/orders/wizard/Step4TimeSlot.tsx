@@ -8,14 +8,15 @@ import { getDayOverrides } from "@/lib/actions/settings";
 import type { DayOverrideRow, OpeningHoursRow } from "@/lib/supabase/types";
 import { getOpenInterval, bratislavaHHMM } from "@/lib/settings/availability";
 import {
-  ROW_PX,
   SLOT_MIN,
   addDays,
   buildRows,
+  computeRowLayout,
   formatDMY,
   formatWeekRange,
   pad,
   skWeekdayShort,
+  slotAtOffset,
 } from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import {
@@ -24,7 +25,6 @@ import {
   hhmmToMin,
   minToHHMM,
   nearestFreeStarts,
-  offsetToStartMin,
   type BusyInterval,
 } from "@/lib/orders/slot-grid";
 import { assignLanes } from "@/lib/calendar/lanes";
@@ -166,6 +166,21 @@ export function Step4TimeSlot({
   }, [days, data]);
 
   const rows = useMemo(() => buildRows(minToHHMM(grid.openMin), minToHHMM(grid.closeMin)), [grid]);
+  // Variable row heights: a short occupied booking grows its 15-min row(s) so it
+  // stays readable and the shared axis stays aligned (same as the Day view). Built
+  // from every visible occupied block (the axis is shared across all columns).
+  const rowLayout = useMemo(() => {
+    const items = days.flatMap((d) =>
+      (data.byDay[d]?.blocks ?? [])
+        .filter((b) => b.order.id !== excludeOrderId)
+        .map((b) => ({
+          startMin: blockStartMin(b) - grid.openMin,
+          endMin: blockEndMin(b) - grid.openMin,
+        })),
+    );
+    return computeRowLayout(items, rows.length);
+  }, [days, data, grid.openMin, rows.length, excludeOrderId]);
+  const rowTop = rowLayout.top;
   // Ticking clock so the current-time line slides and the past cutoff advances.
   // Step 4 is only mounted after the user navigates to it (never at SSR), so a
   // plain `new Date()` initializer is safe (no hydration mismatch).
@@ -325,7 +340,7 @@ export function Step4TimeSlot({
             })}
 
             {/* Grid row: time axis + clickable box columns */}
-            <TimeAxis rows={rows} />
+            <TimeAxis rows={rows} heights={rowLayout.heights} />
             {columns.map(({ day, box }) => {
               const dd = data.byDay[day];
               const column = (
@@ -333,6 +348,7 @@ export function Step4TimeSlot({
                   day={day}
                   box={box}
                   rows={rows}
+                  rowTop={rowTop}
                   gridOpenMin={grid.openMin}
                   dayInterval={dd?.interval ?? null}
                   busy={busyFor(dd?.blocks ?? [], box, excludeOrderId)}
@@ -370,7 +386,14 @@ export function Step4TimeSlot({
               if (nowMin < grid.openMin || nowMin > grid.openMin + rows.length * SLOT_MIN) return null;
               const startCol = 2 + todayIdx * 2; // axis is col 1; 2 cols per day
               const gridRow = view === "day" ? 3 : 4;
-              const top = ((nowMin - grid.openMin) / SLOT_MIN) * ROW_PX;
+              // Fractional position within the (possibly grown) row the clock is in.
+              const relMin = nowMin - grid.openMin;
+              const slot = Math.floor(relMin / SLOT_MIN);
+              const top =
+                slot >= rows.length
+                  ? rowTop[rows.length]
+                  : rowTop[slot] +
+                    ((relMin - slot * SLOT_MIN) / SLOT_MIN) * (rowTop[slot + 1] - rowTop[slot]);
               return (
                 <>
                   {/* Time badge over the axis column (col 1). */}
@@ -402,13 +425,14 @@ export function Step4TimeSlot({
   );
 }
 
-function TimeAxis({ rows }: { rows: string[] }) {
+function TimeAxis({ rows, heights }: { rows: string[]; heights: number[] }) {
+  const total = heights.reduce((a, h) => a + h, 0);
   return (
-    <div className="text-[11px] text-muted-foreground" style={{ height: rows.length * ROW_PX }}>
-      {rows.map((t) => (
+    <div className="text-[11px] text-muted-foreground" style={{ height: total }}>
+      {rows.map((t, i) => (
         <div
           key={t}
-          style={{ height: ROW_PX }}
+          style={{ height: heights[i] }}
           className={cn(
             "pr-1 text-right leading-none",
             t.endsWith(":00") && "font-medium text-foreground/70",
@@ -425,6 +449,7 @@ function GridColumn({
   day,
   box,
   rows,
+  rowTop,
   gridOpenMin,
   dayInterval,
   busy,
@@ -441,6 +466,8 @@ function GridColumn({
   day: string;
   box: 1 | 2;
   rows: string[];
+  /** Cumulative px offsets of the (possibly grown) 15-min rows, length n+1. */
+  rowTop: number[];
   gridOpenMin: number;
   dayInterval: Interval | null;
   busy: BusyInterval[];
@@ -456,7 +483,8 @@ function GridColumn({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hoverMin, setHoverMin] = useState<number | null>(null);
-  const heightPx = rows.length * ROW_PX;
+  const n = rows.length;
+  const heightPx = rowTop[n];
 
   const dayOpenMin = dayInterval ? hhmmToMin(dayInterval.open) : 0;
   const dayCloseMin = dayInterval ? hhmmToMin(dayInterval.close) : 0;
@@ -480,13 +508,20 @@ function GridColumn({
     width: `calc(${100 / totalLanes}% - 2px)`,
   });
 
-  const top = (min: number) => ((min - gridOpenMin) / SLOT_MIN) * ROW_PX;
-  const span = (a: number, b: number) => Math.max(ROW_PX, ((b - a) / SLOT_MIN) * ROW_PX);
+  // px position of a minute, following the (possibly grown) variable rows.
+  const top = (min: number) => {
+    const rel = min - gridOpenMin;
+    const slot = Math.floor(rel / SLOT_MIN);
+    if (slot < 0) return 0;
+    if (slot >= n) return rowTop[n];
+    return rowTop[slot] + ((rel - slot * SLOT_MIN) / SLOT_MIN) * (rowTop[slot + 1] - rowTop[slot]);
+  };
+  const span = (a: number, b: number) => Math.max(2, top(b) - top(a));
 
   function startFromEvent(e: React.MouseEvent): number | null {
     if (!dayInterval || !ref.current) return null;
     const y = e.clientY - ref.current.getBoundingClientRect().top;
-    const start = offsetToStartMin(y, gridOpenMin, ROW_PX);
+    const start = gridOpenMin + slotAtOffset(rowTop, y) * SLOT_MIN;
     // Overlap is allowed now (migration 0016): any open-hours slot is pickable,
     // even occupied ones (the wizard confirms the clash on save). Only the open
     // window bounds gate the click (`busy = []`). The future-only `fromMin` floor
@@ -528,7 +563,7 @@ function GridColumn({
       className="relative cursor-pointer select-none overflow-hidden rounded-md border bg-muted/20"
       style={{ height: heightPx }}
     >
-      {/* 15-min row guides */}
+      {/* 15-min row guides (variable heights — a short booking grew its row) */}
       {rows.map((t, i) => (
         <div
           key={t}
@@ -536,7 +571,7 @@ function GridColumn({
             "absolute inset-x-0 border-t border-dashed border-muted-foreground/25",
             (t.endsWith(":00") || t.endsWith(":30")) && "border-muted-foreground/40",
           )}
-          style={{ top: i * ROW_PX, height: ROW_PX }}
+          style={{ top: rowTop[i], height: rowTop[i + 1] - rowTop[i] }}
         />
       ))}
 
