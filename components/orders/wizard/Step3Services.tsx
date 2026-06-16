@@ -144,7 +144,7 @@ export function Step3Services({
         </Accordion>
       )}
 
-      <div className="flex flex-wrap gap-4">
+      <div className="flex justify-between gap-4">
         {allowOverride && (
           <div className="space-y-1">
             <Label htmlFor="override">Trvanie (min, voliteľné)</Label>
