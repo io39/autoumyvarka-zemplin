@@ -48,6 +48,9 @@ export const createOrderSchema = z.object({
   // Manager-only manual order total (cents); omitted keeps the computed line sum.
   priceOverrideCents: priceOverrideCentsSchema.optional(),
   note: z.string().trim().max(2000).optional(),
+  // Box-overlap is allowed (migration 0016); when false/omitted the action
+  // returns a soft conflict the UI confirms, then retries with true.
+  allowOverlap: z.boolean().optional(),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
@@ -68,6 +71,8 @@ export const getOrderSchema = z.object({ id: idSchema });
 export const setStatusSchema = z.object({
   id: idSchema,
   next: orderStatusSchema,
+  // Confirms an overlap when reverting nedostavil_sa → vytvorena (migration 0016).
+  allowOverlap: z.boolean().optional(),
 });
 
 export const moveOrderSchema = z.object({
@@ -77,6 +82,7 @@ export const moveOrderSchema = z.object({
   // Optional manual duration (min) — set from the wizard's "Trvanie" override in
   // edit mode; omitted keeps the order's stored duration.
   durationMin: z.number().int().positive().max(24 * 60).optional(),
+  allowOverlap: z.boolean().optional(),
 });
 
 export const deleteOrderSchema = z.object({ id: idSchema });
@@ -99,6 +105,8 @@ export const addOrderServiceSchema = z.object({
   // (the wizard edit flow) owns the final duration via moveOrder. Default true:
   // the order-detail "add service" extends the booking and checks it fits.
   recomputeDuration: z.boolean().optional(),
+  // Confirms an overlap when the longer booking would reach into a neighbour.
+  allowOverlap: z.boolean().optional(),
 });
 
 export const removeOrderServiceSchema = z.object({

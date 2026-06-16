@@ -54,7 +54,9 @@ import { isOn15MinBoundary, suggestFreeSlots, type SlotProposal } from "@/lib/or
 import { isRangeOpen } from "@/lib/settings/availability";
 import {
   bratislavaDateKey,
+  bratislavaHHMM,
 } from "@/lib/settings/availability";
+import type { OverlapInfo } from "@/lib/orders/overlap";
 import { bratislavaLocalDayRange } from "@/lib/time/bratislava";
 import { canTransition } from "@/lib/orders/transitions";
 import { emitOrderReady } from "@/lib/orders/ready-event";
@@ -240,6 +242,15 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       return { ok: false, message: CLOSED_MESSAGE };
     }
 
+    // Box-overlap is allowed (migration 0016) but the manager must confirm it.
+    // Detect a clash and return it as a soft conflict unless already confirmed.
+    if (!data.allowOverlap) {
+      const conflict = await findBoxOverlaps(db, data.box, startsAt, endsAt);
+      if (conflict.orders.length > 0) {
+        return { ok: false, message: CONFLICT_MESSAGE, conflict };
+      }
+    }
+
     // Insert the order; the BEFORE trigger sets ends_at canonically.
     const { data: orderRow, error: orderErr } = await db
       .from("orders")
@@ -257,13 +268,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       .select("id, starts_at, ends_at, box, duration_min, price_override_cents")
       .single();
 
-    if (orderErr) {
-      // Exclusion constraint violation → friendly Slovak conflict message.
-      if (isExclusionViolation(orderErr)) {
-        return { ok: false, message: CONFLICT_MESSAGE };
-      }
-      throw orderErr;
-    }
+    if (orderErr) throw orderErr;
 
     // Snapshot the service rows (data-model §2.8). Catalog edits later will
     // not rewrite this history.
@@ -313,13 +318,6 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
-
-function isExclusionViolation(error: { code?: string; message?: string } | null): boolean {
-  // SQLSTATE 23P01 = exclusion_violation.
-  if (!error) return false;
-  if (error.code === "23P01") return true;
-  return /orders_no_box_overlap/.test(error.message ?? "");
-}
 
 interface JoinedOrderRow extends OrderRow {
   client?: unknown;
@@ -567,7 +565,7 @@ export async function getOrderDetailBundle(input: unknown): Promise<OrderDetailB
 
 export async function setStatus(input: unknown): Promise<ActionResult> {
   try {
-    const { id, next } = setStatusSchema.parse(input);
+    const { id, next, allowOverlap } = setStatusSchema.parse(input);
     const actor = await getCurrentStaff();
     const db = getServiceClient();
 
@@ -587,8 +585,10 @@ export async function setStatus(input: unknown): Promise<ActionResult> {
       return { ok: false, message: ILLEGAL_TRANSITION_MESSAGE };
     }
 
-    // The exception edge: nedostavil_sa → vytvorena re-checks conflict and
-    // hours, because the slot was freed and may have been rebooked.
+    // The exception edge: nedostavil_sa → vytvorena re-checks hours (slot was
+    // freed and may now fall outside open hours) and detects whether the slot
+    // was rebooked. Overlap is allowed now (migration 0016) — return it as a
+    // soft conflict the manager confirms, unless already confirmed.
     if (before.status === "nedostavil_sa" && next === "vytvorena") {
       const { data: full, error: fullErr } = await db
         .from("orders")
@@ -596,11 +596,16 @@ export async function setStatus(input: unknown): Promise<ActionResult> {
         .eq("id", id)
         .single();
       if (fullErr) throw fullErr;
-      if (!(await slotIsFree(db, id, full.box, new Date(full.starts_at), new Date(full.ends_at)))) {
-        return { ok: false, message: REVERT_RETAKEN_MESSAGE };
-      }
-      if (!(await rangeIsOpen(db, new Date(full.starts_at), new Date(full.ends_at)))) {
+      const start = new Date(full.starts_at);
+      const end = new Date(full.ends_at);
+      if (!(await rangeIsOpen(db, start, end))) {
         return { ok: false, message: CLOSED_MESSAGE };
+      }
+      if (!allowOverlap) {
+        const conflict = await findBoxOverlaps(db, full.box, start, end, id);
+        if (conflict.orders.length > 0) {
+          return { ok: false, message: REVERT_RETAKEN_MESSAGE, conflict };
+        }
       }
     }
 
@@ -608,12 +613,7 @@ export async function setStatus(input: unknown): Promise<ActionResult> {
       .from("orders")
       .update({ status: next, updated_at: new Date().toISOString() })
       .eq("id", id);
-    if (updErr) {
-      if (isExclusionViolation(updErr)) {
-        return { ok: false, message: REVERT_RETAKEN_MESSAGE };
-      }
-      throw updErr;
-    }
+    if (updErr) throw updErr;
 
     await writeAudit(
       actor,
@@ -655,7 +655,7 @@ export async function setStatus(input: unknown): Promise<ActionResult> {
 
 export async function moveOrder(input: unknown): Promise<ActionResult> {
   try {
-    const { id, box, startsAt, durationMin } = moveOrderSchema.parse(input);
+    const { id, box, startsAt, durationMin, allowOverlap } = moveOrderSchema.parse(input);
     const actor = await getCurrentStaff();
     requireManager(actor);
     const db = getServiceClient();
@@ -682,6 +682,15 @@ export async function moveOrder(input: unknown): Promise<ActionResult> {
       return { ok: false, message: CLOSED_MESSAGE };
     }
 
+    // Box-overlap allowed (migration 0016); confirm it. The order's own slot is
+    // excluded so keeping the same time isn't a self-conflict.
+    if (!allowOverlap) {
+      const conflict = await findBoxOverlaps(db, box, newStart, newEnd, id);
+      if (conflict.orders.length > 0) {
+        return { ok: false, message: CONFLICT_MESSAGE, conflict };
+      }
+    }
+
     const { error: updErr } = await db
       .from("orders")
       .update({
@@ -691,12 +700,7 @@ export async function moveOrder(input: unknown): Promise<ActionResult> {
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
-    if (updErr) {
-      if (isExclusionViolation(updErr)) {
-        return { ok: false, message: CONFLICT_MESSAGE };
-      }
-      throw updErr;
-    }
+    if (updErr) throw updErr;
 
     await writeAudit(
       actor,
@@ -1013,16 +1017,19 @@ export async function addOrderService(input: unknown): Promise<ActionResult> {
       if (!(await rangeIsOpen(db, start, newEnd))) {
         return { ok: false, message: SERVICE_WOULD_CLOSE_MESSAGE };
       }
+      // The longer booking may now reach into a neighbour; overlap is allowed
+      // (migration 0016) but confirmed. Excludes the order's own slot.
+      if (!data.allowOverlap) {
+        const conflict = await findBoxOverlaps(db, order.box, start, newEnd, order.id);
+        if (conflict.orders.length > 0) {
+          return { ok: false, message: SERVICE_WOULD_OVERLAP_MESSAGE, conflict };
+        }
+      }
       const { error: durErr } = await db
         .from("orders")
         .update({ duration_min: newDuration, updated_at: new Date().toISOString() })
         .eq("id", order.id);
-      if (durErr) {
-        if (isExclusionViolation(durErr)) {
-          return { ok: false, message: SERVICE_WOULD_OVERLAP_MESSAGE };
-        }
-        throw durErr;
-      }
+      if (durErr) throw durErr;
     }
 
     const { data: line, error: lineErr } = await db
@@ -1212,26 +1219,48 @@ async function sumActiveLineDuration(
   );
 }
 
-/** True iff no other live order overlaps [start, end) in `box` (excluding `id`). */
-async function slotIsFree(
-   
+/**
+ * Live orders in `box` whose `[starts_at, ends_at)` overlaps `[start, end)`,
+ * shaped for the "warn but allow" confirm dialog (migration 0016). Excludes the
+ * order itself (edit/move), soft-deleted, and `nedostavil_sa` (slot freed).
+ * Empty `orders` ⇒ no clash.
+ */
+async function findBoxOverlaps(
+
   db: any,
-  excludingOrderId: string,
   box: number,
   start: Date,
   end: Date,
-): Promise<boolean> {
-  const { data, error } = await db
+  excludeOrderId?: string,
+): Promise<OverlapInfo> {
+  let q = db
     .from("orders")
-    .select("id, starts_at, ends_at")
+    .select("id, box, starts_at, ends_at, car:car_id(spz, brand, model)")
     .eq("box", box)
     .is("deleted_at", null)
     .neq("status", "nedostavil_sa")
-    .neq("id", excludingOrderId)
     .lt("starts_at", end.toISOString())
-    .gt("ends_at", start.toISOString());
+    .gt("ends_at", start.toISOString())
+    .order("starts_at");
+  if (excludeOrderId) q = q.neq("id", excludeOrderId);
+  const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).length === 0;
+  const rows = (data ?? []) as Array<{
+    id: string;
+    box: number;
+    starts_at: string;
+    ends_at: string;
+    car: Pick<CarRow, "spz" | "brand" | "model"> | null;
+  }>;
+  return {
+    orders: rows.map((r) => ({
+      id: r.id,
+      box: r.box,
+      startHHMM: bratislavaHHMM(new Date(r.starts_at)),
+      endHHMM: bratislavaHHMM(new Date(r.ends_at)),
+      carLabel: r.car ? formatCarLabel(r.car.brand, r.car.model) || r.car.spz : "",
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------
