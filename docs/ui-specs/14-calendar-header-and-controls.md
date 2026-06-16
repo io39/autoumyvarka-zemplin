@@ -39,8 +39,9 @@ badge (spec 12); the header is **mobile-only**. Clicking a block opens the popup
    the hour/half-hour lines at **higher contrast** than the quarter lines. Compress the row
    height (`ROW_PX = 20`) so a full day fits with minimal scrolling.
 8. **Order cards** (`BookingCard`, overlapping-reservations redesign) are **left-top
-   aligned**: row 1 = **car name** (make + model → ŠPZ), row 2 = **services** (Day view).
-   No time range, no category badge. Text truncates.
+   aligned** (Day view): row 1 = **car name** (make + model → ŠPZ), row 2 = **services**,
+   row 3 = **`Pozn: …`** when the order has a note. No time range, no category badge. Text
+   truncates.
 9. **Overlapping bookings** in a box render in **equal side-by-side lanes** (2 → halves,
    3 → thirds …) with a minimum lane width; when many lanes don't fit, the grid scrolls
    horizontally. A **short booking grows its grid row** (pushing the time axis down) so it
@@ -171,7 +172,9 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
 - **`components/calendar/BookingCard.tsx`** (overlapping-reservations redesign) —
   `BookingCardContent`, **left-top aligned**, no time range and no category badge:
   - **rich** (Day): row 1 = **car name** (make + model, falling back to ŠPZ; truncates
-    model → make when narrow), row 2 = **services** (truncated).
+    model → make when narrow), row 2 = **services** (truncated), row 3 = **`Pozn: …`** when
+    the order has a note (a note-bearing short booking grows to `MIN_CARD_PX_NOTE` so the 3rd
+    row isn't clipped — passed to `computeRowLayout` as a per-item `minPx`).
   - **compact**/**line** (Week + Step-4 occupied): car name only.
 
   Plus the clickable `BookingCard` wrapper (Sheet via `OpenOrderSheetContext`, else

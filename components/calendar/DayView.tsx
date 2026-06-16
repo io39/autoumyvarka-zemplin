@@ -15,6 +15,10 @@ import { placeBoxLanes } from "./placeLanes";
 // horizontally rather than squeezing cards below this.
 const MIN_LANE_PX = 104;
 
+// A card with a note shows a 3rd row, so a short note-bearing booking needs a
+// taller minimum than the default (car name + services only).
+const MIN_CARD_PX_NOTE = 60;
+
 /**
  * Day view (overlapping-reservations redesign): a CSS grid of the time axis +
  * one column per box. Rows are 15-min slots; a short booking **grows its row(s)**
@@ -47,7 +51,14 @@ export function DayView({
   // Row heights are shared across both boxes (one time axis), so a short booking
   // in either box grows that row for the whole grid.
   const allPlaced = boxes.flatMap((box) => placedByBox.get(box)?.placed ?? []);
-  const { heights: rowHeights, top: rowTop } = computeRowLayout(allPlaced, n);
+  const { heights: rowHeights, top: rowTop } = computeRowLayout(
+    allPlaced.map((p) => ({
+      startMin: p.startMin,
+      endMin: p.endMin,
+      minPx: p.block.order.note?.trim() ? MIN_CARD_PX_NOTE : undefined,
+    })),
+    n,
+  );
 
   // "Now" indicator: a ticking clock so the line slides during the day. Only
   // shown when the displayed day is today and the moment falls inside the grid.

@@ -42,14 +42,17 @@ export function BookingCardContent({
   const services = block.services
     .filter((s) => !s.removed_at)
     .map((s) => s.name_snapshot);
+  const note = block.order.note?.trim();
 
-  // rich (Day view): car name (row 1) + services (row 2), left-top aligned.
+  // rich (Day view): car name (row 1) + services (row 2) + note (row 3, when set),
+  // left-top aligned.
   return (
     <div className="flex h-full flex-col items-start gap-0.5 overflow-hidden text-left leading-tight">
       <div className="w-full truncate text-sm font-semibold">{carName}</div>
       {services.length > 0 && (
         <div className="w-full truncate text-xs opacity-80">{services.join(", ")}</div>
       )}
+      {note && <div className="w-full truncate text-xs opacity-70">Pozn: {note}</div>}
     </div>
   );
 }

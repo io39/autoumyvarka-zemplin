@@ -29,10 +29,11 @@ export interface Interval {
  * extra a short booking needs, spread across the rows it spans (the max wins
  * where rows are shared between lanes/boxes). Returns the per-row `heights` and
  * the cumulative `top` offsets (length `n + 1`, so `top[n]` is the total height).
- * Items are `{ startMin, endMin }` in minutes-from-grid-open.
+ * Items are `{ startMin, endMin }` in minutes-from-grid-open, with an optional
+ * `minPx` (e.g. a card with a note row needs a taller minimum than `MIN_CARD_PX`).
  */
 export function computeRowLayout(
-  items: { startMin: number; endMin: number }[],
+  items: { startMin: number; endMin: number; minPx?: number }[],
   n: number,
 ): { heights: number[]; top: number[] } {
   const extra = new Array<number>(n).fill(0);
@@ -40,7 +41,7 @@ export function computeRowLayout(
     const s = Math.max(0, Math.min(n - 1, Math.round(it.startMin / SLOT_MIN)));
     const e = Math.min(n, Math.max(s + 1, Math.round(it.endMin / SLOT_MIN)));
     const span = e - s;
-    const deficit = Math.max(0, MIN_CARD_PX - span * ROW_PX);
+    const deficit = Math.max(0, (it.minPx ?? MIN_CARD_PX) - span * ROW_PX);
     if (deficit === 0) continue;
     const perRow = deficit / span;
     for (let i = s; i < e; i++) extra[i] = Math.max(extra[i], perRow);

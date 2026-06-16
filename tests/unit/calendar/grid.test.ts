@@ -41,6 +41,11 @@ describe("computeRowLayout", () => {
     expect(heights[2]).toBe(20);
   });
 
+  it("a per-item minPx (e.g. a card with a note row) grows the row further", () => {
+    const { heights } = computeRowLayout([{ startMin: 0, endMin: 15, minPx: 60 }], 4);
+    expect(heights[0]).toBe(60); // taller than the default MIN_CARD_PX (42)
+  });
+
   it("a row shared by lanes takes the max growth (not the sum)", () => {
     const { heights } = computeRowLayout(
       [
