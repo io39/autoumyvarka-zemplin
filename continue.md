@@ -84,6 +84,33 @@ pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder G
   audit). code-reviewer: 1 blocker (sendOrderSms accepted `type:"reminder"` → restricted to
   `z.literal("ready")`) + 3 should-fix (idempotency guard, order-not-found message, audit
   label) applied; `zaplatená`-window and failed-row cases left as-is by design.
+- **Overlapping reservations — warn-but-allow** (merged `41fb083`, 2026-06-16; staged
+  `9e70fb1`→`0cbf734`→`3e553d4`→`14e8a52`→`85b9ba9`→`d70a29d`→`be69740`→`4168d35`).
+  **Client decision** (`docs/navrh-prekryvajuce-rezervacie.md`): two cars may share a box at
+  the same time. Migration **`0016_drop_box_overlap_constraint.sql`** drops the hard
+  `orders_no_box_overlap` btree_gist exclusion constraint (from `0006`); overlaps are now
+  **allowed (unlimited)**. Collision is a **soft, confirmable** app-layer check: pure
+  `lib/orders/overlap.ts` + `findBoxOverlaps()` (`lib/actions/orders.ts`) detect live
+  overlaps (excluding the order itself, `deleted_at`, and `nedostavil_sa` — those free the
+  slot); `createOrder`/`moveOrder`/`addOrderService`/`setStatus`(no-show→active revert)
+  return a soft `{ ok:false, conflict, message }` **unless** `allowOverlap: true`, and the UI
+  (`components/orders/OverlapConfirmDialog.tsx`) names the clash + retries with
+  `allowOverlap`. The confirm is **both-roles** (part of the both-roles create flow, **not** a
+  manager-only override — see spec 05 §2.4). `allowOverlap` added to the zod schemas
+  (`lib/validation/orders.ts`); `ActionResult` gained a `conflict` field (`lib/actions/result.ts`).
+  **Opening-hours checks still apply.** Calendar renders overlaps in **side-by-side lanes**:
+  pure `lib/calendar/lanes.ts` `assignLanes` + `components/calendar/placeLanes.ts`, consumed
+  by `DayView`/`WeekView`; `BookingCard` reworked (car name + services, dropped time/badge).
+  The Step-4 wizard picker reserves a free lane and lets you **pick occupied times**.
+  Docs updated across specs 05/06, `data-model.md`, ui-specs 14/16, and the
+  `order-duration-conflict` + `supabase-migrations` skills. Tests: unit
+  `tests/unit/orders/overlap.test.ts` + `tests/unit/calendar/lanes.test.ts`; e2e in
+  `booking-wizard` (pick-occupied → confirm → create), `order-services` (overlapping add),
+  `order-noshow-revert`. **⚠️ Known limitation:** the soft check is check-then-insert (not
+  atomic) → a **TOCTOU race** with no DB backstop; accepted for a single-operator wash (see
+  the Gotchas note + spec 05 §2.4 — **don't re-add a hard constraint to "fix" it**).
+  Follow-up `chore` (`a822a9f`) fixed stale exclusion-constraint references in the docs and
+  removed the now-dead `23P01` retry loops from the e2e seeders.
 - `fix(realtime)` (`c59c63b`): calendar/unpaid live updates broke after a status change —
   `setStatus`'s `revalidatePath("/")` re-minted `realtimeJwt`, which (being a subscription
   dep) churned the channel and dropped the actor's own `postgres_changes` echo in the
@@ -188,7 +215,9 @@ Planning artifacts are all written and committed locally on `main`:
   `box smallint check(1,2)`, `ends_at` synced by a `BEFORE INSERT/UPDATE`
   trigger because generated columns can't use non-IMMUTABLE
   `timestamptz + interval`, the **btree_gist exclusion constraint**
-  `orders_no_box_overlap` excluding soft-deleted + `nedostavil_sa`,
+  `orders_no_box_overlap` excluding soft-deleted + `nedostavil_sa`
+  (**later DROPPED in migration 0016** — overlaps are now a soft check; see the
+  overlapping-reservations entry above),
   indexes on `(box, starts_at)` etc., RLS deny-by-default + `authenticated`
   SELECT policies for the live calendar, and `alter publication
   supabase_realtime add table` for both `orders` and `order_services`).
