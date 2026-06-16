@@ -19,7 +19,10 @@ introduced here — everything else is Server Actions.
 ### 1.1 What this feature does
 
 1. **"Ready" SMS:** on the `vytvorena → hotova` transition (the `ORDER_READY` event,
-   spec 06), send the "auto je pripravené" message (PRD §8).
+   spec 06), send the "auto je pripravené" message (PRD §8) — **unless the operator
+   unchecked the "Odoslať SMS o dokončení" toggle** on the status actions (spec 06 §2.2):
+   `setStatus({ sendSms: false })` suppresses the emit, so no `ready` SMS is sent.
+   Default is to send.
 2. **30-minute reminder:** ~30 min before `starts_at`, send the reminder — unless the
    order was deleted or is no longer `vytvorena` (PRD §8). Fired by `pg_cron` →
    reminder Route Handler (architecture §6); idempotent via `orders.reminded_at`.
@@ -81,7 +84,9 @@ the order detail but don't manage it.
 
 ### 2.3 "Ready" SMS (Server Action path)
 
-- Spec 06's `setStatus(vytvorena → hotova)` emits `ORDER_READY` after commit. A handler
+- Spec 06's `setStatus(vytvorena → hotova)` emits `ORDER_READY` after commit **unless
+  the call carried `sendSms: false`** (the operator unchecked the toggle) — in that case
+  no event fires and no `ready` SMS row is created. A handler
   in `lib/sms/dispatch.ts` (called in the same Server Action flow) renders the `ready`
   template, inserts an `sms_messages` row (`type='ready'`, `status='pending'`), calls the
   provider adapter, and updates the row to `sent` (+ `provider_message_id`) or `failed`
@@ -116,6 +121,16 @@ the order detail but don't manage it.
 - `resendSms({ smsId })` Server Action (manager-only): re-renders + re-sends a `failed`
   (or any) message, inserting a **new** `sms_messages` attempt (keeps the failure
   history) rather than mutating the old row. Audited as `sms.resend`.
+- **Suppressed "ready" SMS** (spec 06 §2.2): a `hotova` order with **no `ready` row** is
+  rendered in the SMS block as a synthetic **Neodoslaná** entry (no DB row — derived) with
+  an **Odoslať** button. `sendOrderSms({ orderId, type: "ready" })` Server Action (**both
+  roles**, mirroring the automatic ready-send which either role triggers) dispatches it via
+  the same `lib/sms/dispatch.ts` path, creating a real `sms_messages` row that then replaces
+  the synthetic entry. Audited as `sms.send`. It is **restricted to `ready`** (no manual
+  reminder — reminders stay gated behind the cron `reminded_at` idempotency) and is itself
+  **idempotent**: if a `ready` row already exists it returns the existing one without
+  re-dispatching, so a double-tap can't send twice. (Distinct from `resendSms`, which is
+  manager-only and acts on an existing attempt row.)
 
 ### 2.7 Server Actions & Route Handlers summary
 
@@ -124,6 +139,7 @@ the order detail but don't manage it.
 | `getOrderSms({ orderId })` | Server Action | both | list SMS attempts for an order |
 | `getSmsTemplates` / `saveSmsTemplate` | Server Action | manager (save) | view/edit templates |
 | `resendSms({ smsId })` | Server Action | manager | manual resend; audit `sms.resend` |
+| `sendOrderSms({ orderId, type: "ready" })` | Server Action | both | send a suppressed `ready` SMS (idempotent); audit `sms.send` |
 | `POST /api/reminders` | Route Handler | `REMINDER_TRIGGER_SECRET` | pg_cron → send due reminders |
 | `POST /api/sms/webhook` | Route Handler | `SMS_WEBHOOK_SECRET` | provider delivery callbacks |
 
@@ -218,6 +234,11 @@ pnpm test sms/render   # exits 0
   `status='sent'` (fake adapter), linked to the order.
 - If the adapter throws, the row is `status='failed'` with `error`, **and the order is
   still `hotova`** (SMS failure doesn't block the transition).
+- With the **"Odoslať SMS o dokončení" toggle unchecked** (`sendSms: false`), the order
+  still moves to `hotova` but **no `sms_messages` row is created**, and the
+  `order.status_change` audit detail carries `sms_suppressed: true`. The SMS block then
+  shows a **Neodoslaná** entry with an **Odoslať** button; clicking it (either role) sends
+  the `ready` SMS — a `type='ready'`, `status='sent'` row appears and `sms.send` is audited.
 
 ```bash
 pnpm test integration/sms-ready   # exits 0

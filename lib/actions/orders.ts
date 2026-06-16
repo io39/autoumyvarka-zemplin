@@ -565,7 +565,7 @@ export async function getOrderDetailBundle(input: unknown): Promise<OrderDetailB
 
 export async function setStatus(input: unknown): Promise<ActionResult> {
   try {
-    const { id, next, allowOverlap } = setStatusSchema.parse(input);
+    const { id, next, allowOverlap, sendSms } = setStatusSchema.parse(input);
     const actor = await getCurrentStaff();
     const db = getServiceClient();
 
@@ -615,16 +615,25 @@ export async function setStatus(input: unknown): Promise<ActionResult> {
       .eq("id", id);
     if (updErr) throw updErr;
 
+    // The "ready" SMS only fires on vytvorena → hotova, and the operator may
+    // suppress it from the order detail (customer already on site).
+    const isReadyTransition = before.status === "vytvorena" && next === "hotova";
+    const smsSuppressed = isReadyTransition && sendSms === false;
+
     await writeAudit(
       actor,
       "order.status_change",
       "order",
       id,
-      { from: before.status, to: next },
+      {
+        from: before.status,
+        to: next,
+        ...(smsSuppressed ? { sms_suppressed: true } : {}),
+      },
       id,
     );
 
-    if (before.status === "vytvorena" && next === "hotova") {
+    if (isReadyTransition && !smsSuppressed) {
       await emitOrderReady({
         orderId: id,
         actorEmail: actor.email,

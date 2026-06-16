@@ -13,6 +13,15 @@ export const getOrderSmsSchema = z.object({ orderId: idSchema });
 
 export const resendSmsSchema = z.object({ smsId: idSchema });
 
+/** Manually send a never-dispatched "ready" SMS the operator suppressed via the
+ *  toggle (spec 06 §2.2) and now wants to send. Both roles, unlike resend.
+ *  Restricted to `ready`: there is no manual-reminder feature, and reminders must
+ *  stay gated behind the cron handler's `reminded_at` idempotency. */
+export const sendOrderSmsSchema = z.object({
+  orderId: idSchema,
+  type: z.literal("ready"),
+});
+
 export const saveSmsTemplateSchema = z.object({
   type: smsTypeSchema,
   body: z.string().trim().min(1, "Šablóna nemôže byť prázdna.").max(1000),

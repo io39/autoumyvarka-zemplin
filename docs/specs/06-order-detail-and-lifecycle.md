@@ -115,6 +115,14 @@ vytvorena ──(any role)──► hotova ──(manager)──► zaplatena   
   data-model §2.7), so the time shows as free again immediately (live).
 - The `vytvorena → hotova` transition emits an internal **ORDER_READY** signal that
   spec 07 consumes to send the SMS; spec 06 just records the transition + audit.
+  The bottom status actions show an **"Odoslať SMS o dokončení"** checkbox above the
+  buttons whenever `hotova` is an available next status — checked by default, toggleable
+  by **both roles** (the customer may already be on site). When unchecked, `setStatus`
+  receives `sendSms: false`, **skips the ORDER_READY emit** (no SMS), and records
+  `sms_suppressed: true` in the `order.status_change` audit details (rendered
+  "(Zrušenie odosielania SMS)"). `sendSms` is meaningful only on the `vytvorena → hotova`
+  edge. The suppressed "ready" SMS can still be sent afterwards from the SMS block — see
+  spec 07 §1.1 / §2.6.
 
 ### 2.3 Server Actions (`lib/actions/orders.ts`, extending spec 05)
 
@@ -123,7 +131,7 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
 | Action | Input | Authz | Audit |
 | --- | --- | --- | --- |
 | `getOrder` | `{ id }` | both | — (read) |
-| `setStatus` | `{ id, next }` | matrix (see §2.2) | `order.status_change` `{from,to}` |
+| `setStatus` | `{ id, next, sendSms? }` | matrix (see §2.2) | `order.status_change` `{from,to[,sms_suppressed]}` |
 | `moveOrder` | `{ id, box, startsAt, durationMin? }` | manager | `order.move` `{from,to}` |
 | `deleteOrder` | `{ id }` | manager (pre-`zaplatena`) | `order.delete` |
 | `addOrderWorker` | `{ id, staffId }` | both | `order.assign` `{staffId}` |

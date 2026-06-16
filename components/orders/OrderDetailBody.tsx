@@ -19,7 +19,7 @@ import type { ClientFlags } from "@/lib/orders/unpaid";
 import type { OverlapInfo } from "@/lib/orders/overlap";
 import { effectiveTotalCents } from "@/lib/orders/booking";
 import { OverlapConfirmDialog } from "./OverlapConfirmDialog";
-import { resendSms } from "@/lib/actions/sms";
+import { resendSms, sendOrderSms } from "@/lib/actions/sms";
 import type { ServiceWithPrices } from "@/lib/actions/services";
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
 import type { OrderStatus, SmsMessageRow, StaffRole, WorkerRow } from "@/lib/supabase/types";
@@ -206,12 +206,19 @@ export function OrderDetailBody({
         priceOverridden={priceOverridden}
       />
 
-      {/* SMS */}
+      {/* SMS — a hotová order with no `ready` row means the "ready" SMS was
+          suppressed (spec 06 §2.2); offer to send it after all (both roles). */}
       <SmsStatusCard
         sms={sms}
         canResend={isManager}
         pending={pending}
         onResend={(smsId) => call("SMS znovu odoslaná.", () => resendSms({ smsId }))}
+        showUnsentReady={
+          order.status === "hotova" && !sms.some((m) => m.type === "ready")
+        }
+        onSendReady={() =>
+          call("SMS odoslaná.", () => sendOrderSms({ orderId: order.id, type: "ready" }))
+        }
       />
 
       {/* §7 #10 Bottom status actions */}
@@ -219,10 +226,10 @@ export function OrderDetailBody({
         status={order.status}
         role={role}
         pending={pending}
-        onAdvance={(next: OrderStatus) =>
+        onAdvance={(next: OrderStatus, sendSms?: boolean) =>
           call(
             `Stav: ${STATE_LABEL[next]}.`,
-            (allowOverlap) => setStatus({ id: order.id, next, allowOverlap }),
+            (allowOverlap) => setStatus({ id: order.id, next, allowOverlap, sendSms }),
             "Obnoviť aj tak",
           )
         }

@@ -58,6 +58,7 @@ export const ACTION_LABEL: Record<string, string> = {
   // sms (spec 07)
   "sms.template_save": "Uloženie SMS šablóny",
   "sms.resend": "Opätovné odoslanie SMS",
+  "sms.send": "Manuálne odoslanie SMS",
 };
 
 export const ENTITY_LABEL: Record<string, string> = {
@@ -104,7 +105,9 @@ export function summarizeDetails(action: string, details: Json | null): string {
 
   switch (action) {
     case "order.status_change":
-      return `${statusLabel(d.from)} → ${statusLabel(d.to)}`;
+      return d.sms_suppressed === true
+        ? `${statusLabel(d.from)} → ${statusLabel(d.to)} (Zrušenie odosielania SMS)`
+        : `${statusLabel(d.from)} → ${statusLabel(d.to)}`;
     case "order.delete":
       return d.previous_status
         ? `Stav pred zrušením: ${statusLabel(d.previous_status)}`

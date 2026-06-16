@@ -73,6 +73,9 @@ export const setStatusSchema = z.object({
   next: orderStatusSchema,
   // Confirms an overlap when reverting nedostavil_sa → vytvorena (migration 0016).
   allowOverlap: z.boolean().optional(),
+  // Gates the "ready" SMS on the vytvorena → hotova advance only. Absent/true
+  // sends (the default); false suppresses it (customer already on site).
+  sendSms: z.boolean().optional(),
 });
 
 export const moveOrderSchema = z.object({

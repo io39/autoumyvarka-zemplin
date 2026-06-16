@@ -15,10 +15,12 @@ import {
   getOrderSmsSchema,
   resendSmsSchema,
   saveSmsTemplateSchema,
+  sendOrderSmsSchema,
 } from "@/lib/validation/sms";
 import { dispatchOrderSms } from "@/lib/sms/dispatch";
 
 const NOT_FOUND = "SMS sa nenašla.";
+const ORDER_NOT_FOUND = "Objednávka sa nenašla.";
 
 export async function getOrderSms(input: unknown): Promise<SmsMessageRow[]> {
   const { orderId } = getOrderSmsSchema.parse(input);
@@ -69,6 +71,59 @@ export async function saveSmsTemplate(input: unknown): Promise<ActionResult> {
 
     revalidatePath("/settings/sms-templates");
     return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/**
+ * Manually dispatch an order SMS that was never sent — e.g. a "ready" SMS the
+ * operator suppressed via the toggle (spec 06 §2.2) and now wants to send after
+ * all (unchecked by mistake). Available to **both roles**, mirroring the
+ * automatic ready-SMS send which either role triggers via the transition.
+ * Audited as `sms.send`.
+ */
+export async function sendOrderSms(input: unknown): Promise<ActionResult<{ smsId: string }>> {
+  try {
+    const { orderId, type } = sendOrderSmsSchema.parse(input);
+    const actor = await getCurrentStaff();
+    const db = getServiceClient();
+
+    const { data: order, error: readErr } = await db
+      .from("orders")
+      .select("id, deleted_at")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (readErr) throw readErr;
+    if (!order || order.deleted_at) return { ok: false, message: ORDER_NOT_FOUND };
+
+    // Idempotency guard: this action is only reachable when no row of this type
+    // exists (the synthetic "Neodoslaná" entry). Re-check server-side so a
+    // double-tap or a concurrent caller can't dispatch the SMS twice.
+    const { data: existing, error: exErr } = await db
+      .from("sms_messages")
+      .select("id")
+      .eq("order_id", orderId)
+      .eq("type", type)
+      .limit(1)
+      .maybeSingle();
+    if (exErr) throw exErr;
+    if (existing) return { ok: true, smsId: existing.id };
+
+    const row = await dispatchOrderSms({ orderId, type });
+    if (!row) return { ok: false, message: ORDER_NOT_FOUND };
+
+    await writeAudit(
+      actor,
+      "sms.send",
+      "sms_message",
+      row.id,
+      { type, status: row.status },
+      orderId,
+    );
+
+    revalidatePath(`/orders/${orderId}`);
+    return { ok: true, smsId: row.id };
   } catch (error) {
     return toActionError(error);
   }
