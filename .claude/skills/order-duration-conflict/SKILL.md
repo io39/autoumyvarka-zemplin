@@ -50,6 +50,15 @@ Instead it's a **soft, confirmable** check in the action layer:
 - The calendar shows overlapping bookings in **side-by-side lanes** (`lib/calendar/lanes.ts`
   `assignLanes`); the Step-4 picker reserves a free lane and lets you pick occupied times.
 
+> **Known limitation — TOCTOU race (accepted, not guarded).** `findBoxOverlaps` is a
+> *check-then-insert*, not atomic. Two truly-simultaneous `createOrder` calls can each pass
+> the check before either inserts, so **both** succeed with no warning shown — the dropped
+> exclusion constraint was the only race-safe backstop. Accepted because this is a
+> single-operator car wash and overlaps are allowed by design anyway (only the warn dialog
+> is "lost"). **Do not "fix" it by re-adding a hard DB constraint** (that would re-block the
+> intended overlaps). If concurrency ever becomes real, use a transaction with row locking
+> or a partial/conditional guard instead. See spec 05 §2.4.
+
 ## Status lifecycle (PRD §6) — enforce role + transition rules
 
 ```

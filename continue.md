@@ -1013,3 +1013,11 @@ and order-domain work — follow them.
   `SMS_WEBHOOK_SECRET` in-handler (spec 07 §2.8).
 - Calendar/scheduling UI component and the Slovak SMS provider SDK are **TBD** — pick and
   pin the minor when you reach specs 05 / 07 (architecture §1, §9).
+- **Known limitation — box-overlap TOCTOU race (accepted, NOT a bug to fix).** Since
+  migration 0016 dropped the `orders_no_box_overlap` exclusion constraint, overlap
+  detection is a soft app-level *check-then-insert* (`findBoxOverlaps`), not atomic. Two
+  simultaneous `createOrder`s can both pass the check and insert with no warning shown.
+  Accepted because it's a single-operator wash and overlaps are allowed by design (only the
+  warn dialog is lost). Don't re-add a hard DB constraint to "fix" it — that would re-block
+  the intended overlaps; use tx + row locking if real concurrency ever appears. Documented
+  in spec 05 §2.4 and the `order-duration-conflict` skill.
