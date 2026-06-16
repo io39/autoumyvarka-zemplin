@@ -1,12 +1,17 @@
 import Link from "next/link";
 import type { CalendarBlock } from "@/lib/actions/orders";
-import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
+import { bratislavaDateKey } from "@/lib/settings/availability";
 import { ROW_PX, SLOT_MIN, diffMinutes, pad, type Interval } from "@/lib/calendar/grid";
 import { cn } from "@/lib/utils";
 import { BookingCard } from "./BookingCard";
 import { TimeAxis } from "./TimeAxis";
+import { placeBoxLanes, type PlacedBlock } from "./placeLanes";
 
 const WEEKDAY_SHORT = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"];
+
+// Min lane width in the dense week grid — enough to read a (truncated) car name.
+// More lanes widen the day column; the grid scrolls horizontally.
+const WEEK_MIN_LANE_PX = 60;
 
 // Thin divider centered in the gutter (a ::before placed half a gap-width into
 // the gap) marking the start of a new day so adjacent days are easy to tell
@@ -31,12 +36,23 @@ export function WeekView({
   dayIntervals: Map<string, Interval | null>;
   blocks: CalendarBlock[];
 }) {
+  // Lane-place each day's two boxes once: drives both the per-day column width
+  // (so lanes never fall below the min) and the card positions.
+  const perDay = weekDays.map((dk) => {
+    const dayBlocks = blocks.filter((b) => bratislavaDateKey(new Date(b.order.starts_at)) === dk);
+    const box1 = placeBoxLanes(dayBlocks, 1, interval.open);
+    const box2 = placeBoxLanes(dayBlocks, 2, interval.open);
+    return { dateKey: dk, box1, box2, lanes: Math.max(box1.lanes, box2.lanes) };
+  });
+
+  // Each day column holds two boxes, each ≥ lanes × min-lane-width.
+  const colTemplate = `60px ${perDay
+    .map((d) => `minmax(${2 * d.lanes * WEEK_MIN_LANE_PX}px, 1fr)`)
+    .join(" ")}`;
+
   return (
     <div className="overflow-x-auto rounded-lg border">
-      <div
-        className="grid min-w-[800px] gap-1.5 p-2"
-        style={{ gridTemplateColumns: `60px repeat(${weekDays.length}, minmax(120px, 1fr))` }}
-      >
+      <div className="grid gap-1.5 p-2" style={{ gridTemplateColumns: colTemplate }}>
         <div />
         {weekDays.map((dk, i) => (
           <DayHeader
@@ -48,15 +64,16 @@ export function WeekView({
         ))}
 
         <TimeAxis rows={rows} />
-        {weekDays.map((dk, i) => (
+        {perDay.map((d, i) => (
           <DayCell
-            key={`c-${dk}`}
-            dateKey={dk}
+            key={`c-${d.dateKey}`}
+            dateKey={d.dateKey}
             rows={rows}
             gridInterval={interval}
-            dayInterval={dayIntervals.get(dk) ?? null}
+            dayInterval={dayIntervals.get(d.dateKey) ?? null}
             dayStart={i > 0}
-            blocks={blocks.filter((b) => bratislavaDateKey(new Date(b.order.starts_at)) === dk)}
+            box1={d.box1.placed}
+            box2={d.box2.placed}
           />
         ))}
       </div>
@@ -95,16 +112,19 @@ function DayCell({
   gridInterval,
   dayInterval,
   dayStart,
-  blocks,
+  box1,
+  box2,
 }: {
   dateKey: string;
   rows: string[];
   gridInterval: Interval;
   dayInterval: Interval | null;
   dayStart: boolean;
-  blocks: CalendarBlock[];
+  box1: PlacedBlock[];
+  box2: PlacedBlock[];
 }) {
   const heightPx = rows.length * ROW_PX;
+  const placedFor = (box: 1 | 2) => (box === 1 ? box1 : box2);
   // Mask the portion of the cell that lies outside this day's open interval.
   const closedTop = dayInterval
     ? Math.max(0, (diffMinutes(gridInterval.open, dayInterval.open) / SLOT_MIN) * ROW_PX)
@@ -149,26 +169,23 @@ function DayCell({
               zatvorené
             </div>
           )}
-          {blocks
-            .filter((b) => b.order.box === box)
-            .map((b) => {
-              const startHHMM = bratislavaHHMM(new Date(b.order.starts_at));
-              const endHHMM = bratislavaHHMM(new Date(b.order.ends_at));
-              const offsetMin = diffMinutes(gridInterval.open, startHHMM);
-              const heightMin = Math.max(SLOT_MIN, diffMinutes(startHHMM, endHHMM));
-              return (
-                <BookingCard
-                  key={b.order.id}
-                  block={b}
-                  density="compact"
-                  className="absolute left-1 right-1 text-xs"
-                  style={{
-                    top: (offsetMin / SLOT_MIN) * ROW_PX,
-                    height: (heightMin / SLOT_MIN) * ROW_PX - 2,
-                  }}
-                />
-              );
-            })}
+          {placedFor(box as 1 | 2).map((p) => {
+            const heightMin = Math.max(SLOT_MIN, p.endMin - p.startMin);
+            return (
+              <BookingCard
+                key={p.block.order.id}
+                block={p.block}
+                density="compact"
+                className="absolute text-xs"
+                style={{
+                  top: (p.startMin / SLOT_MIN) * ROW_PX,
+                  height: (heightMin / SLOT_MIN) * ROW_PX - 2,
+                  left: `calc(${(p.lane / p.lanes) * 100}% + 1px)`,
+                  width: `calc(${100 / p.lanes}% - 2px)`,
+                }}
+              />
+            );
+          })}
         </div>
       ))}
     </div>

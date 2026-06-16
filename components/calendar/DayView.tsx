@@ -8,18 +8,24 @@ import { todayKey } from "@/lib/calendar/today";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import { BookingCard } from "./BookingCard";
+import { placeBoxLanes } from "./placeLanes";
+
+// Minimum width of a single lane (overlapping-reservations redesign): wide enough
+// for the car name. When a box needs more lanes than fit, the grid scrolls
+// horizontally rather than squeezing cards below this.
+const MIN_LANE_PX = 104;
 
 /**
- * Day view (UI redesign — dynamic calendar): a single CSS grid whose columns are
- * the time axis + one cell per box and whose rows are the 15-min slots
- * (`minmax(ROW_PX, auto)`). Bookings are grid items spanning their slot rows, so
- * a card whose content is taller than its duration grows *those* rows — the whole
- * time-slot expands across both boxes, the axis label moves with it, and nothing
- * overlaps. Empty/other slots stay at the base `ROW_PX`, keeping the day compact.
+ * Day view (overlapping-reservations redesign): a CSS grid of the time axis +
+ * one column per box, with FIXED-height 15-min rows. Bookings are absolutely
+ * positioned within their box column by minute offset (top/height) and, when
+ * they overlap, split into equal side-by-side lanes (`assignLanes`). Each lane
+ * keeps a minimum width; a box that needs more lanes than fit widens the grid,
+ * which scrolls horizontally. (This replaces the earlier dynamic row-growth,
+ * which can't coexist with independent side-by-side lanes.)
  *
- * On `sm:+` both boxes show; below that only `activeBox` (the Box 1/Box 2 filter
- * lives in the header). Picking the visible columns in JS (rather than CSS) keeps
- * the dynamic row template and the box count in one place.
+ * On `sm:+` both boxes show; below that only `activeBox` (the filter lives in
+ * the header).
  */
 export function DayView({
   activeBox,
@@ -37,6 +43,7 @@ export function DayView({
   const isDesktop = useMediaQuery("(min-width: 640px)");
   const boxes: (1 | 2)[] = isDesktop ? [1, 2] : [activeBox];
   const n = rows.length;
+  const placedByBox = new Map(boxes.map((box) => [box, placeBoxLanes(blocks, box, interval.open)]));
 
   // "Now" indicator: a ticking clock so the line slides during the day. Only
   // shown when the displayed day is today and the moment falls inside the grid.
@@ -64,12 +71,16 @@ export function DayView({
     }
   }
 
-  const colTemplate = `3.25rem ${boxes.map(() => "minmax(0, 1fr)").join(" ")}`;
-  // Header row (auto) + one growable row per 15-min slot.
-  const rowTemplate = `auto repeat(${n}, minmax(${ROW_PX}px, auto))`;
+  // Each box column is at least lane-count × MIN_LANE_PX wide; minmax lets it
+  // grow to share the viewport, or overflow (→ horizontal scroll) when many lanes.
+  const colTemplate = `3.25rem ${boxes
+    .map((box) => `minmax(${(placedByBox.get(box)?.lanes ?? 1) * MIN_LANE_PX}px, 1fr)`)
+    .join(" ")}`;
+  // Header row (auto) + fixed-height 15-min slot rows (bookings overlay them).
+  const rowTemplate = `auto repeat(${n}, ${ROW_PX}px)`;
 
   return (
-    <div className="rounded-lg border p-2">
+    <div className="overflow-x-auto rounded-lg border p-2">
       <div
         className="grid gap-x-4"
         style={{ gridTemplateColumns: colTemplate, gridTemplateRows: rowTemplate }}
@@ -137,31 +148,38 @@ export function DayView({
           );
         })}
 
-        {/* Booking cards: grid items spanning their slot rows (rows grow to fit). */}
-        {boxes.map((box, bi) =>
-          blocks
-            .filter((b) => b.order.box === box)
-            .map((b) => {
-              const startHHMM = bratislavaHHMM(new Date(b.order.starts_at));
-              const endHHMM = bratislavaHHMM(new Date(b.order.ends_at));
-              const startSlot = Math.max(
-                0,
-                Math.round(diffMinutes(interval.open, startHHMM) / SLOT_MIN),
-              );
-              const durSlots = Math.max(1, Math.round(diffMinutes(startHHMM, endHHMM) / SLOT_MIN));
-              const rowStart = startSlot + 2;
-              const rowEnd = Math.min(rowStart + durSlots, n + 2);
-              return (
-                <BookingCard
-                  key={b.order.id}
-                  block={b}
-                  density="rich"
-                  className="z-10 m-px self-stretch"
-                  style={{ gridColumn: bi + 2, gridRow: `${rowStart} / ${rowEnd}` }}
-                />
-              );
-            }),
-        )}
+        {/* Booking layer: one relative container per box (spanning all slot
+            rows) holding the absolutely-positioned cards. Overlapping cards are
+            split into equal side-by-side lanes. */}
+        {boxes.map((box, bi) => {
+          const { placed } = placedByBox.get(box)!;
+          return (
+            <div
+              key={`bk-${box}`}
+              className="relative z-10"
+              style={{ gridColumn: bi + 2, gridRow: `2 / ${n + 2}` }}
+            >
+              {placed.map((p) => {
+                const top = (p.startMin / SLOT_MIN) * ROW_PX;
+                const height = Math.max(ROW_PX, ((p.endMin - p.startMin) / SLOT_MIN) * ROW_PX);
+                return (
+                  <BookingCard
+                    key={p.block.order.id}
+                    block={p.block}
+                    density="rich"
+                    className="absolute"
+                    style={{
+                      top: top + 1,
+                      height: height - 2,
+                      left: `calc(${(p.lane / p.lanes) * 100}% + 1px)`,
+                      width: `calc(${100 / p.lanes}% - 2px)`,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          );
+        })}
 
         {/* Current-time line: black marker across the box columns, sliding by
             the minute. A time badge sits over the axis column; the line spans
