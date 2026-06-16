@@ -8,7 +8,7 @@
 The calendar (`/`): its **controls** — a **shadcn `Calendar` popover date-picker** (month +
 year selectors), ◀ ▶ stepping, a **today state**, a **`StatusLegend`**, and a **mobile-only
 box filter** — and its **grid rendering**: the time axis, the two-box **Day** grid with
-**dynamic-height order cards**, the **Week** overview, and the shared **`BookingCard`**. On
+**lane-split overlapping cards**, the **Week** overview, and the shared **`BookingCard`**. On
 **desktop the calendar has no header** — the sidebar carries the actions and the unpaid
 badge (spec 12); the header is **mobile-only**. Clicking a block opens the popup Sheet
 (spec 15); Realtime is unchanged.
@@ -38,12 +38,14 @@ badge (spec 12); the header is **mobile-only**. Clicking a block opens the popup
 7. **Time axis:** label only at **:00 / :30**, but keep **all** 15-minute grid lines, with
    the hour/half-hour lines at **higher contrast** than the quarter lines. Compress the row
    height (`ROW_PX = 20`) so a full day fits with minimal scrolling.
-8. **Order cards** (`BookingCard`) show: time range (From/To, two rows) · vehicle
-   **model – services** on one row (model prominent) · a **category** badge · a **note**
-   (`Pozn: …`) when present. Text never overflows (truncate / clamp / wrap). Max font 20px.
-9. **Dynamic card height (Day view):** a card whose content doesn't fit its time-span grows
-   **only its** rows and pushes the grid down, keeping the time axis aligned and other
-   slots/boxes intact. (The Step-4 picker — spec 16 — keeps a uniform grid and truncates.)
+8. **Order cards** (`BookingCard`, overlapping-reservations redesign) are **left-top
+   aligned**: row 1 = **car name** (make + model → ŠPZ), row 2 = **services** (Day view).
+   No time range, no category badge. Text truncates.
+9. **Overlapping bookings** in a box render in **equal side-by-side lanes** (2 → halves,
+   3 → thirds …) with a minimum lane width; when many lanes don't fit, the grid scrolls
+   horizontally. Rows are a **fixed** `ROW_PX` height on both Day and Week (cards are
+   absolutely positioned over them — the earlier dynamic row-growth is gone, since it can't
+   coexist with side-by-side lanes).
 
 ### 1.2 User stories (from PRD §5, UI-STRUCTURE §4)
 
@@ -163,25 +165,30 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
 
 ### 2.9 Grid rendering — axis, cards, dynamic height
 
-- **`lib/calendar/grid.ts`** — `ROW_PX = 20` is the base 15-min row height (the **min** on
-  the Day view, a **fixed** height on Week). `TimeAxis` and the Step-4 axis label only
-  `:00`/`:30` but render a border on every 15-min row: quarter lines
+- **`lib/calendar/grid.ts`** — `ROW_PX = 20` is the **fixed** 15-min row height on both the
+  Day and Week views (bookings are absolutely positioned over the rows). `TimeAxis` labels
+  only `:00`/`:30` but render a border on every 15-min row: quarter lines
   `border-muted-foreground/25`, hour/half `…/40`.
-- **`components/calendar/BookingCard.tsx`** — presentational `BookingCardContent` with three
-  densities: **rich** (Day), **compact** (Week: time + model), **line** (Step-4 occupied
-  blocks: time + brand, one row); plus the clickable `BookingCard` wrapper (Sheet via
-  `OpenOrderSheetContext`, else `/orders/[id]`), `data-order-id` preserved. Category short
-  codes via `CATEGORY_BADGE` (`types/index.ts`). Rich layout: time From/To (two rows, 20px)
-  on the left; `model – services` (one 20px row, model semibold) + category badge on the
-  right; a 20px `Pozn: …` row when the order has a note. ŠPZ is omitted from the card.
-- **`DayView`** is **one CSS grid**: columns = axis + box(es); `gridTemplateRows: auto
-  repeat(N, minmax(ROW_PX, auto))`. Time labels + per-box guide cells are per row; bookings
-  are grid items spanning `grid-row: start / end`. Because the rows are `auto`-growable, a
-  card taller than its span grows **only those** rows — the slot expands across both boxes,
-  the axis label moves with it, and slots above/below stay put. Mobile single-box via
-  `useMediaQuery` (SSR-safe); `data-box` preserved. The header cells have **explicit grid
-  positions** (`gridRow: 1`) so the spanning overlay items below can't displace them via
-  auto-placement. Box separation (desktop, both boxes shown):
+- **`components/calendar/BookingCard.tsx`** (overlapping-reservations redesign) —
+  `BookingCardContent`, **left-top aligned**, no time range and no category badge:
+  - **rich** (Day): row 1 = **car name** (make + model, falling back to ŠPZ; truncates
+    model → make when narrow), row 2 = **services** (truncated).
+  - **compact**/**line** (Week + Step-4 occupied): car name only.
+
+  Plus the clickable `BookingCard` wrapper (Sheet via `OpenOrderSheetContext`, else
+  `/orders/[id]`), `data-order-id` preserved.
+- **Overlapping bookings → side-by-side lanes** (`lib/calendar/lanes.ts` `assignLanes` +
+  `components/calendar/placeLanes.ts`): orders connected by overlap form a cluster split into
+  equal lanes, one per order (2 → halves, 3 → thirds …); non-overlapping orders are full
+  width. Each lane has a **minimum width** (car name legible); a box needing more lanes than
+  fit **widens its column and the grid scrolls horizontally** (`overflow-x-auto`) rather than
+  squeezing cards.
+- **`DayView`** is a CSS grid (columns = axis + box(es), `gridTemplateRows: auto
+  repeat(N, ROW_PX)` — fixed) with a **per-box relative layer** holding the absolutely
+  positioned, lane-placed cards (`top`/`height` by minute offset, `left`/`width` by lane).
+  Each box column is `minmax(lanes × MIN_LANE_PX, 1fr)`. (This replaced the earlier dynamic
+  row-growth, which can't coexist with independent side-by-side lanes.) Mobile single-box via
+  `useMediaQuery` (SSR-safe); `data-box` preserved. Box separation (desktop, both boxes shown):
   - **Per-box frame** — each box column gets a grid item spanning its slot rows with
     `rounded-lg border` and `-m-1`, so the rounded border sits a few px **outside** the
     cells (a small inset all around, reading slightly bigger than the box). The grid's

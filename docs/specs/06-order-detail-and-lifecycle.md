@@ -106,12 +106,13 @@ vytvorena ──(any role)──► hotova ──(manager)──► zaplatena   
 - Allowed transitions only; any other (incl. `hotova/zaplatena → vytvorena`) → rejected.
 - `setStatus` validates the current→next edge against the matrix **and** the role.
 - **Approved exception** `nedostavil_sa → vytvorena` (manager only): a client who was
-  marked no-show actually arrives late. Because `nedostavil_sa` freed the slot, the
-  revert **re-checks conflict + opening hours** (`isRangeOpen` + the DB constraint) — if
-  the slot was rebooked meanwhile, the revert is rejected with a Slovak message
-  ("Termín už bol medzitým obsadený"). This overrides PRD §6 for this one edge only.
-- `nedostavil_sa` and delete free the box slot (the conflict constraint excludes them —
-  data-model §2.7), so the time becomes bookable again immediately (live).
+  marked no-show actually arrives late. The revert **re-checks opening hours** (`isRangeOpen`)
+  and **detects an overlap** (`findBoxOverlaps`) if the slot was rebooked meanwhile —
+  overlap is allowed now (migration 0016), so it returns a soft `conflict`
+  ("Termín už bol medzitým obsadený") that the manager **confirms** to revert anyway (pass
+  `allowOverlap`). This overrides PRD §6 for this one edge only.
+- `nedostavil_sa` and delete free the box slot (overlap detection excludes them —
+  data-model §2.7), so the time shows as free again immediately (live).
 - The `vytvorena → hotova` transition emits an internal **ORDER_READY** signal that
   spec 07 consumes to send the SMS; spec 06 just records the transition + audit.
 
@@ -133,10 +134,11 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
 | `removeOrderService` | `{ orderServiceId }` | manager (if not performed) | `order_service.remove` |
 | `setOrderServicePaid` | `{ orderServiceId, paid }` | manager | `order_service.paid` |
 
-- `moveOrder`: re-validates 15-min boundary, opening hours (`isRangeOpen`, spec 04), and
-  conflict (DB constraint) — same guarantees as create; friendly Slovak conflict message.
-  Optional `durationMin` (used by the wizard's edit "Trvanie" override) updates the order's
-  duration too, recomputing `ends_at` and re-checking hours/conflict with the new range.
+- `moveOrder`: re-validates 15-min boundary + opening hours (`isRangeOpen`, spec 04), and
+  **detects a box overlap** (`findBoxOverlaps`, excluding the order's own slot) — overlap is
+  allowed (migration 0016), so unless `allowOverlap` it returns a soft `conflict` the UI
+  confirms. Optional `durationMin` (the wizard's edit "Trvanie" override) updates the
+  duration too, recomputing `ends_at` and re-checking hours/overlap with the new range.
 - `setOrderPrice`: manager-only manual order total. `priceOverrideCents` (≥ 0, capped at
   100 000 €) sets `orders.price_override_cents`; `null` clears it (the total reverts to the
   summed lines). It does **not** touch the per-line `paid` rows. The effective total
@@ -150,10 +152,10 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
 - `addOrderService`: snapshots name/category/duration/price into `order_services`
   (data-model §2.8); by default **recomputes `duration_min` to Σ active lines + the new line**
   (overwriting any manual override — services drive the time), then **validates the longer
-  booking before inserting the line**: within opening hours (`SERVICE_WOULD_CLOSE_MESSAGE`)
-  and no box overlap with the next booking (`SERVICE_WOULD_OVERLAP_MESSAGE`). So the action
-  also answers "can this service be added at all" — if it can't fit, it's refused and no line
-  is created. `recomputeDuration: false` skips both the recompute and the validation — used by
+  booking before inserting the line**: within opening hours (`SERVICE_WOULD_CLOSE_MESSAGE`,
+  still a hard reject) and, if the longer booking reaches a neighbour, a **soft overlap**
+  (`SERVICE_WOULD_OVERLAP_MESSAGE` + `conflict`) the manager confirms (`allowOverlap`) — not a
+  hard reject (migration 0016). `recomputeDuration: false` skips both the recompute and the checks — used by
   the wizard **edit** flow, where `moveOrder` has already set (and validated) the final
   duration the user chose, so the service diff must only sync line rows. `removeOrderService`
   takes the same flag.
@@ -163,9 +165,10 @@ All validate with zod; all write `audit_log` (action names below); all re-resolv
   `paid = true`** after the status update, so a paid order is fully settled and leaves the
   unpaid view (spec 10) without per-line ticking. A line added afterwards re-surfaces it.
 - `setStatus(next='vytvorena')` is **only** valid from `nedostavil_sa` (manager): it
-  re-checks `isRangeOpen` + the DB conflict constraint before reverting, and is rejected
-  if the slot was rebooked. It does **not** re-send the reminder SMS retroactively (spec
-  07 handles reminder timing on its own).
+  re-checks `isRangeOpen` and detects an overlap (`findBoxOverlaps`) before reverting — if
+  the slot was rebooked it returns a soft `conflict` the manager confirms (`allowOverlap`),
+  not a hard reject. It does **not** re-send the reminder SMS retroactively (spec 07 handles
+  reminder timing on its own).
 - `addOrderWorker` / `removeOrderWorker`: upsert/delete an `order_staff` row
   (data-model §2.14); idempotent (re-adding the same worker is a no-op). Both roles may
   assign or unassign any worker (PRD §3).
@@ -257,15 +260,16 @@ pnpm test e2e/order-role-permissions   # exits 0
 
 ### 4.4 Move / delete / no-show (e2e, must pass)
 
-- `moveOrder` into an occupied box/time → rejected (conflict, Slovak); into a free,
-  open slot → succeeds and the calendar reflects the new position live.
+- `moveOrder` into an occupied box/time → soft `conflict` (manager confirms → moves anyway,
+  migration 0016); into a free, open slot → succeeds; the calendar reflects the new
+  position live.
 - `deleteOrder` on a `zaplatena` order → rejected; on a pre-paid order → soft-deleted
   (`deleted_at` set), slot freed.
 - `setStatus(nedostavil_sa)` (manager) → status set, slot freed (re-bookable).
-- **No-show revert:** after `nedostavil_sa`, `setStatus(vytvorena)` (manager) → restored
-  to `vytvorena` **iff** the slot is still free; if another order took the slot, the
-  revert is rejected (Slovak conflict message). As **prevádzka** the revert is rejected
-  (`ForbiddenError`).
+- **No-show revert:** after `nedostavil_sa`, `setStatus(vytvorena)` (manager) → restored to
+  `vytvorena`; if another order took the slot, the revert returns a soft `conflict` that the
+  manager **confirms** to restore anyway (overlapping). As **prevádzka** the revert is
+  rejected (`ForbiddenError`).
 
 ```bash
 pnpm test e2e/order-move-delete e2e/order-noshow-revert   # exits 0

@@ -7,8 +7,9 @@
 > `order_services`, §3 (RLS)
 
 The heart of the system: the phone-call **booking flow**, the **two-box day/week
-calendar** with live updates and the four status colors, the **DB-level conflict
-constraint**, and automatic **duration calculation**. Order *detail actions* (status
+calendar** with live updates and the four status colors, the **soft, confirmable
+box-overlap check** (overlaps allowed — migration 0016), and automatic **duration
+calculation**. Order *detail actions* (status
 transitions, notes, assignment, post-hoc service edits) are spec 06; this spec covers
 **creating** an order and **viewing** the schedule.
 
@@ -26,8 +27,8 @@ transitions, notes, assignment, post-hoc service edits) are spec 06; this spec c
 3. **Two-box calendar** (PRD §5): Box 1 & Box 2 columns, vertical time axis, blocks
    sized by duration, four status colors, day (default) + week views, **15-minute slot
    grid**. Mobile shows one box at a time with a switcher.
-4. **Conflict prevention** (PRD §4, §15#3): no overlapping orders in the same box —
-   enforced at the database level.
+4. **Overlap handling** (migration 0016): overlapping orders in a box are **allowed**;
+   the booking flow detects a clash and the manager confirms it (no hard block).
 5. **Live updates** (PRD §5): changes appear in every open calendar without refresh.
 6. **Slot validation** against opening hours / overrides (spec 04 helper).
 7. Order blocks/detail identify the car by **ŠPZ + model/type**, not the plate alone.
@@ -129,10 +130,12 @@ All validate with zod; creating writes `audit_log`.
   `orders.price_override_cents` and, when set, **replaces** the summed line price as the
   order total everywhere (order detail, client history, unpaid amount — data-model §2.7).
   It can also be changed later on an existing order via `setOrderPrice` (spec 06).
-- **Conflict:** relies on the DB exclusion constraint `orders_no_box_overlap`
-  (data-model §2.7). On a unique/exclusion violation, return a friendly Slovak message
-  ("Termín v tomto boxe je obsadený") — never a raw error. Belt-and-suspenders: also
-  pre-check in `suggestSlots`/the picker, but the DB constraint is the guarantee.
+- **Overlap — warn but allow (migration 0016, `docs/navrh-prekryvajuce-rezervacie.md`).**
+  Overlapping reservations in a box are **allowed** (unlimited). `createOrder` calls
+  `findBoxOverlaps` and, unless `allowOverlap: true`, returns a soft
+  `{ ok:false, conflict, message }` ("Termín v tomto boxe je obsadený") naming the clash;
+  the UI confirms and retries with `allowOverlap`. There is **no DB constraint** any more
+  (data-model §2.7). Opening-hours checks still apply.
 
 ### 2.5 Realtime (live calendar)
 
@@ -156,10 +159,10 @@ All validate with zod; creating writes `audit_log`.
 ### 2.6 Data & migrations
 
 Migration `0005_orders.sql`:
-- `orders` + `order_services` per data-model §2.7–§2.8, incl. the generated `ends_at`,
-  the **`btree_gist` exclusion constraint** `orders_no_box_overlap` (excluding
-  `deleted_at IS NOT NULL` and `status='nedostavil_sa'`), and indexes
-  (`(box, starts_at)`, `(starts_at)`, `(client_id)`, `(car_id)`, `(status)`).
+- `orders` + `order_services` per data-model §2.7–§2.8, incl. the generated `ends_at` and
+  indexes (`(box, starts_at)`, `(starts_at)`, `(client_id)`, `(car_id)`, `(status)`). The
+  original `0006` `btree_gist` exclusion constraint `orders_no_box_overlap` was **dropped in
+  migration 0016** (overlaps are now allowed; collision is a soft app-level check — §2.4).
 - Enable RLS; deny-by-default for `anon` writes; **add the authenticated read policy**
   for the calendar (the minted-JWT claim) per data-model §3.1.
 
@@ -210,9 +213,9 @@ pnpm build       # exits 0
 
 ```bash
 supabase db reset   # applies 0005, exits 0
-# btree_gist exclusion constraint exists on orders (expect 1):
+# Box-overlap exclusion constraint was DROPPED in 0016 — expect 0:
 psql "$LOCAL_DB_URL" -c \
-  "select count(*) from pg_constraint where conrelid='orders'::regclass and contype='x';"
+  "select count(*) from pg_constraint where conname='orders_no_box_overlap';"
 # RLS enabled on both tables (expect rowsecurity=t):
 psql "$LOCAL_DB_URL" -c \
   "select tablename, rowsecurity from pg_tables \
@@ -223,21 +226,17 @@ psql "$LOCAL_DB_URL" -c \
    and indexdef ilike '%box%starts_at%';"
 ```
 
-### 4.3 Conflict prevention (e2e + DB, must pass)
+### 4.3 Overlap — warn but allow (e2e, must pass; migration 0016)
 
-- Create an order Box 1, 09:00–09:45. A second order Box 1, 09:30–10:00 → **rejected**
-  (Slovak conflict message); the row is **not** inserted.
-- The same 09:30 slot in **Box 2** → succeeds (different box).
-- After soft-deleting or marking the first order `nedostavil_sa`, the 09:30 Box 1 slot
-  becomes bookable again (constraint excludes those).
+- Create an order Box 1, 09:00–09:45. A second order Box 1, 09:30–10:00 → the action
+  returns a soft **`conflict`** (not a hard error); the UI confirms and, on
+  `allowOverlap`, the overlapping row **is** inserted.
+- The same 09:30 slot in **Box 2** → no conflict (different box).
+- A soft-deleted or `nedostavil_sa` order never conflicts (it frees the slot).
+- **No DB constraint** backstops this — direct overlapping inserts succeed at the DB.
 
 ```bash
-pnpm test e2e/order-conflict   # exits 0
-# Direct DB proof the constraint (not just app code) blocks the overlap:
-psql "$LOCAL_DB_URL" -c \
-  "insert into orders(client_id,car_id,box,starts_at,duration_min,status,created_by) \
-   values (<c>,<car>,1,'2026-06-01 09:30+02',30,'vytvorena',<staff>);" \
-  2>&1 | grep -qi 'orders_no_box_overlap' && echo "constraint enforced"
+pnpm test:e2e booking-wizard   # the pick-occupied → confirm → create flow, exits 0
 ```
 
 ### 4.4 Duration & 15-min slots (unit, must pass)

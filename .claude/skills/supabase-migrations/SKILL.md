@@ -31,17 +31,13 @@ alter table <t> enable row level security;
 -- no anon policies; reads for the browser go through a minted JWT (data-model §3.1)
 ```
 
-**Box-overlap conflict prevention** (orders) — DB-level, not app-level. Requires the
-`btree_gist` extension:
-
-```sql
-create extension if not exists btree_gist;
-alter table orders add constraint orders_no_box_overlap
-  exclude using gist (box with =, tstzrange(starts_at, ends_at) with &&)
-  where (deleted_at is null and status <> 'nedostavil_sa');
-```
-
-Deleted and `nedostavil_sa` orders free their slot — keep that `where` clause.
+**Box-overlap is NOT a DB constraint** (migration 0016 dropped `orders_no_box_overlap`).
+Overlapping reservations are allowed; collision is a **soft, confirmable** check in the
+action layer (`findBoxOverlaps` + `allowOverlap`, see the order-duration-conflict skill).
+The original `0006` exclusion constraint (`exclude using gist (box with =,
+tstzrange(starts_at, ends_at) with &&)`) is **historical** — don't re-create it. The
+`btree_gist` extension stays installed (cheap; may be reused). Opening-hours enforcement is
+unchanged (app-level).
 
 **Soft-delete, never hard-delete domain history.** Use `deleted_at timestamptz` (orders,
 order_services) or `active boolean` (staff, services). Preserve FK references for history

@@ -3,23 +3,23 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { CalendarBlock } from "@/lib/actions/orders";
-import { bratislavaHHMM } from "@/lib/settings/availability";
 import { formatCarLabel } from "@/lib/cars/format";
-import { CATEGORY_BADGE, STATE_COLOR } from "@/types";
+import { STATE_COLOR } from "@/types";
 import { cn } from "@/lib/utils";
 import { useOpenOrderSheet } from "./order-sheet-context";
 
 /**
- * Presentational order-card content (UI redesign — calendar card layout):
+ * Presentational order-card content (overlapping-reservations redesign). Text is
+ * left-top aligned and the time range / category badge are gone. Row 1 is the
+ * car name (make + model, falling back to ŠPZ; truncates model → make when
+ * narrow); row 2 (rich only) is the service list, truncated.
  *
- *  - `rich`    → time range on the left; model (prominent) + category badge and
- *                the service list on the right. Used on the Day calendar and the
- *                Step-4 picker. Text truncates/clamps so it stays inside the card;
- *                on the Day grid the row grows to fit (see `DayView`).
- *  - `compact` → time range + model only, stacked. Used on the dense Week view.
+ *  - `rich`    → car name + services. Day calendar (the row grows to fit).
+ *  - `compact` → car name only. Dense Week view + Step-4 occupied blocks.
+ *  - `line`    → alias of compact (single-line car name).
  *
  * No positioning here — callers place the card (grid-row span on the Day view,
- * absolute on Week/Step-4).
+ * absolute on Week/Step-4 lanes).
  */
 export function BookingCardContent({
   block,
@@ -28,29 +28,13 @@ export function BookingCardContent({
   block: CalendarBlock;
   density: "rich" | "compact" | "line";
 }) {
-  const start = bratislavaHHMM(new Date(block.order.starts_at));
-  const end = bratislavaHHMM(new Date(block.order.ends_at));
-  const carLabel = formatCarLabel(block.car.brand, block.car.model);
+  const carName = formatCarLabel(block.car.brand, block.car.model) || block.car.spz;
 
-  if (density === "line") {
-    // Step-4 picker context: time + car (brand + model) on a single row.
+  if (density === "compact" || density === "line") {
+    // Week view + Step-4 occupied: car name only, left-top, truncated.
     return (
-      <div className="flex h-full items-center justify-center gap-1.5 overflow-hidden leading-tight">
-        <span className="shrink-0 font-mono text-[13px]">
-          {start}–{end}
-        </span>
-        {carLabel && <span className="truncate text-[13px] font-medium">{carLabel}</span>}
-      </div>
-    );
-  }
-
-  if (density === "compact") {
-    return (
-      <div className="flex h-full flex-col overflow-hidden leading-tight">
-        <span className="truncate font-mono text-[10px]">
-          {start}–{end}
-        </span>
-        {carLabel && <span className="truncate text-[10px] opacity-80">{carLabel}</span>}
+      <div className="h-full overflow-hidden text-left leading-tight">
+        <div className="truncate text-[13px] font-medium">{carName}</div>
       </div>
     );
   }
@@ -59,33 +43,13 @@ export function BookingCardContent({
     .filter((s) => !s.removed_at)
     .map((s) => s.name_snapshot);
 
-  const note = block.order.note?.trim();
-
+  // rich (Day view): car name (row 1) + services (row 2), left-top aligned.
   return (
-    <div className="flex h-full items-center gap-2 overflow-hidden">
-      {/* Left: time range, stacked on two rows — sized so the two lines together
-          match the height of the model + note rows on the right. */}
-      <div className="flex shrink-0 flex-col font-mono text-[20px] leading-tight opacity-80">
-        <span>{start}</span>
-        <span>{end}</span>
-      </div>
-      {/* Right: "model – services" (row 1) + note (row 2, 20px) when present. */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex items-center gap-1.5 overflow-hidden">
-          <span className="shrink-0 rounded bg-foreground/10 px-1 text-[10px] font-medium uppercase tracking-wide">
-            {CATEGORY_BADGE[block.car.pricing_category]}
-          </span>
-          <span className="truncate text-[20px] leading-tight">
-            <span className="font-semibold">{carLabel || "—"}</span>
-            {services.length > 0 && (
-              <span className="font-normal opacity-80"> – {services.join(", ")}</span>
-            )}
-          </span>
-        </div>
-        {note && (
-          <div className="flex h-5 items-center truncate text-[20px]"> <span className="font-semibold">Pozn: &nbsp;</span> {note}</div>
-        )}
-      </div>
+    <div className="flex h-full flex-col items-start gap-0.5 overflow-hidden text-left leading-tight">
+      <div className="w-full truncate text-sm font-semibold">{carName}</div>
+      {services.length > 0 && (
+        <div className="w-full truncate text-xs opacity-80">{services.join(", ")}</div>
+      )}
     </div>
   );
 }

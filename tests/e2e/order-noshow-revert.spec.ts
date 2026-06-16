@@ -44,7 +44,9 @@ test.describe("no-show + late-arrival revert (manager only)", () => {
     expect(row2!.status).toBe("vytvorena");
   });
 
-  test("revert rejected when slot was rebooked", async ({ page }) => {
+  test("revert warns when the slot was rebooked, then allows the overlap on confirm", async ({
+    page,
+  }) => {
     const db = serviceClient();
     const o = await seedOrder({ box: 1, time: "12:00" });
 
@@ -54,35 +56,27 @@ test.describe("no-show + late-arrival revert (manager only)", () => {
       .update({ status: "nedostavil_sa" })
       .eq("id", o.orderId);
 
-    // Insert a competing order at the same slot/box (allowed: the original
-    // is excluded from the exclusion constraint as nedostavil_sa).
+    // Insert a competing order at the same slot/box (a no-show frees its slot).
     const rebook = await seedOrder({
       box: 1,
       date: o.date,
       time: "12:00",
     });
     expect(rebook.orderId).not.toBe(o.orderId);
-
-    // Sanity: both orders exist on the same (box, starts_at).
-    const { data: orders } = await db
-      .from("orders")
-      .select("id, status, box, starts_at, ends_at, deleted_at")
-      .in("id", [o.orderId, rebook.orderId]);
-    expect(orders).toHaveLength(2);
     expect(o.startsAt).toBe(rebook.startsAt);
 
-    // Try to revert — should be rejected.
     await page.goto(`/orders/${o.orderId}`);
-    await page
-      .getByRole("button", { name: "Označiť ako vytvorenú" })
-      .click();
-    await expect(page.getByText("Termín už bol medzitým obsadený.")).toBeVisible();
+    await page.getByRole("button", { name: "Označiť ako vytvorenú" }).click();
 
-    const { data: row } = await db
-      .from("orders")
-      .select("status")
-      .eq("id", o.orderId)
-      .single();
-    expect(row!.status).toBe("nedostavil_sa");
+    // Warn-but-allow (migration 0016): a confirm dialog appears; still no-show.
+    await expect(page.getByRole("heading", { name: "Termín sa prekrýva" })).toBeVisible();
+    const before = await db.from("orders").select("status").eq("id", o.orderId).single();
+    expect(before.data!.status).toBe("nedostavil_sa");
+
+    // Confirm → reverts to vytvorena despite the overlap with the rebooked order.
+    await page.locator("[data-overlap-confirm]").click();
+    await expect(page.getByRole("heading", { name: "Termín sa prekrýva" })).toBeHidden();
+    const after = await db.from("orders").select("status").eq("id", o.orderId).single();
+    expect(after.data!.status).toBe("vytvorena");
   });
 });
