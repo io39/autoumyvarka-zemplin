@@ -271,14 +271,17 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
   the calendar** at the (possibly new) date (`/?date=…`) + toast, **not** back to the order
   detail — so the updated slot is immediately visible in its schedule context.
 - **Reliable post-save redirect.** Submit runs **outside the `useTransition`** (a manual
-  `submitting` flag drives the button pending state) — a `router.push` after the server
-  actions inside a transition can be dropped when their `revalidatePath` re-renders the
-  current route. **Critically, no `setState` runs after the success `router.push`**: the
-  earlier symptom (success toast shows, but the page stays on the edit step) was a
-  `finally { setSubmitting(false) }` firing a state update immediately after the push, which
-  **cancels the navigation**. `submitting` is therefore reset **only on the paths that stay
-  on the page** (failures / create-error); on success the wizard navigates and unmounts, no
-  trailing setState. Same for create. Step navigation (Step 0→1, Auto add) keeps the transition.
+  `submitting` flag drives the button pending state) and **no `setState` runs after the
+  success `router.push`** (a state update right after the push cancels the navigation).
+  `submitting` is reset **only on the paths that stay on the page** (failures / create-error);
+  on success the wizard navigates and unmounts. Even so, a soft `router.push` can be **dropped**
+  by the action's `revalidatePath("/")` re-render — and, on the **overlap-confirm retry**, by
+  the closing Radix dialog — leaving the button stuck on "Ukladám…" though the order saved. So
+  the success redirect (`goToCalendar`) does `router.push` (keeping the toast + SPA nav) **plus
+  a hard-navigation fallback**: a `window.location.assign` that fires only if the push was
+  dropped — detected by the component still being **mounted ~600 ms later** (`mountedRef`).
+  On a successful push the wizard unmounts and the fallback no-ops. Same for create + edit.
+  Step navigation (Step 0→1, Auto add) keeps the transition.
 - **Repoint spec 15:** replace `ChangeTimeDialog` wiring with a link/navigation to this
   edit entry. (This is why spec 16 depends on spec 15.)
 
