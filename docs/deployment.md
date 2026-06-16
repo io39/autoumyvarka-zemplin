@@ -64,7 +64,10 @@ VPS ─────────────────────────�
 Dashboard → Database → Extensions, enable:
 - `pg_cron` — the reminder scheduler (architecture §6).
 - `pg_net` — outbound HTTP from the cron job to `/api/reminders`.
-- `btree_gist` — the `orders_no_box_overlap` exclusion constraint (migration `0006`).
+- `btree_gist` — required so migration `0006` can create the `orders_no_box_overlap`
+  exclusion constraint during replay. That constraint is later **dropped in `0016`**
+  (overlaps are now a soft app-level check), but `0006` still creates it on a fresh
+  `db push`, so the extension must be present.
 - `pg_trgm`, `unaccent` — fuzzy client/car search (migration `0002`).
 
 > Migrations create the objects, but the **extensions must exist first**. Enabling

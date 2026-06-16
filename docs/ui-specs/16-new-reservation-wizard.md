@@ -216,8 +216,9 @@ picker whose header mirrors the calendar (§4).
   out of the suggestions only once the clock crosses into the next one — at 11:05 the 11:00
   slot is still suggested, at 13:16 the 13:00 slot is gone and 13:15 is nearest). A day
   **entirely in the past** offers **no quick slots** (`—`), but its free zones remain clickable
-  in the grid. `createOrder` carries no past-time guard — only the 15-min boundary, box-overlap
-  exclusion constraint, and open-hours check — so allowing the past is a UI-layer change only.
+  in the grid. `createOrder` carries no past-time guard — only the 15-min boundary, the soft
+  box-overlap check (overlaps allowed, confirmable — migration 0016), and the open-hours check
+  — so allowing the past is a UI-layer change only.
 - The **selected slot** ghost shows the **start–end** range (`HH:MM–HH:MM`), not just the
   start.
 - **Submit:** `bratislavaLocalToISO(date, pickedSlot.localStart)` → `createOrder({ clientId,

@@ -59,10 +59,9 @@ async function seedReminderOrder(opts: {
 
 test.describe("reminder Route Handler (spec 07 §4.5)", () => {
   // Soft-delete any non-deleted orders left over from prior tests/specs so
-  // (a) they don't collide with our seed inserts on orders_no_box_overlap
-  // and (b) vytvorena ones don't get re-picked by the reminder window. The
-  // constraint's WHERE excludes deleted_at IS NOT NULL, so deleted rows
-  // free their slot.
+  // their `vytvorena` rows don't get re-picked by the reminder window. (Box
+  // overlaps are allowed since migration 0016, so leftover orders no longer
+  // collide with our seed inserts — only the reminder-window re-pick matters.)
   test.beforeEach(async () => {
     const db = serviceClient();
     await db

@@ -28,7 +28,8 @@ transitions, notes, assignment, post-hoc service edits) are spec 06; this spec c
    sized by duration, four status colors, day (default) + week views, **15-minute slot
    grid**. Mobile shows one box at a time with a switcher.
 4. **Overlap handling** (migration 0016): overlapping orders in a box are **allowed**;
-   the booking flow detects a clash and the manager confirms it (no hard block).
+   the booking flow detects a clash and the operator (**either role**, like create itself)
+   confirms it (no hard block).
 5. **Live updates** (PRD §5): changes appear in every open calendar without refresh.
 6. **Slot validation** against opening hours / overrides (spec 04 helper).
 7. Order blocks/detail identify the car by **ŠPZ + model/type**, not the plate alone.
@@ -134,8 +135,15 @@ All validate with zod; creating writes `audit_log`.
   Overlapping reservations in a box are **allowed** (unlimited). `createOrder` calls
   `findBoxOverlaps` and, unless `allowOverlap: true`, returns a soft
   `{ ok:false, conflict, message }` ("Termín v tomto boxe je obsadený") naming the clash;
-  the UI confirms and retries with `allowOverlap`. There is **no DB constraint** any more
-  (data-model §2.7). Opening-hours checks still apply.
+  the UI confirms and retries with `allowOverlap`. The confirm is available to **either
+  role** — it is part of the both-roles create flow, **not** a manager-only override
+  (unlike `durationOverrideMin`/`priceOverrideCents` above). There is **no DB constraint**
+  any more (data-model §2.7). Opening-hours checks still apply.
+  - **TOCTOU note:** the dropped exclusion constraint was the only race-safe guard. Two
+    concurrent `createOrder` calls that each pass the soft `findBoxOverlaps` check before
+    either inserts will **both** succeed silently — the DB no longer serializes this. For a
+    single-operator car wash the practical risk is negligible (and overlaps are allowed by
+    design anyway), so this is accepted, not guarded.
 
 ### 2.5 Realtime (live calendar)
 
@@ -158,7 +166,7 @@ All validate with zod; creating writes `audit_log`.
 
 ### 2.6 Data & migrations
 
-Migration `0005_orders.sql`:
+Migration `0006_orders.sql`:
 - `orders` + `order_services` per data-model §2.7–§2.8, incl. the generated `ends_at` and
   indexes (`(box, starts_at)`, `(starts_at)`, `(client_id)`, `(car_id)`, `(status)`). The
   original `0006` `btree_gist` exclusion constraint `orders_no_box_overlap` was **dropped in
@@ -177,8 +185,10 @@ Migration `0005_orders.sql`:
 
 ## 3. Tasks
 
-1. **(L)** Migration `0005_orders.sql`: tables, generated `ends_at`, `btree_gist`
-   exclusion constraint, indexes, RLS + authenticated read policy. (dep: 01–04 migrations)
+1. **(L)** Migration `0006_orders.sql`: tables, generated `ends_at`, indexes, RLS +
+   authenticated read policy. (The `0006` `btree_gist` box-overlap exclusion constraint was
+   later **dropped in `0016`** — overlaps are now a soft app-level check; see §2.4.)
+   (dep: 01–04 migrations)
 2. **(M)** `lib/orders/duration.ts`: compute duration from selected services ×
    category (uses spec 03 `getServicePrice`) + unit tests. (dep: spec 03)
 3. **(M)** `lib/orders/slots.ts`: 15-min slot generation + `suggestSlots` (open-hours +

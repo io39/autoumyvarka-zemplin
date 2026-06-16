@@ -52,7 +52,8 @@ on 01.
 
 ### 05 — Reservations & two-box calendar
 The heart. The phone-call booking flow (client → car → services → time), the
-DB-level **box-overlap exclusion constraint**, automatic **duration calculation**
+**soft, confirmable box-overlap check** (overlaps allowed — migration 0016, no DB
+constraint), automatic **duration calculation**
 (Σ line durations, manually editable), the two-box day/week calendar with the four
 status colors, **Realtime live updates** (consuming the minted JWT + RLS read
 policies from spec 01 / data-model §3.1), and mobile single-box switching (PRD §5).
@@ -119,7 +120,7 @@ manager-only block; both keep soft-delete. No authorization changes. Depends on 
 | --- | --- |
 | 1. Create reservation < 1 min on mobile | 05 |
 | 2. Both boxes visible, 4 status colors | 05 |
-| 3. No conflicting reservation | 05 (DB exclusion constraint) |
+| 3. Conflicting reservation flagged | 05 (soft warn-but-allow check; overlaps permitted — migration 0016) |
 | 4. Worker can update to `hotova`/reassign, not delete/move/no-show | 05, 06 |
 | 5. Client lookup shows all cars + full history | 02, 08 |
 | 6. Manager note visible to workers, not editable by them | 06 |

@@ -187,7 +187,7 @@ zamestnanca". The `order.assign`/`order.unassign` summaries return a fixed strin
 ### 2.8 Out-of-scope confirmations
 
 No change to: edge auth (`getCurrentStaff` still reads `staff`), `requireManager`,
-`audit_log.actor_staff_id`, the box-overlap exclusion constraint, or any other table.
+`audit_log.actor_staff_id`, box-overlap handling, or any other table.
 
 ---
 

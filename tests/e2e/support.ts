@@ -95,9 +95,9 @@ export function serviceClient() {
 
 /**
  * Pick a Bratislava-local YYYY-MM-DD on a Mon–Fri weekday between 7 and ~120
- * days out. Random offset per call so parallel seedOrder()s in different
- * tests don't collide on the (box, starts_at) exclusion constraint. The
- * seeded weekday opening hours (Mon–Fri 08:00–17:00) apply.
+ * days out. Random offset per call so parallel seedOrder()s in different tests
+ * land on different dates and don't interfere in count/visibility assertions.
+ * The seeded weekday opening hours (Mon–Fri 08:00–17:00) apply.
  */
 export function nextWeekdayDate(offsetDays = 7, spread = 100): string {
   const d = new Date();
@@ -132,8 +132,9 @@ export function bratislavaDateOffset(days: number): string {
  * Seed a fresh client + car + one order on a specific local date (incl. PAST
  * dates for the spec 10 overdue tests, which the future-only seeders can't do)
  * with a single "Interiér Classic" line whose `paid` flag is controllable.
- * Direct DB insert bypasses the action's opening-hours check; retries on the
- * box-overlap exclusion constraint by jittering box + time.
+ * Direct DB insert bypasses the action's opening-hours check. Overlaps are
+ * allowed since migration 0016 (no exclusion constraint), so a single insert
+ * suffices; box + time are still randomized to spread fixtures across suites.
  */
 export async function seedDatedOrder(opts: {
   date: string;
@@ -178,32 +179,26 @@ export async function seedDatedOrder(opts: {
   // Keep seeded starts within 10:00–15:00 local (so even the raw UTC timestamp,
   // CEST −2h, stays in-hours) and the booking ends before the 17:00 close.
   const TIMES = ["10:00", "10:30", "11:00", "13:00", "13:30", "14:00", "14:30", "15:00"];
-  let order: { id: string } | null = null;
-  for (let attempt = 0; attempt < 25; attempt++) {
-    const time = TIMES[Math.floor(Math.random() * TIMES.length)];
-    const startsAt = bratislavaLocalToISO(opts.date, time);
-    const res = await db
-      .from("orders")
-      .insert({
-        client_id: client!.id,
-        car_id: car!.id,
-        box: Math.random() < 0.5 ? 1 : 2,
-        starts_at: startsAt,
-        duration_min: duration,
-        ends_at: new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString(),
-        status: opts.status ?? "hotova",
-        created_by: manager!.id,
-      })
-      .select("id")
-      .single();
-    if (res.data) {
-      order = res.data;
-      break;
-    }
-    if (res.error && (res.error as { code?: string }).code === "23P01") continue;
+  const time = TIMES[Math.floor(Math.random() * TIMES.length)];
+  const startsAt = bratislavaLocalToISO(opts.date, time);
+  const res = await db
+    .from("orders")
+    .insert({
+      client_id: client!.id,
+      car_id: car!.id,
+      box: Math.random() < 0.5 ? 1 : 2,
+      starts_at: startsAt,
+      duration_min: duration,
+      ends_at: new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString(),
+      status: opts.status ?? "hotova",
+      created_by: manager!.id,
+    })
+    .select("id")
+    .single();
+  if (res.error || !res.data) {
     throw new Error(`seedDatedOrder failed: ${res.error?.message ?? "no row returned"}`);
   }
-  if (!order) throw new Error("seedDatedOrder: exhausted retries finding a free slot");
+  const order = res.data;
 
   const { data: line } = await db
     .from("order_services")
@@ -226,8 +221,9 @@ export async function seedDatedOrder(opts: {
 
 /**
  * Insert one order (+ a single service line, optional assigned worker) for an
- * *existing* client+car. Retries on the box-overlap exclusion constraint with a
- * fresh far-future date. For the spec 08 history tests, where we need several
+ * *existing* client+car. Overlaps are allowed (migration 0016), so a single
+ * insert on a random far-future date suffices; the random date just spreads
+ * fixtures across suites. For the spec 08 history tests, where we need several
  * orders on the same (possibly shared) car.
  */
 export async function seedOrderFor(opts: {
@@ -258,33 +254,27 @@ export async function seedOrderFor(opts: {
   const duration = price!.duration_min ?? 60;
 
   const SAFE_TIMES = ["11:00", "11:30", "12:00", "12:30"];
-  let order: { id: string } | null = null;
-  for (let attempt = 0; attempt < 25; attempt++) {
-    const date = seedDate();
-    const time = SAFE_TIMES[Math.floor(Math.random() * SAFE_TIMES.length)];
-    const startsAt = bratislavaLocalToISO(date, time);
-    const res = await db
-      .from("orders")
-      .insert({
-        client_id: opts.clientId,
-        car_id: opts.carId,
-        box: Math.random() < 0.5 ? 1 : 2,
-        starts_at: startsAt,
-        duration_min: duration,
-        ends_at: new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString(),
-        status: opts.status ?? "vytvorena",
-        created_by: manager!.id,
-      })
-      .select("id")
-      .single();
-    if (res.data) {
-      order = res.data;
-      break;
-    }
-    if (res.error && (res.error as { code?: string }).code === "23P01") continue;
+  const date = seedDate();
+  const time = SAFE_TIMES[Math.floor(Math.random() * SAFE_TIMES.length)];
+  const startsAt = bratislavaLocalToISO(date, time);
+  const res = await db
+    .from("orders")
+    .insert({
+      client_id: opts.clientId,
+      car_id: opts.carId,
+      box: Math.random() < 0.5 ? 1 : 2,
+      starts_at: startsAt,
+      duration_min: duration,
+      ends_at: new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString(),
+      status: opts.status ?? "vytvorena",
+      created_by: manager!.id,
+    })
+    .select("id")
+    .single();
+  if (res.error || !res.data) {
     throw new Error(`seedOrderFor failed: ${res.error?.message ?? "no row returned"}`);
   }
-  if (!order) throw new Error("seedOrderFor: exhausted retries finding a free slot");
+  const order = res.data;
 
   await db.from("order_services").insert({
     order_id: order.id,
@@ -369,59 +359,36 @@ export async function seedOrder(opts?: {
     .single();
 
   const date = opts?.date ?? seedDate();
-  // Default time stays inside an 11:00–12:45 window that does NOT overlap
-  // the fixed slots used by orders-create-and-conflict.spec (09:00/09:30
-  // bookings, 13:00 worker booking). Combined with a wide random date, this
-  // keeps the (box, [start, end)) exclusion constraint quiet across suites.
+  // Default time stays inside an 11:00–12:45 window away from the fixed slots
+  // other suites pin. Combined with a wide random date, this keeps fixtures
+  // from colliding in count/visibility assertions across suites. Overlaps
+  // themselves are allowed (migration 0016), so a single insert is enough.
   const SAFE_TIMES = ["11:00", "11:30", "12:00", "12:30"];
   const defaultTime = SAFE_TIMES[Math.floor(Math.random() * SAFE_TIMES.length)];
   const time = opts?.time ?? defaultTime;
   const startsAt = bratislavaLocalToISO(date, time);
   const duration = price!.duration_min ?? 60;
 
-  // Retry the order insert with a fresh random date if the exclusion
-  // constraint catches another parallel test on the same (box, time) slot.
-  // We refuse to silently succeed with `data: null`.
-  let order: { id: string; ends_at: string } | null = null;
-  let attemptStart = startsAt;
-  let attemptDate = date;
-  for (let attempt = 0; attempt < 25; attempt++) {
-    const res = await db
-      .from("orders")
-      .insert({
-        client_id: client!.id,
-        car_id: car!.id,
-        box: opts?.box ?? 1,
-        starts_at: attemptStart,
-        duration_min: duration,
-        ends_at: new Date(new Date(attemptStart).getTime() + duration * 60_000).toISOString(),
-        status: opts?.status ?? "vytvorena",
-        created_by: manager!.id,
-      })
-      .select("id, ends_at")
-      .single();
-    if (res.data) {
-      order = res.data;
-      break;
-    }
-    if (res.error && (res.error as { code?: string }).code === "23P01") {
-      // Only auto-rotate the date when the caller didn't pin one. If they
-      // intentionally targeted a specific date/time/box (e.g. to reproduce a
-      // rebooked-slot scenario), surface the conflict.
-      if (opts?.date) {
-        throw new Error(`seedOrder conflict at ${attemptStart}: ${res.error.message}`);
-      }
-      attemptDate = seedDate();
-      attemptStart = bratislavaLocalToISO(attemptDate, time);
-      continue;
-    }
+  const res = await db
+    .from("orders")
+    .insert({
+      client_id: client!.id,
+      car_id: car!.id,
+      box: opts?.box ?? 1,
+      starts_at: startsAt,
+      duration_min: duration,
+      ends_at: new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString(),
+      status: opts?.status ?? "vytvorena",
+      created_by: manager!.id,
+    })
+    .select("id, ends_at")
+    .single();
+  if (res.error || !res.data) {
     throw new Error(
       `seedOrder failed: ${res.error?.message ?? "no row returned"} (code=${(res.error as { code?: string } | null)?.code})`,
     );
   }
-  if (!order) throw new Error("seedOrder: exhausted retries finding a free slot");
-  const startsAtFinal = attemptStart;
-  const dateFinal = attemptDate;
+  const order = res.data;
 
   const { data: line } = await db
     .from("order_services")
@@ -444,8 +411,8 @@ export async function seedOrder(opts?: {
     carId: car!.id,
     serviceId: service!.id,
     serviceLineId: line!.id,
-    date: dateFinal,
-    startsAt: startsAtFinal,
+    date,
+    startsAt,
     endsAt: order.ends_at,
   };
 }
