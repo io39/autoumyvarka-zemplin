@@ -19,7 +19,6 @@ import {
 } from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import {
-  computeFreeZones,
   earliestStartToday,
   fitsAt,
   hhmmToMin,
@@ -28,6 +27,7 @@ import {
   offsetToStartMin,
   type BusyInterval,
 } from "@/lib/orders/slot-grid";
+import { assignLanes } from "@/lib/calendar/lanes";
 import { STATE_COLOR } from "@/types";
 import { cn } from "@/lib/utils";
 import { skPlural } from "@/lib/intl/sk";
@@ -465,9 +465,20 @@ function GridColumn({
   // 15-min slot; future day → from open. Manual grid picking ignores this floor
   // (past slots are pickable), but the suggestions stay anchored to "now".
   const fromMin = isPast ? dayCloseMin : isToday ? Math.max(dayOpenMin, todayCutoff) : dayOpenMin;
-  // Free (VOĽNÉ) zones span the whole open interval — including the past — so a
-  // historic slot is visibly clickable. A subtle MINULOSŤ tint sits behind them.
-  const freeZones = dayInterval ? computeFreeZones(dayOpenMin, dayCloseMin, busy) : [];
+
+  // Lane-place the occupied bookings and reserve ONE extra "free" lane for the
+  // new booking (1 existing → halves, 2 → thirds, 3 → fourths …). The reserved
+  // lane is the rightmost; the pick ghost renders there.
+  const placed = assignLanes(
+    blocks.map((b) => ({ block: b, startMin: blockStartMin(b), endMin: blockEndMin(b) })),
+  );
+  const occLanes = placed.reduce((m, p) => Math.max(m, p.lanes), 0);
+  const totalLanes = occLanes + 1;
+  const freeLane = occLanes; // rightmost, reserved for the new reservation
+  const laneStyle = (lane: number) => ({
+    left: `calc(${(lane / totalLanes) * 100}% + 1px)`,
+    width: `calc(${100 / totalLanes}% - 2px)`,
+  });
 
   const top = (min: number) => ((min - gridOpenMin) / SLOT_MIN) * ROW_PX;
   const span = (a: number, b: number) => Math.max(ROW_PX, ((b - a) / SLOT_MIN) * ROW_PX);
@@ -476,10 +487,11 @@ function GridColumn({
     if (!dayInterval || !ref.current) return null;
     const y = e.clientY - ref.current.getBoundingClientRect().top;
     const start = offsetToStartMin(y, gridOpenMin, ROW_PX);
-    // Past slots are allowed to be picked manually; only open hours + overlap
-    // (via fitsAt) gate the click. The future-only `fromMin` floor still drives
-    // the quick-slots and the keyboard "nearest free" pick.
-    return fitsAt(start, durationMin, dayOpenMin, dayCloseMin, busy) ? start : null;
+    // Overlap is allowed now (migration 0016): any open-hours slot is pickable,
+    // even occupied ones (the wizard confirms the clash on save). Only the open
+    // window bounds gate the click (`busy = []`). The future-only `fromMin` floor
+    // still drives the quick-slots and the keyboard "nearest free" pick.
+    return fitsAt(start, durationMin, dayOpenMin, dayCloseMin, []) ? start : null;
   }
 
   const selMin =
@@ -554,57 +566,61 @@ function GridColumn({
         </div>
       )}
 
-      {/* Free zones — green overlay only, no label */}
-      {freeZones.map((z) => (
+      {/* Reserved "free" lane background (only when something is occupied) — the
+          prepared space where the new booking will sit. */}
+      {dayInterval && occLanes > 0 && (
         <div
-          key={z.startMin}
-          className="pointer-events-none absolute inset-x-1 rounded border border-dashed border-green-500/60 bg-green-50/50 dark:bg-green-950/40"
-          style={{ top: top(z.startMin) + 1, height: span(z.startMin, z.endMin) - 2 }}
+          className="pointer-events-none absolute rounded border border-dashed border-primary/30 bg-primary/5"
+          style={{
+            ...laneStyle(freeLane),
+            top: top(dayOpenMin) + 1,
+            height: span(dayOpenMin, dayCloseMin) - 2,
+          }}
         />
-      ))}
+      )}
 
-      {/* Occupied bookings — read-only context (click passes through to picking) */}
-      {blocks.map((b) => {
-        const c = STATE_COLOR[b.order.status];
+      {/* Occupied bookings, lane-placed — read-only context (clicks pick a time). */}
+      {placed.map((p) => {
+        const c = STATE_COLOR[p.block.order.status];
         return (
           <div
-            key={b.order.id}
-            data-occupied-order={b.order.id}
+            key={p.block.order.id}
+            data-occupied-order={p.block.order.id}
             className={cn(
-              "pointer-events-none absolute inset-x-1 overflow-hidden rounded border px-1 py-0.5",
+              "pointer-events-none absolute overflow-hidden rounded border px-1 py-0.5",
               c.bg,
               c.border,
               c.text,
             )}
-            style={{ top: top(blockStartMin(b)) + 1, height: span(blockStartMin(b), blockEndMin(b)) - 2 }}
+            style={{ ...laneStyle(p.lane), top: top(p.startMin) + 1, height: span(p.startMin, p.endMin) - 2 }}
           >
-            <BookingCardContent block={b} density="line" />
+            <BookingCardContent block={p.block} density="line" />
           </div>
         );
       })}
 
-      {/* Edit mode: the order's own current slot — outlined, still pickable */}
+      {/* Edit mode: the order's own current slot — outlined, in the free lane. */}
       {curMin !== null && (
         <div
-          className="pointer-events-none absolute inset-x-1 rounded border-2 border-dashed border-primary/70"
-          style={{ top: top(curMin) + 1, height: span(curMin, curMin + durationMin) - 2 }}
+          className="pointer-events-none absolute rounded border-2 border-dashed border-primary/70"
+          style={{ ...laneStyle(freeLane), top: top(curMin) + 1, height: span(curMin, curMin + durationMin) - 2 }}
         />
       )}
 
-      {/* Hover preview ghost — mouse only (touch leaves no mouseleave to clear it) */}
+      {/* Hover preview ghost — mouse only, rendered in the reserved free lane. */}
       {canHover && hoverMin !== null && hoverMin !== selMin && (
         <div
-          className="pointer-events-none absolute inset-x-1 rounded border-2 border-primary/50 bg-primary/10"
-          style={{ top: top(hoverMin) + 1, height: span(hoverMin, hoverMin + durationMin) - 2 }}
+          className="pointer-events-none absolute rounded border-2 border-primary/50 bg-primary/10"
+          style={{ ...laneStyle(freeLane), top: top(hoverMin) + 1, height: span(hoverMin, hoverMin + durationMin) - 2 }}
         />
       )}
 
-      {/* Selected ghost */}
+      {/* Selected ghost — in the reserved free lane. */}
       {selMin !== null && (
         <div
           data-selected-slot={`${day}-${box}-${minToHHMM(selMin)}`}
-          className="pointer-events-none absolute inset-x-1 flex items-center justify-center whitespace-nowrap rounded border-2 border-primary bg-primary/20 px-0.5 text-[10px] font-medium text-primary"
-          style={{ top: top(selMin) + 1, height: span(selMin, selMin + durationMin) - 2 }}
+          className="pointer-events-none absolute flex items-center justify-center whitespace-nowrap rounded border-2 border-primary bg-primary/20 px-0.5 text-[10px] font-medium text-primary"
+          style={{ ...laneStyle(freeLane), top: top(selMin) + 1, height: span(selMin, selMin + durationMin) - 2 }}
         >
           {minToHHMM(selMin)}–{minToHHMM(selMin + durationMin)}
         </div>

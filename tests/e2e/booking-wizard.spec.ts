@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   accessHeaders,
+  bratislavaDateOffset,
   MANAGER_EMAIL,
   WORKER_EMAIL,
   pickAFreeSlot,
@@ -8,7 +9,19 @@ import {
   seedOrder,
   serviceClient,
   uniquePhone,
+  wizardGoToDate,
 } from "./support";
+
+/** A near-future Mon–Fri date (seed hours: Sun closed, Sat half-day). */
+function nextOpenWeekday(): string {
+  for (let d = 1; d <= 8; d++) {
+    const key = bratislavaDateOffset(d);
+    const [y, m, dd] = key.split("-").map(Number);
+    const dow = new Date(Date.UTC(y, m - 1, dd)).getUTCDay(); // 0=Sun … 6=Sat
+    if (dow >= 1 && dow <= 5) return key;
+  }
+  return bratislavaDateOffset(1);
+}
 
 test.describe("booking wizard — create (manager)", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
@@ -74,6 +87,42 @@ test.describe("booking wizard — create (manager)", () => {
     const services = page.locator('[data-section="services"]');
     await expect(services).toContainText("99,90");
     await expect(services).toContainText("upravená cena");
+  });
+
+  test("picking an occupied time warns, then creates the overlapping booking on confirm", async ({
+    page,
+  }) => {
+    const { clientId, phone } = await seedClientWithCar();
+    // Occupy Box 1 on a near open weekday so the picker shows it in a lane with
+    // a reserved free lane beside it.
+    const date = nextOpenWeekday();
+    await seedOrder({ box: 1, date, time: "11:00" });
+
+    await page.goto(`/orders/new?clientId=${clientId}`);
+    expect(phone).toBeTruthy();
+    await page.locator('[data-step="car"] [data-car-id]').first().click();
+    await page.getByRole("button", { name: "Ďalej" }).click();
+    await page.locator('[data-step="services"] label[data-service-id]').first().click();
+    await page.getByRole("button", { name: "Ďalej" }).click();
+
+    // Step 4: navigate to the date; the occupied booking renders as a lane block.
+    await wizardGoToDate(page, date);
+    const occupied = page
+      .locator(`[data-step="termin"] [data-day="${date}"] [data-occupied-order]`)
+      .first();
+    await expect(occupied).toBeVisible();
+
+    // Click the occupied block's area → picks an overlapping time (the block is
+    // click-through). A slot is then selected.
+    await occupied.click();
+    await expect(page.locator("[data-selection-bar]")).not.toContainText("Žiadny termín");
+
+    // Finish → overlap confirm dialog → confirm → the order is created.
+    await page.getByRole("button", { name: "Vytvoriť rezerváciu" }).click();
+    await expect(page.getByRole("heading", { name: "Termín sa prekrýva" })).toBeVisible();
+    await page.locator("[data-overlap-confirm]").click();
+    await expect(page.getByText("Objednávka vytvorená.")).toBeVisible();
+    await expect(page).toHaveURL(/\/\?date=\d{4}-\d{2}-\d{2}/);
   });
 
   test("an unregistered number shows a Nový zákazník row → dialog (phone pre-filled) creates + selects, landing on step 2", async ({ page }) => {
