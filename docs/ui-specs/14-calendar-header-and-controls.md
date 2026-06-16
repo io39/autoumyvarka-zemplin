@@ -43,9 +43,8 @@ badge (spec 12); the header is **mobile-only**. Clicking a block opens the popup
    No time range, no category badge. Text truncates.
 9. **Overlapping bookings** in a box render in **equal side-by-side lanes** (2 → halves,
    3 → thirds …) with a minimum lane width; when many lanes don't fit, the grid scrolls
-   horizontally. Rows are a **fixed** `ROW_PX` height on both Day and Week (cards are
-   absolutely positioned over them — the earlier dynamic row-growth is gone, since it can't
-   coexist with side-by-side lanes).
+   horizontally. A **short booking grows its grid row** (pushing the time axis down) so it
+   stays readable and its bottom still aligns with the correct time line.
 
 ### 1.2 User stories (from PRD §5, UI-STRUCTURE §4)
 
@@ -185,9 +184,12 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
   squeezing cards.
 - **`DayView`** is a CSS grid (columns = axis + box(es), `gridTemplateRows: auto
   repeat(N, ROW_PX)` — fixed) with a **per-box relative layer** holding the absolutely
-  positioned, lane-placed cards (`top`/`height` by minute offset, `left`/`width` by lane).
-  Each box column is `minmax(lanes × MIN_LANE_PX, 1fr)`. (This replaced the earlier dynamic
-  row-growth, which can't coexist with independent side-by-side lanes.) Mobile single-box via
+  positioned, lane-placed cards (`top`/`height` from the cumulative row offsets, `left`/`width`
+  by lane). Each box column is `minmax(lanes × MIN_LANE_PX, 1fr)`. **Variable row heights**
+  (`computeRows`): a short booking (< `MIN_CARD_PX`) **grows its 15-min row(s)** — shared
+  across both boxes — so the card is taller **and** its bottom still lines up with the
+  (pushed-down) time line; the axis stays aligned (restores the old row-growth, lane-compatible).
+  Mobile single-box via
   `useMediaQuery` (SSR-safe); `data-box` preserved. Box separation (desktop, both boxes shown):
   - **Per-box frame** — each box column gets a grid item spanning its slot rows with
     `rounded-lg border` and `-m-1`, so the rounded border sits a few px **outside** the

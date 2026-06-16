@@ -15,14 +15,43 @@ import { placeBoxLanes } from "./placeLanes";
 // horizontally rather than squeezing cards below this.
 const MIN_LANE_PX = 104;
 
+// A booking shorter than this (e.g. 15 min ≈ 20px) grows its grid ROW(s) so its
+// two lines (car name + services) fit. The whole row grows — pushing the time
+// axis and everything below down — so the card stays taller AND its bottom still
+// lines up with the correct time line (the lane-compatible row-growth).
+const MIN_CARD_PX = 42;
+
+/**
+ * Per-15-min-row heights: each row is `ROW_PX`, plus any extra a short card
+ * needs spread across the rows it spans (max wins where rows are shared between
+ * lanes/boxes). Cards then sum to ≥ their readable minimum and the axis stays
+ * aligned. Returns `[height per row]` and the cumulative `top` offsets (len n+1).
+ */
+function computeRows(items: { startMin: number; endMin: number }[], n: number) {
+  const extra = new Array<number>(n).fill(0);
+  for (const it of items) {
+    const s = Math.max(0, Math.min(n - 1, Math.round(it.startMin / SLOT_MIN)));
+    const e = Math.min(n, Math.max(s + 1, Math.round(it.endMin / SLOT_MIN)));
+    const span = e - s;
+    const deficit = Math.max(0, MIN_CARD_PX - span * ROW_PX);
+    if (deficit === 0) continue;
+    const perRow = deficit / span;
+    for (let i = s; i < e; i++) extra[i] = Math.max(extra[i], perRow);
+  }
+  const heights = extra.map((x) => ROW_PX + x);
+  const top = [0];
+  for (let i = 0; i < n; i++) top.push(top[i] + heights[i]);
+  return { heights, top };
+}
+
 /**
  * Day view (overlapping-reservations redesign): a CSS grid of the time axis +
- * one column per box, with FIXED-height 15-min rows. Bookings are absolutely
- * positioned within their box column by minute offset (top/height) and, when
- * they overlap, split into equal side-by-side lanes (`assignLanes`). Each lane
- * keeps a minimum width; a box that needs more lanes than fit widens the grid,
- * which scrolls horizontally. (This replaces the earlier dynamic row-growth,
- * which can't coexist with independent side-by-side lanes.)
+ * one column per box. Rows are 15-min slots; a short booking **grows its row(s)**
+ * (`computeRows`) so its content fits and the axis stays aligned. Bookings are
+ * absolutely positioned within their box column (top/height from the cumulative
+ * row offsets) and, when they overlap, split into equal side-by-side lanes
+ * (`assignLanes`). Each lane keeps a minimum width; a box that needs more lanes
+ * than fit widens the grid, which scrolls horizontally.
  *
  * On `sm:+` both boxes show; below that only `activeBox` (the filter lives in
  * the header).
@@ -44,6 +73,10 @@ export function DayView({
   const boxes: (1 | 2)[] = isDesktop ? [1, 2] : [activeBox];
   const n = rows.length;
   const placedByBox = new Map(boxes.map((box) => [box, placeBoxLanes(blocks, box, interval.open)]));
+  // Row heights are shared across both boxes (one time axis), so a short booking
+  // in either box grows that row for the whole grid.
+  const allPlaced = boxes.flatMap((box) => placedByBox.get(box)?.placed ?? []);
+  const { heights: rowHeights, top: rowTop } = computeRows(allPlaced, n);
 
   // "Now" indicator: a ticking clock so the line slides during the day. Only
   // shown when the displayed day is today and the moment falls inside the grid.
@@ -76,8 +109,8 @@ export function DayView({
   const colTemplate = `3.25rem ${boxes
     .map((box) => `minmax(${(placedByBox.get(box)?.lanes ?? 1) * MIN_LANE_PX}px, 1fr)`)
     .join(" ")}`;
-  // Header row (auto) + fixed-height 15-min slot rows (bookings overlay them).
-  const rowTemplate = `auto repeat(${n}, ${ROW_PX}px)`;
+  // Header row (auto) + per-slot rows (each ≥ ROW_PX; short bookings grow theirs).
+  const rowTemplate = `auto ${rowHeights.map((h) => `${h}px`).join(" ")}`;
 
   return (
     <div className="overflow-x-auto rounded-lg border p-2">
@@ -160,8 +193,12 @@ export function DayView({
               style={{ gridColumn: bi + 2, gridRow: `2 / ${n + 2}` }}
             >
               {placed.map((p) => {
-                const top = (p.startMin / SLOT_MIN) * ROW_PX;
-                const height = Math.max(ROW_PX, ((p.endMin - p.startMin) / SLOT_MIN) * ROW_PX);
+                // top/height from the cumulative (variable) row offsets so the
+                // card aligns with the grown rows and the axis.
+                const sSlot = Math.max(0, Math.min(n, Math.round(p.startMin / SLOT_MIN)));
+                const eSlot = Math.max(sSlot + 1, Math.min(n, Math.round(p.endMin / SLOT_MIN)));
+                const top = rowTop[sSlot];
+                const height = rowTop[eSlot] - rowTop[sSlot];
                 return (
                   <BookingCard
                     key={p.block.order.id}
