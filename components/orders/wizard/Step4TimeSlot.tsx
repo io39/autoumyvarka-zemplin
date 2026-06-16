@@ -30,7 +30,6 @@ import {
 import { assignLanes } from "@/lib/calendar/lanes";
 import { STATE_COLOR } from "@/types";
 import { cn } from "@/lib/utils";
-import { skPlural } from "@/lib/intl/sk";
 import { BookingCardContent } from "@/components/calendar/BookingCard";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { Button } from "@/components/ui/button";
@@ -52,6 +51,9 @@ const DEFAULT_INTERVAL: Interval = { open: "08:00", close: "17:00" };
 // enough for a car name. A column = lanes × this; when the columns don't fit, the
 // grid scrolls horizontally rather than squeezing the lanes below readable width.
 const PICKER_MIN_LANE_PX = 96;
+// Floor for a whole box column so the header ("Box 1" + the reservation count)
+// always shows nicely — relevant for a 1-lane (empty) box.
+const BOX_MIN_PX = 140;
 
 function keyToDate(key: string): Date {
   const [y, m, d] = key.split("-").map(Number);
@@ -231,7 +233,10 @@ export function Step4TimeSlot({
     return placed.reduce((m, p) => Math.max(m, p.lanes), 0) + 1;
   };
   const colTemplate = `2.75rem ${columns
-    .map(({ day, box }) => `minmax(${lanesForColumn(day, box) * PICKER_MIN_LANE_PX}px, 1fr)`)
+    .map(
+      ({ day, box }) =>
+        `minmax(${Math.max(lanesForColumn(day, box) * PICKER_MIN_LANE_PX, BOX_MIN_PX)}px, 1fr)`,
+    )
     .join(" ")}`;
 
   return (
@@ -283,13 +288,8 @@ export function Step4TimeSlot({
                   )}
                 >
                   <span className="text-sm font-semibold">Box {box}</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {count}{" "}
-                    {skPlural(count, {
-                      one: "rezervácia",
-                      few: "rezervácie",
-                      many: "rezervácií",
-                    })}
+                  <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                    {count} rez.
                   </span>
                 </div>
               );

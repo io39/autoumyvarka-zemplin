@@ -196,10 +196,11 @@ picker whose header mirrors the calendar (§4).
   Day view): a short occupied booking grows its 15-min row(s) — across all columns + the
   shared axis — so it stays readable; the click→time mapping follows the variable rows
   (`slotAtOffset`). **Lane-aware column width:** each box column is
-  `minmax(lanes × PICKER_MIN_LANE_PX, 1fr)` where `lanes` = occupied + the reserved free lane,
-  so every lane stays a readable width; when the columns don't all fit the grid **scrolls
-  horizontally** (same as the Day/Week views). Each box column has a header row showing
-  `Box N` + the reservation count. The occupied-booking **line** cards show the car name. **Gutter dividers** (a `::before` **rounded bar**,
+  `minmax(max(lanes × PICKER_MIN_LANE_PX, BOX_MIN_PX), 1fr)` where `lanes` = occupied + the
+  reserved free lane, with a `BOX_MIN_PX` floor so the header fits even on an empty (1-lane)
+  box; every lane stays a readable width and the grid **scrolls horizontally** when the columns
+  don't all fit (same as the Day/Week views). Each box column has a header row showing
+  `Box N` + a compact count (`{n} rez.`). The occupied-booking **line** cards show the car name. **Gutter dividers** (a `::before` **rounded bar**,
   `before:w-1.5 before:rounded-lg before:bg-foreground/30`, centred in the `gap-x-2` gutter —
   the same look as the main calendar) mark every inter-column boundary except the axis edge
   (`hasDivider = box === 2 || isDayStart`): one **between Box 1 and Box 2** of each day, and —
