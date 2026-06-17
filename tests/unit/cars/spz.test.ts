@@ -11,6 +11,7 @@ describe("normalizeSpz", () => {
 
   it("returns null for implausible input", () => {
     expect(normalizeSpz("")).toBeNull();
+    expect(normalizeSpz("   ")).toBeNull(); // whitespace-only → plateless (NULL)
     expect(normalizeSpz("AB")).toBeNull(); // too short
     expect(normalizeSpz("BV123@AB")).toBeNull(); // invalid char
   });

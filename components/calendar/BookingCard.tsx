@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { CalendarBlock } from "@/lib/actions/orders";
-import { formatCarLabel } from "@/lib/cars/format";
+import { formatCarLabel, NO_SPZ_LABEL } from "@/lib/cars/format";
 import { STATE_COLOR } from "@/types";
 import { cn } from "@/lib/utils";
 import { useOpenOrderSheet } from "./order-sheet-context";
@@ -28,7 +28,7 @@ export function BookingCardContent({
   block: CalendarBlock;
   density: "rich" | "compact" | "line";
 }) {
-  const carName = formatCarLabel(block.car.brand, block.car.model) || block.car.spz;
+  const carName = formatCarLabel(block.car.brand, block.car.model) || block.car.spz || NO_SPZ_LABEL;
 
   if (density === "compact" || density === "line") {
     // Week view + Step-4 occupied: car name only, left-top, truncated.

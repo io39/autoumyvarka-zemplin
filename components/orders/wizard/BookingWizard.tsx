@@ -25,7 +25,7 @@ import { type ClientFlags } from "@/lib/orders/unpaid";
 import type { OverlapInfo } from "@/lib/orders/overlap";
 import { OverlapConfirmDialog } from "@/components/orders/OverlapConfirmDialog";
 import { bratislavaLocalToISO } from "@/lib/time/bratislava";
-import { formatCarLabel } from "@/lib/cars/format";
+import { formatCarPrimary } from "@/lib/cars/format";
 import { ClientFlagBadges } from "@/components/clients/client-flag-badges";
 import { BookingStepper } from "./BookingStepper";
 import { WizardActions } from "./WizardActions";
@@ -363,7 +363,7 @@ export function BookingWizard({
             client?.name ?? undefined,
             (() => {
               const c = cars.find((x) => x.id === carId);
-              return c ? formatCarLabel(c.brand, c.model) || c.spz : undefined;
+              return c ? formatCarPrimary(c) : undefined;
             })(),
           ]}
         />

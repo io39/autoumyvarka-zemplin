@@ -9,6 +9,7 @@ import { listServices } from "@/lib/actions/services";
 import { getOpeningHours } from "@/lib/actions/settings";
 import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
 import { formatCentsForInput } from "@/lib/services/format";
+import { formatCarPrimary } from "@/lib/cars/format";
 import { BookingWizard } from "@/components/orders/wizard/BookingWizard";
 import type { PickedSlot } from "@/components/orders/wizard/types";
 
@@ -64,7 +65,7 @@ export default async function EditOrderPage({
         </Link>
         <h1 className="text-xl font-semibold">Zmeniť rezerváciu</h1>
         <p className="text-sm text-muted-foreground">
-          {client.name ?? client.phone} · {car.spz}
+          {client.name ?? client.phone} · {formatCarPrimary(car)}
         </p>
       </header>
       <BookingWizard

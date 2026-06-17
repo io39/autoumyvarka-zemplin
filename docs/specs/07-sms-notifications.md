@@ -76,7 +76,9 @@ the order detail but don't manage it.
 - `lib/sms/render.ts` — `render(type, order) → string`, substituting placeholders;
   **warns/validates** against the **70-char** GSM-with-diacritics limit (PRD §8) — over
   the limit is flagged in the template editor and counted (1 SMS = 70 chars w/ diacritics
-  vs 160 without).
+  vs 160 without). For a **plateless car** (`spz IS NULL`, spec 02) the `{spz}` token
+  expands to the car label (brand/model via `formatCarLabel`), else an empty string so the
+  sentence still reads.
 - Seed simple Slovak placeholders (replaced later, PRD §13#4), e.g.
   - reminder: `Dobrý deň, pripomíname termín umytia auta o {cas}. Autoumyváreň Zemplín.`
   - ready: `Vaše auto {spz} je umyté a pripravené na vyzdvihnutie. Autoumyváreň Zemplín.`

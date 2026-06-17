@@ -21,11 +21,15 @@ const phoneSchema = z
     return normalized;
   });
 
-const spzSchema = z
+// Optional ŠPZ: blank or whitespace-only normalizes to NULL (a plateless car —
+// note 1: never an empty string). A non-blank value must be a plausible plate,
+// else it's a validation error rather than a silent NULL.
+const optionalSpzSchema = z
   .string()
   .trim()
-  .min(1, "ŠPZ je povinná.")
+  .optional()
   .transform((v, ctx) => {
+    if (!v) return null;
     const normalized = normalizeSpz(v);
     if (!normalized) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Neplatná ŠPZ." });
@@ -33,6 +37,15 @@ const spzSchema = z
     }
     return normalized;
   });
+
+// A plateless car must still be identifiable, so require a brand or model when
+// the ŠPZ is absent (product decision).
+const hasCarIdentity = (d: { spz: string | null; brand?: string; model?: string }) =>
+  d.spz != null || Boolean(d.brand) || Boolean(d.model);
+const carIdentityIssue = {
+  message: "Bez ŠPZ zadajte aspoň značku alebo model.",
+  path: ["spz"],
+};
 
 const nameSchema = z.string().trim().max(120, "Meno je príliš dlhé.").optional();
 const brandSchema = z.string().trim().max(60, "Značka je príliš dlhá.").optional();
@@ -67,25 +80,30 @@ export const updateClientSchema = z.object({
 
 export const deleteClientSchema = z.object({ id: idSchema });
 
-export const addCarToClientSchema = z.object({
-  clientId: idSchema,
-  spz: spzSchema,
-  brand: brandSchema,
-  model: modelSchema,
-  pricingCategory: categorySchema,
-});
+export const addCarToClientSchema = z
+  .object({
+    clientId: idSchema,
+    spz: optionalSpzSchema,
+    brand: brandSchema,
+    model: modelSchema,
+    pricingCategory: categorySchema,
+  })
+  .refine(hasCarIdentity, carIdentityIssue);
 
 export const linkExistingCarSchema = z.object({
   clientId: idSchema,
   carId: idSchema,
 });
 
-export const updateCarSchema = z.object({
-  id: idSchema,
-  brand: brandSchema,
-  model: modelSchema,
-  pricingCategory: categorySchema,
-});
+export const updateCarSchema = z
+  .object({
+    id: idSchema,
+    spz: optionalSpzSchema,
+    brand: brandSchema,
+    model: modelSchema,
+    pricingCategory: categorySchema,
+  })
+  .refine(hasCarIdentity, carIdentityIssue);
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;
 export type AddCarToClientInput = z.infer<typeof addCarToClientSchema>;

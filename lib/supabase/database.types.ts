@@ -60,7 +60,7 @@ export type Database = {
           id: string
           model: string | null
           pricing_category: Database["public"]["Enums"]["pricing_category"]
-          spz: string
+          spz: string | null
         }
         Insert: {
           brand?: string | null
@@ -68,7 +68,7 @@ export type Database = {
           id?: string
           model?: string | null
           pricing_category: Database["public"]["Enums"]["pricing_category"]
-          spz: string
+          spz?: string | null
         }
         Update: {
           brand?: string | null
@@ -76,7 +76,7 @@ export type Database = {
           id?: string
           model?: string | null
           pricing_category?: Database["public"]["Enums"]["pricing_category"]
-          spz?: string
+          spz?: string | null
         }
         Relationships: []
       }

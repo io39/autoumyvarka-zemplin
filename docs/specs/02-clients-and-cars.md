@@ -18,14 +18,24 @@ that the booking flow (spec 05) and history (spec 08) depend on.
 ### 1.1 What this feature does
 
 1. **Clients** keyed by phone (E.164-normalized, unique), with an optional name.
-2. **Cars** keyed by ŠPZ (unique), with an optional **brand** (značka — a fuzzy
+2. **Cars** keyed by ŠPZ (unique) **when present** — ŠPZ is **optional** (a brand-new car
+   may have no plate yet). A car also carries an optional **brand** (značka — a fuzzy
    type-to-filter combobox over a curated brand list, free text allowed), an optional
    model, and a required `pricing_category` (`os | suv | van | dod | motorka | stavba`).
-   Brand + model display combined as "Škoda Octavia" (`formatCarLabel`).
+   Brand + model display combined as "Škoda Octavia" (`formatCarLabel`); a car's headline
+   label is `formatCarPrimary` (ŠPZ → else brand/model → else "Bez ŠPZ").
+   - A **missing plate is stored as `NULL`, never an empty/whitespace string** —
+     `normalizeSpz` returns `NULL` for blank input and a DB `CHECK (cars_spz_not_blank)`
+     backstops it. NULLs are distinct under the unique index, so two plateless cars never
+     collide and never auto-link (which would otherwise merge unrelated clients' history).
+   - A plateless car must still be identifiable: the add/edit form **requires a brand or
+     model** when ŠPZ is absent.
 3. **Many-to-many** client↔car: a car may belong to several clients; a client may
    have several cars (PRD §13#1).
 4. **Shared-ŠPZ duplicate detection:** adding a car whose ŠPZ already exists links the
-   existing car to the client instead of creating a duplicate.
+   existing car to the client instead of creating a duplicate. **A plateless car has no
+   shared key**, so the dedup/link step is skipped — it is always created fresh and owned
+   only by the client who added it.
 5. **Unified fuzzy search** for clients by **phone, name, or ŠPZ** in one box — typo-
    tolerant autocomplete (PRD §10).
 6. A **client detail** stub: client data + linked cars. (Full per-car *visit history*
@@ -37,6 +47,8 @@ that the booking flow (spec 05) and history (spec 08) depend on.
 - As **either role**, I enter a phone number and instantly see whether the client
   exists and which cars they have — so I can start a reservation in seconds.
 - As **either role**, I can register a new client and add a car (ŠPZ, model, category).
+- As **either role**, I can add a car that has **no plate yet** (giving at least a brand
+  or model); later, as **manager**, I can set its ŠPZ — which re-runs the shared-ŠPZ check.
 - As **either role**, when I type a ŠPZ that already exists under someone else, the app
   offers to link it to this client so the shared history stays intact.
 - As **either role**, I can search clients by phone or name.
@@ -87,7 +99,9 @@ explicit in §2.3.
   default region for bare national numbers. Search normalizes the query the same way so
   `0905…` and `+421905…` match the same client.
 - **ŠPZ:** normalize (uppercase, strip spaces) before insert/lookup so `BV 123 AB` and
-  `bv123ab` collide and trigger the link prompt.
+  `bv123ab` collide and trigger the link prompt. **Blank or whitespace-only ŠPZ normalizes
+  to `NULL`** (a plateless car) — never an empty string; a too-short/invalid non-blank
+  value is a validation error, not a silent `NULL`.
 
 ### 2.3 Server Actions (`lib/actions/clients.ts`, `lib/actions/cars.ts`)
 
@@ -99,13 +113,16 @@ All validate with zod; all that mutate write `audit_log`.
 | `searchClients` | `{ query, limit? }` | both | — (read; unified fuzzy autocomplete) |
 | `createClient` | `{ phone, name? }` | both | `client.create` |
 | `updateClient` | `{ id, phone?, name? }` | **manager** | `client.update` (or `client.phone_change`) |
-| `addCarToClient` | `{ clientId, spz, brand?, model?, pricingCategory }` | both | `car.create` or `car.link` |
+| `addCarToClient` | `{ clientId, spz?, brand?, model?, pricingCategory }` | both | `car.create` or `car.link` |
 | `linkExistingCar` | `{ clientId, carId }` | both | `car.link` |
-| `updateCar` | `{ id, brand?, model?, pricingCategory }` | **manager** | `car.update` |
+| `updateCar` | `{ id, spz?, brand?, model?, pricingCategory }` | **manager** | `car.update` |
 
 - `createClient`: unique-phone violation → friendly Slovak error (no crash); offer to
   open the existing client.
-- `addCarToClient`: normalize ŠPZ, look it up.
+- `addCarToClient`: normalize ŠPZ (blank → `NULL`); the schema requires a brand or model
+  when ŠPZ is `NULL`.
+  - **Plateless (`NULL`)** → skip the lookup; always create `cars` row + `client_cars`
+    link (`car.create`). No dedup is possible without a plate.
   - **No match** → create `cars` row + `client_cars` link (`car.create`).
   - **Match under this client** → no-op with a notice.
   - **Match under a different client** → return `{ needsLinkConfirm: true, existingCar }`;
@@ -116,6 +133,11 @@ All validate with zod; all that mutate write `audit_log`.
   open that client). A phone change is audited as `client.phone_change` with
   `{from, to}` in `details`, so the key change is traceable (PRD §11). The client's
   cars and history are unaffected (history hangs off cars/orders, not the phone string).
+- `updateCar` (manager) may also **set or change the ŠPZ** — e.g. adding a plate to a
+  previously plateless car. The new plate is normalized; if it already belongs to another
+  car row the action **rejects** with a friendly Slovak error (the shared-ŠPZ merge is not
+  a silent update — the existing car should be used). The unique index backstops the same
+  case. Clearing the plate is allowed only if a brand or model still identifies the car.
 - Changing owner↔car associations is link-only, never destructive.
 - `searchClients({ query })`: returns up to `limit` (default ~10) **client** suggestions
   where the query trigram-matches the client's `name`, `phone`, **or any linked car's
@@ -134,6 +156,9 @@ Migration `0002_clients_cars.sql`:
   `client_cars(car_id)`), plus **trigram GIN** indexes: `clients(name gin_trgm_ops)`,
   `clients(phone gin_trgm_ops)`, `cars(spz gin_trgm_ops)`.
 - Enable RLS, deny-by-default (no anon policies) — per the supabase-migrations skill.
+- Migration `0017_optional_car_spz.sql`: `cars.spz` is **nullable** (plateless cars) with
+  a `CHECK (spz is null or btrim(spz) <> '')` backstop so a blank string can never land in
+  the column. The unique index treats NULLs as distinct, so plateless cars never collide.
 
 ### 2.5 Error handling & loading states
 
@@ -263,3 +288,24 @@ pnpm test e2e/clients-audit         # exits 0
 - [ ] `/clients` search + add-car dialog usable at 360px (no horizontal scroll).
 - [ ] All visible strings are Slovak.
 - [ ] Adding an existing ŠPZ shows the Slovak link prompt, not a duplicate.
+- [ ] Add-car dialog: ŠPZ is optional; submitting with no ŠPZ and no brand/model is blocked.
+
+### 4.9 Plateless cars (optional ŠPZ)
+
+- `cars.spz` is nullable; `CHECK (cars_spz_not_blank)` rejects an empty/whitespace plate.
+- Two plateless cars (`spz = NULL`) coexist (NULLs distinct under the unique index) and are
+  **not** auto-linked to each other.
+- `addCarToClientSchema` / `updateCarSchema`: blank ŠPZ → `NULL`; a plateless car with no
+  brand and no model is rejected; an implausible non-blank plate is rejected.
+- A manager can set a plate on a plateless car; setting a plate already owned by another
+  car row is rejected with a friendly Slovak error.
+- ŠPZ-less cars render `formatCarPrimary` (brand/model, else "Bez ŠPZ") in the calendar,
+  history, unpaid list, and order detail; the SMS `{spz}` token expands to the car label
+  (else empty).
+
+```bash
+psql "$LOCAL_DB_URL" -c \
+  "select is_nullable from information_schema.columns \
+   where table_name='cars' and column_name='spz';"   # YES
+pnpm test clients/spz validation/clients cars/format    # exits 0
+```

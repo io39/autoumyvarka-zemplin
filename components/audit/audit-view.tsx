@@ -12,7 +12,7 @@ import {
   summarizeDetails,
 } from "@/lib/audit/labels";
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
-import { formatCarLabel } from "@/lib/cars/format";
+import { formatCarLabel, formatCarPrimary } from "@/lib/cars/format";
 import { STATE_LABEL } from "@/types";
 import type { AuditLogRow } from "@/lib/supabase/types";
 import { Badge } from "@/components/ui/badge";
@@ -488,7 +488,9 @@ function OrderSummaryDialog({
   }, [orderId]);
 
   const carLabel = data?.car
-    ? [data.car.spz, formatCarLabel(data.car.brand, data.car.model)].filter(Boolean).join(" · ")
+    ? data.car.spz
+      ? [data.car.spz, formatCarLabel(data.car.brand, data.car.model)].filter(Boolean).join(" · ")
+      : formatCarPrimary(data.car)
     : "—";
   const time = data
     ? `${bratislavaDateDisplay(new Date(data.startsAt))} · ${bratislavaHHMM(new Date(data.startsAt))}–${bratislavaHHMM(new Date(data.endsAt))}`

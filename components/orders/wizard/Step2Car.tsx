@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { addCarToClient, linkExistingCar } from "@/lib/actions/cars";
 import { searchClients } from "@/lib/actions/clients";
 import { normalizeSpz } from "@/lib/cars/spz";
-import { formatCarLabel } from "@/lib/cars/format";
+import { formatCarLabel, formatCarPrimary } from "@/lib/cars/format";
 import type { CarRow, PricingCategory } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 import { BrandField } from "@/components/cars/brand-field";
@@ -85,7 +85,7 @@ export function Step2Car({
               )}
             >
               <span className="flex min-w-0 items-center gap-2">
-                <span className="font-medium">{c.spz}</span>
+                <span className="font-medium">{formatCarPrimary(c)}</span>
                 {shared.has(c.id) && (
                   <Badge variant="outline" title="Auto je zdieľané s iným klientom">
                     zdieľané auto
@@ -93,7 +93,8 @@ export function Step2Car({
                 )}
               </span>
               <span className="truncate text-muted-foreground">
-                {formatCarLabel(c.brand, c.model) ? `${formatCarLabel(c.brand, c.model)} · ` : ""}
+                {/* When plateless, the brand/model already headlines — don't repeat it. */}
+                {c.spz && formatCarLabel(c.brand, c.model) ? `${formatCarLabel(c.brand, c.model)} · ` : ""}
                 {CATEGORY_LABEL[c.pricing_category]}
               </span>
             </button>
@@ -177,11 +178,13 @@ function NewCarDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Nové auto</DialogTitle>
-          <DialogDescription>ŠPZ a kategória sú povinné.</DialogDescription>
+          <DialogDescription>
+            Kategória je povinná. Bez ŠPZ zadajte aspoň značku alebo model.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label htmlFor="new-car-spz">ŠPZ</Label>
+            <Label htmlFor="new-car-spz">ŠPZ (nepovinné)</Label>
             <Input id="new-car-spz" value={spz} onChange={(e) => setSpz(e.target.value)} placeholder="BV123AB" />
             {dupClient && (
               <p
@@ -214,7 +217,15 @@ function NewCarDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button type="button" onClick={submit} disabled={pending || spz.trim().length < 2}>
+          <Button
+            type="button"
+            onClick={submit}
+            disabled={
+              pending ||
+              // Need a plate (≥2 chars) OR, when plateless, a brand/model to identify it.
+              (spz.trim().length < 2 && !brand.trim() && !model.trim())
+            }
+          >
             {pending ? "Pridávam…" : "Pridať"}
           </Button>
         </DialogFooter>

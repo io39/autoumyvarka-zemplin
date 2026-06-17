@@ -6,7 +6,7 @@ import { getUnpaidOrders, type UnpaidOrderRow } from "@/lib/actions/orders";
 import { useRealtimeChannel } from "@/lib/realtime/use-realtime";
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
 import { formatPriceCents } from "@/lib/services/format";
-import { formatCarLabel } from "@/lib/cars/format";
+import { formatCarLabel, NO_SPZ_LABEL } from "@/lib/cars/format";
 import { skPlural } from "@/lib/intl/sk";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -121,8 +121,10 @@ export function UnpaidList({
                       <div className="text-muted-foreground">{o.clientPhone}</div>
                     </TableCell>
                     <TableCell className="text-sm">
-                      <span className="font-medium">{o.spz}</span>
-                      {formatCarLabel(o.brand, o.model) && (
+                      <span className="font-medium">
+                        {o.spz || formatCarLabel(o.brand, o.model) || NO_SPZ_LABEL}
+                      </span>
+                      {o.spz && formatCarLabel(o.brand, o.model) && (
                         <span className="ml-1 text-muted-foreground">
                           {formatCarLabel(o.brand, o.model)}
                         </span>
@@ -162,7 +164,9 @@ export function UnpaidList({
               <li key={o.id} className="rounded-lg border p-3 text-sm">
                 <Link href={`/orders/${o.id}`} className="block space-y-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{o.spz}</span>
+                    <span className="font-medium">
+                      {o.spz || formatCarLabel(o.brand, o.model) || NO_SPZ_LABEL}
+                    </span>
                     {o.overdue ? (
                       <Badge className="border bg-red-100 text-red-900">Po termíne</Badge>
                     ) : (

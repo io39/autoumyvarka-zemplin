@@ -21,7 +21,7 @@ import type {
   SmsMessageRow,
   WorkerRow,
 } from "@/lib/supabase/types";
-import { formatCarLabel } from "@/lib/cars/format";
+import { formatCarPrimary } from "@/lib/cars/format";
 import { type ActionResult, toActionError } from "./result";
 import { listServices, type ServiceWithPrices } from "./services";
 import { getOrderSms } from "./sms";
@@ -404,7 +404,7 @@ export interface OrderSummary {
   status: OrderRow["status"];
   deleted: boolean;
   client: { name: string | null; phone: string } | null;
-  car: { spz: string; brand: string | null; model: string | null } | null;
+  car: { spz: string | null; brand: string | null; model: string | null } | null;
   services: string[];
 }
 
@@ -436,7 +436,7 @@ export async function getOrderSummary(input: unknown): Promise<OrderSummary | nu
     status: OrderRow["status"];
     deleted_at: string | null;
     client: { name: string | null; phone: string } | null;
-    car: { spz: string; brand: string | null; model: string | null } | null;
+    car: { spz: string | null; brand: string | null; model: string | null } | null;
     services: { name_snapshot: string; quantity: number; removed_at: string | null }[] | null;
   };
   return {
@@ -491,11 +491,11 @@ export async function getRecentCarVisits(input: {
   if (error) throw error;
 
   return (data ?? []).map((o) => {
-    const car = o.car as { spz: string; brand: string | null; model: string | null } | null;
+    const car = o.car as { spz: string | null; brand: string | null; model: string | null } | null;
     return {
       orderId: o.id,
       startsAt: o.starts_at,
-      carLabel: car ? formatCarLabel(car.brand, car.model) || car.spz : "",
+      carLabel: car ? formatCarPrimary(car) : "",
       serviceNames: (o.services ?? [])
         .filter((s: { removed_at: string | null }) => s.removed_at === null)
         .map((s: { name_snapshot: string }) => s.name_snapshot),
@@ -1267,7 +1267,7 @@ async function findBoxOverlaps(
       box: r.box,
       startHHMM: bratislavaHHMM(new Date(r.starts_at)),
       endHHMM: bratislavaHHMM(new Date(r.ends_at)),
-      carLabel: r.car ? formatCarLabel(r.car.brand, r.car.model) || r.car.spz : "",
+      carLabel: r.car ? formatCarPrimary(r.car) : "",
     })),
   };
 }

@@ -2,6 +2,7 @@ import "server-only";
 
 import { getServiceClient } from "@/lib/supabase/server";
 import type { SmsMessageRow, SmsType } from "@/lib/supabase/types";
+import { formatCarLabel } from "@/lib/cars/format";
 import { getSmsProvider } from "./provider";
 import { renderTemplate, type OrderRenderContext } from "./render";
 
@@ -14,7 +15,7 @@ interface OrderForSms {
   id: string;
   starts_at: string;
   client: { name: string | null; phone: string };
-  car: { spz: string };
+  car: { spz: string | null; brand: string | null; model: string | null };
 }
 
 /**
@@ -29,7 +30,7 @@ export async function dispatchOrderSms(input: DispatchInput): Promise<SmsMessage
   const { data: order, error: orderErr } = await db
     .from("orders")
     .select(
-      "id, starts_at, client:client_id(name, phone), car:car_id(spz)",
+      "id, starts_at, client:client_id(name, phone), car:car_id(spz, brand, model)",
     )
     .eq("id", input.orderId)
     .maybeSingle();
@@ -47,7 +48,9 @@ export async function dispatchOrderSms(input: DispatchInput): Promise<SmsMessage
 
   const ctx: OrderRenderContext = {
     startsAt: new Date(o.starts_at),
-    spz: o.car.spz,
+    // A plateless car: substitute the car label (brand/model), else leave the
+    // {spz} token empty so the sentence still reads cleanly (product decision).
+    spz: o.car.spz ?? formatCarLabel(o.car.brand, o.car.model),
     clientName: o.client.name,
   };
   const body = renderTemplate(tpl.body, ctx);

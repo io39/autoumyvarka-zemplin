@@ -87,23 +87,27 @@ extension).
 
 ### 2.3 `cars`
 
-A car is identified by its plate and is **shared across clients** (PRD §13 #1,
-confirmed). It carries the pricing category that drives durations/prices.
+A car is identified by its plate (when it has one) and is **shared across clients**
+(PRD §13 #1, confirmed). It carries the pricing category that drives durations/prices.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid pk | |
-| `spz` | text **unique not null** | license plate; the shared key |
+| `spz` | text **unique, nullable** | license plate; the shared linking key. `NULL` = plateless car (migration `0017`). `CHECK (cars_spz_not_blank)` forbids an empty/whitespace string — a missing plate is always `NULL`, never `''`. |
 | `brand` | text null | optional make/značka (migration `0011`); UI is a fuzzy type-to-filter combobox over a curated list, free text allowed |
 | `model` | text null | optional descriptive model |
 | `pricing_category` | `pricing_category` not null | drives service duration + price |
 | `created_at` | timestamptz not null default now() | |
 
 Brand + model are combined for display as `"Škoda Octavia"` (`lib/cars/format.ts`
-`formatCarLabel`).
+`formatCarLabel`); a car's headline label is `formatCarPrimary` (ŠPZ → brand/model → "Bez ŠPZ").
 
-**Indexes:** unique on `spz`; **trigram GIN** on `spz` (`gin_trgm_ops`) for fuzzy
-search (spec 02). A car is never duplicated per owner; ownership is the M:N link below.
+**Indexes:** unique on `spz` (NULLs distinct, so plateless cars never collide); **trigram
+GIN** on `spz` (`gin_trgm_ops`) for fuzzy search (spec 02). A car is never duplicated per
+owner; ownership is the M:N link below. **Plateless cars are never auto-deduped/linked** —
+without a plate there is no reliable shared identity, so each is owned only by the client
+who added it (a brand/model is required so it stays identifiable). PRD §13#1 shared-ŠPZ
+linking applies only to plated cars.
 
 ### 2.4 `client_cars` (M:N)
 

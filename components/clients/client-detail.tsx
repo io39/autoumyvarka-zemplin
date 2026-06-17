@@ -15,7 +15,7 @@ import type {
 } from "@/lib/supabase/types";
 import type { CarHistory, HistoryEntry } from "@/lib/clients/history";
 import { poradieFor } from "@/lib/clients/history";
-import { formatCarLabel } from "@/lib/cars/format";
+import { formatCarLabel, formatCarPrimary } from "@/lib/cars/format";
 import type { ClientFlags } from "@/lib/orders/unpaid";
 import { BrandField } from "@/components/cars/brand-field";
 import { ClientFlagBadges } from "@/components/clients/client-flag-badges";
@@ -262,8 +262,8 @@ function CarRow({
       <div className="flex items-center gap-2">
         <AccordionTrigger className="flex-1 hover:no-underline">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-medium">{car.spz}</span>
-            {formatCarLabel(car.brand, car.model) && (
+            <span className="font-medium">{formatCarPrimary(car)}</span>
+            {car.spz && formatCarLabel(car.brand, car.model) && (
               <span className="text-muted-foreground">{formatCarLabel(car.brand, car.model)}</span>
             )}
             <Badge variant="secondary">{CATEGORY_LABEL[car.pricing_category]}</Badge>
@@ -601,12 +601,14 @@ function AddCarDialog({
           <form action={onSubmit}>
             <DialogHeader>
               <DialogTitle>Pridať auto</DialogTitle>
-              <DialogDescription>ŠPZ a kategória sú povinné.</DialogDescription>
+              <DialogDescription>
+                Kategória je povinná. Bez ŠPZ zadajte aspoň značku alebo model.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="spz">ŠPZ</Label>
-                <Input id="spz" name="spz" required placeholder="BV123AB" />
+                <Label htmlFor="spz">ŠPZ (nepovinné)</Label>
+                <Input id="spz" name="spz" placeholder="BV123AB" />
               </div>
               <BrandField id="add-car-brand" name="brand" />
               <div className="space-y-2">
@@ -645,12 +647,14 @@ function EditCarDialog({
   const [pending, startTransition] = useTransition();
 
   function onSubmit(formData: FormData) {
+    const spz = String(formData.get("spz") ?? "");
     const brand = String(formData.get("brand") ?? "");
     const model = String(formData.get("model") ?? "");
     const pricingCategory = String(formData.get("pricingCategory") ?? "os") as PricingCategory;
     startTransition(async () => {
       const result = await updateCar({
         id: car.id,
+        spz,
         brand: brand || undefined,
         model: model || undefined,
         pricingCategory,
@@ -669,10 +673,18 @@ function EditCarDialog({
       <DialogContent className="sm:max-w-md">
         <form action={onSubmit}>
           <DialogHeader>
-            <DialogTitle>Upraviť auto {car.spz}</DialogTitle>
-            <DialogDescription>ŠPZ sa nedá zmeniť; upravte značku, model a kategóriu.</DialogDescription>
+            <DialogTitle>Upraviť auto {formatCarPrimary(car)}</DialogTitle>
+            <DialogDescription>
+              {car.spz
+                ? "Upravte ŠPZ, značku, model a kategóriu."
+                : "Doplňte ŠPZ (ak ju už poznáte), značku, model a kategóriu."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-car-spz">ŠPZ (nepovinné)</Label>
+              <Input id="edit-car-spz" name="spz" defaultValue={car.spz ?? ""} placeholder="BV123AB" />
+            </div>
             <BrandField id="edit-car-brand" name="brand" initial={car.brand ?? ""} />
             <div className="space-y-2">
               <Label htmlFor="model">Model</Label>
