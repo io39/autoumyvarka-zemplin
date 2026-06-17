@@ -71,8 +71,8 @@ plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
-- **Optional ŠPZ (plateless cars) + car-merge flow** (5 commits, 2026-06-17;
-  `73f5edd`→`824e848`→`b070fe9`→`d172fbe`→`e238476`). **Client request:** register a car with
+- **Optional ŠPZ (plateless cars) + car-merge flow** (6 commits, 2026-06-17;
+  `73f5edd`→`824e848`→`b070fe9`→`d172fbe`→`e238476`→`b6f009b`). **Client request:** register a car with
   **no plate yet**. ŠPZ stays the shared-car *linking* key, so the risk was plateless cars
   auto-linking to each other and bleeding one client's history into another's — avoided by
   storing a missing plate as **NULL, never `""`** (NULLs are distinct under the unique index,
@@ -100,6 +100,13 @@ pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder G
     e2e read-race waits, worker-forbidden test. **All 229 unit pass; targeted e2e green on a clean
     `supabase db reset`.** ⚠️ Known: setting a plate that collides is now a **merge**, not the old
     reject; clearing a plate off a *shared* car is still rejected.
+  - **`feat(cars)` `b6f009b`:** the merge-confirm dialog now **names the survivor's owner(s)** so the
+    manager can verify the target ("Auto {Y} patrí klientovi/klientom: {mená}"). `updateCar`'s
+    `needsMergeConfirm` result carries `existingOwners` (clients linked to the survivor — name, or
+    phone when nameless), built by a shared `mergeConfirm()` helper used by both the collision branch
+    and the 23505 fallback. Read-only (existing `client_cars`), **no new migration**. Spec 02 §2.6
+    updated; e2e asserts the owner name shows (scoped to the dialog — the client also appears in the
+    master-detail list).
 - `feat(orders)` (`6a1112f`, 2026-06-17): **optional "ready" SMS toggle on vytvorená →
   hotová.** A **"Odoslať SMS o dokončení"** checkbox sits above the status actions whenever
   `hotova` is an available next status — checked by default, toggleable by **both roles**
