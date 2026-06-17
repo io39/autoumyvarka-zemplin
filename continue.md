@@ -25,14 +25,17 @@ requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.
 A **test** deployment is up; **production hardening (Phase 4) is NOT done.**
 `docs/deployment.md` is the runbook + source of truth for deploy steps.
 
-**⚠️ Pending on Cloud:** migrations **`0013_client_soft_delete.sql`** + **`0014_client_hard_delete.sql`**
-+ **`0015_order_price_override.sql`** are committed + applied locally but **NOT yet `db push`ed to
-Cloud**. 0013 added `clients.deleted_at`; **0014 supersedes it** — drops that column and switches
-Odstrániť to a **hard-delete cascade** (`delete_client_cascade`). **0015** adds
-`orders.price_override_cents` (nullable int, manager-only manual order total). Run `supabase db push`
-**with/before** the next app redeploy; they apply in sequence (harmless). New app code calls
-`delete_client_cascade`, no longer references `clients.deleted_at`, and reads
-`orders.price_override_cents` (a fresh checkout without 0015 will fail the price-override paths).
+**⚠️ Pending on Cloud:** migrations **`0013`–`0018`** are committed + applied locally but **NOT
+yet `db push`ed to Cloud**. 0013 added `clients.deleted_at`; **0014 supersedes it** — drops that
+column and switches Odstrániť to a **hard-delete cascade** (`delete_client_cascade`). **0015** adds
+`orders.price_override_cents` (nullable int, manager-only manual order total). **0016** drops the
+`orders_no_box_overlap` exclusion constraint (overlaps are now a soft app-layer check). **0017**
+makes `cars.spz` **nullable** (plateless cars) + a `cars_spz_not_blank` CHECK. **0018** adds the
+`merge_cars(...)` function (car-merge flow). Run `supabase db push` **with/before** the next app
+redeploy; they apply in sequence (harmless). New app code calls `delete_client_cascade`, no longer
+references `clients.deleted_at`, reads `orders.price_override_cents` (a fresh checkout without 0015
+fails the price-override paths), allows plateless cars (0017), and calls `merge_cars` on a colliding
+plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate paths.
 
 **Done (test box):**
 - **Supabase Cloud EU** (eu-central-1): migrations `0001–0012` pushed (**`0013`+`0014` pending — see
@@ -68,6 +71,35 @@ Odstrániť to a **hard-delete cascade** (`delete_client_cascade`). **0015** add
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- **Optional ŠPZ (plateless cars) + car-merge flow** (5 commits, 2026-06-17;
+  `73f5edd`→`824e848`→`b070fe9`→`d172fbe`→`e238476`). **Client request:** register a car with
+  **no plate yet**. ŠPZ stays the shared-car *linking* key, so the risk was plateless cars
+  auto-linking to each other and bleeding one client's history into another's — avoided by
+  storing a missing plate as **NULL, never `""`** (NULLs are distinct under the unique index,
+  so plateless cars never collide/dedup).
+  - **`feat(cars)` `73f5edd`:** migration **`0017`** drops `cars.spz` NOT NULL + adds
+    `CHECK (cars_spz_not_blank)`. `optionalSpzSchema` (blank→NULL) + a refine requiring a
+    **brand or model when plateless**. `addCarToClient` skips the dedup lookup when plateless;
+    `updateCar` can set a plate later. SMS `{spz}` token falls back to the car label, else empty.
+    New `formatCarPrimary` (ŠPZ → brand/model → "Bez ŠPZ") display fallback across calendar,
+    history, unpaid list, order detail, wizard, audit. Specs 02/07 + data-model updated in place.
+    e2e `plateless-car.spec.ts`.
+  - **`fix(cars)` `824e848`:** code-review — `UnpaidOrderRow.spz` typed `string|null`; `updateCar`
+    rejects clearing the ŠPZ off a **shared** car (would break the shared link).
+  - **`docs`/`feat`/`fix` `b070fe9`+`d172fbe`+`e238476`:** **car-merge flow** (spec 02 §2.6). When a
+    manager sets a plate already held by **another** car row, the two rows are the same physical car
+    → **merge** instead of reject. Migration **`0018`** `merge_cars(source,target,brand,model,cat)` —
+    one transaction: reassign the source's orders + `client_cars` to the **existing plated survivor**,
+    apply the manager's edited fields, **hard-delete** the empty source (2nd documented soft-delete
+    exception after `delete_client_cascade`). `EXECUTE` granted to `service_role` only (no SECURITY
+    DEFINER — mirrors `0014`). `updateCar` gains a `confirmMerge` gate (mirrors `allowOverlap`):
+    returns `needsMergeConfirm` → the `EditCarDialog` confirm replays with `confirmMerge:true` →
+    `mergeInto()` + `car.merge` audit. e2e `car-merge.spec.ts` (merge folds X→Y, both orders+clients
+    on survivor, audit; cancel; worker can't reach it). code-reviewer (both rounds) applied: shared-clear
+    guard, `merged_clients` counted via `GET DIAGNOSTICS ROW_COUNT` (was over-counted pre-dedup),
+    e2e read-race waits, worker-forbidden test. **All 229 unit pass; targeted e2e green on a clean
+    `supabase db reset`.** ⚠️ Known: setting a plate that collides is now a **merge**, not the old
+    reject; clearing a plate off a *shared* car is still rejected.
 - `feat(orders)` (`6a1112f`, 2026-06-17): **optional "ready" SMS toggle on vytvorená →
   hotová.** A **"Odoslať SMS o dokončení"** checkbox sits above the status actions whenever
   `hotova` is an available next status — checked by default, toggleable by **both roles**
@@ -180,6 +212,8 @@ Planning artifacts are all written and committed locally on `main`:
   `lib/actions/clients.ts` + `lib/actions/cars.ts` (shared-ŠPZ link detection,
   manager-only edits, phone_change audit). UI `/clients` (fuzzy search) + `/clients/[id]`
   (detail, add-car/link-confirm, history placeholder for spec 08). 26 unit + 11 e2e pass.
+  **Later extended (2026-06-17, see "Recent app fixes"):** optional ŠPZ / plateless cars
+  (migration `0017`) + the car-merge flow (migration `0018`, `merge_cars`); spec 02 §2.6 + §4.9/§4.10.
 - **Spec 03 — DONE** (commits `feat: implement spec 03 (service catalog)` + the
   code-review follow-ups `fix(services): apply spec 03 code-review should-fix items`
   and `chore(services): apply spec 03 code-review nits`). Migration
