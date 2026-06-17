@@ -1283,7 +1283,7 @@ export interface UnpaidOrderRow {
   overdue: boolean;
   clientName: string | null;
   clientPhone: string;
-  spz: string;
+  spz: string | null;
   brand: string | null;
   model: string | null;
   serviceNames: string[];
@@ -1348,7 +1348,7 @@ export async function getUnpaidOrders(input?: unknown): Promise<UnpaidOrdersResu
       overdue,
       clientName: c.client?.name ?? null,
       clientPhone: c.client?.phone ?? "",
-      spz: c.car?.spz ?? "",
+      spz: c.car?.spz ?? null,
       brand: c.car?.brand ?? null,
       model: c.car?.model ?? null,
       serviceNames: c.services

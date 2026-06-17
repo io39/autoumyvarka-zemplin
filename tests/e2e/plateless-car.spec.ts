@@ -5,6 +5,7 @@ import {
   uniquePhone,
   uniqueSpz,
   createClientViaUI,
+  addCarViaUI,
   serviceClient,
 } from "./support";
 
@@ -77,5 +78,33 @@ test.describe("plateless cars (optional ŠPZ)", () => {
     const { data: linksB } = await db.from("client_cars").select("client_id").eq("car_id", b!.id);
     expect(linksA?.map((l) => l.client_id)).toEqual([idA]);
     expect(linksB?.map((l) => l.client_id)).toEqual([idB]);
+  });
+
+  test("clearing the plate off a shared car is rejected (keeps the link key)", async ({ page }) => {
+    const db = serviceClient();
+    const spz = uniqueSpz("SH");
+    const spaced = `${spz.slice(0, 2)} ${spz.slice(2)}`; // normalizes back to spz
+
+    // Same plate under two clients → one shared car row, two links.
+    await createClientViaUI(page, { phone: uniquePhone(), name: "Share A" });
+    await addCarViaUI(page, spz);
+    await createClientViaUI(page, { phone: uniquePhone(), name: "Share B" });
+    await addCarViaUI(page, spaced);
+    await expect(page.getByText("ŠPZ už existuje")).toBeVisible();
+    await page.getByRole("button", { name: "Prepojiť" }).click();
+    await expect(page.getByText(spz, { exact: true }).first()).toBeVisible();
+
+    // Manager edits the shared car, gives it a model, and tries to clear the ŠPZ.
+    await page.getByRole("button", { name: "Upraviť auto" }).click();
+    await page.getByLabel("Model").fill("Octavia"); // satisfy the brand/model rule
+    await page.getByLabel("ŠPZ").fill("");
+    await page.getByRole("button", { name: "Uložiť" }).click();
+
+    // Rejected with the shared-car message; the plate is untouched in the DB.
+    await expect(
+      page.getByText("Auto je zdieľané s viacerými klientmi — ŠPZ nie je možné odstrániť."),
+    ).toBeVisible();
+    const { data: car } = await db.from("cars").select("spz").eq("spz", spz).single();
+    expect(car?.spz).toBe(spz);
   });
 });

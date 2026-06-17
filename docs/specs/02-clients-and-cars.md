@@ -137,7 +137,10 @@ All validate with zod; all that mutate write `audit_log`.
   previously plateless car. The new plate is normalized; if it already belongs to another
   car row the action **rejects** with a friendly Slovak error (the shared-ŠPZ merge is not
   a silent update — the existing car should be used). The unique index backstops the same
-  case. Clearing the plate is allowed only if a brand or model still identifies the car.
+  case. Clearing the plate is allowed only if a brand or model still identifies the car
+  **and** the car is **not shared** — clearing the ŠPZ off a car owned by more than one
+  client would silently break the shared-ŠPZ link (the car goes plateless, so future adds
+  of that plate no longer link here), so it is rejected with a friendly Slovak error.
 - Changing owner↔car associations is link-only, never destructive.
 - `searchClients({ query })`: returns up to `limit` (default ~10) **client** suggestions
   where the query trigram-matches the client's `name`, `phone`, **or any linked car's

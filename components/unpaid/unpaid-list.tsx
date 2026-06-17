@@ -107,7 +107,7 @@ export function UnpaidList({
               orders.map((o) => {
                 const at = new Date(o.startsAt);
                 return (
-                  <TableRow key={o.id} data-order-id={o.id} data-spz={o.spz}>
+                  <TableRow key={o.id} data-order-id={o.id} data-spz={o.spz ?? undefined}>
                     <TableCell className="whitespace-nowrap text-sm">
                       <Link
                         href={`/orders/${o.id}`}

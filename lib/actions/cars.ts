@@ -148,6 +148,24 @@ export async function updateCar(input: unknown): Promise<ActionResult> {
     if (beforeErr) throw beforeErr;
     if (!before) return { ok: false, message: "Auto sa nenašlo." };
 
+    // Clearing the plate off a *shared* car would silently break the shared-ŠPZ
+    // link (PRD §13#1): the car goes plateless, so future adds of that plate
+    // create a new unlinked row instead of linking here. Block it on a car that
+    // more than one client owns; a single-owner car may go plateless freely.
+    if (before.spz != null && data.spz == null) {
+      const { count, error: linkCountErr } = await db
+        .from("client_cars")
+        .select("*", { count: "exact", head: true })
+        .eq("car_id", data.id);
+      if (linkCountErr) throw linkCountErr;
+      if ((count ?? 0) > 1) {
+        return {
+          ok: false,
+          message: "Auto je zdieľané s viacerými klientmi — ŠPZ nie je možné odstrániť.",
+        };
+      }
+    }
+
     // Setting/changing the plate: guard against colliding with another car's
     // plate (the UNIQUE index also backstops this, caught as 23505 below).
     if (data.spz != null && data.spz !== before.spz) {

@@ -29,6 +29,8 @@ const optionalSpzSchema = z
   .trim()
   .optional()
   .transform((v, ctx) => {
+    // `.optional()` covers an absent field (undefined); the `!v` check also
+    // catches a present-but-blank "" — both mean "plateless" → NULL.
     if (!v) return null;
     const normalized = normalizeSpz(v);
     if (!normalized) {
