@@ -56,6 +56,13 @@ describe("summarizeDetails", () => {
     );
   });
 
+  it("summarizes a car merge with plate + order count", () => {
+    expect(
+      summarizeDetails("car.merge", { spz: "BV123AB", reassigned_orders: 3, merged_clients: 1 }),
+    ).toBe("Spojené pod ŠPZ BV123AB · 3 obj.");
+    expect(summarizeDetails("car.merge", { reassigned_orders: 0 })).toBe("Autá spojené · 0 obj.");
+  });
+
   it("renders assign / unassign distinctly", () => {
     expect(summarizeDetails("order.assign", { worker_id: "x" })).toBe("Pracovník priradený");
     expect(summarizeDetails("order.unassign", { worker_id: "x" })).toBe("Pracovník odobratý");
@@ -112,6 +119,7 @@ describe("summarizeDetails", () => {
       "car.create",
       "car.link",
       "car.update",
+      "car.merge",
       "service.create",
       "service.update",
       "service.activate",

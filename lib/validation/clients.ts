@@ -104,6 +104,9 @@ export const updateCarSchema = z
     brand: brandSchema,
     model: modelSchema,
     pricingCategory: categorySchema,
+    // Gates the destructive merge when the new plate collides with another car
+    // (spec 02 §2.6). Absent/false → return needsMergeConfirm; true → merge.
+    confirmMerge: z.boolean().optional(),
   })
   .refine(hasCarIdentity, carIdentityIssue);
 

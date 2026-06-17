@@ -34,6 +34,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "car.create": "Pridanie auta",
   "car.link": "Prepojenie auta",
   "car.update": "Úprava auta",
+  "car.merge": "Spojenie áut",
   // service catalog (spec 03)
   "service.create": "Vytvorenie služby",
   "service.update": "Úprava služby",
@@ -146,6 +147,12 @@ export function summarizeDetails(action: string, details: Json | null): string {
     }
     case "car.link":
       return "Auto prepojené s klientom";
+    case "car.merge": {
+      const orders = Number(d.reassigned_orders ?? 0);
+      return d.spz
+        ? `Spojené pod ŠPZ ${String(d.spz)} · ${orders} obj.`
+        : `Autá spojené · ${orders} obj.`;
+    }
     case "staff.activate":
       return "Účet aktivovaný";
     case "staff.deactivate":

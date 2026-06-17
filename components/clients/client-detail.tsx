@@ -645,65 +645,111 @@ function EditCarDialog({
   onSaved: () => void;
 }) {
   const [pending, startTransition] = useTransition();
+  // Set when the entered plate already belongs to another car (spec 02 §2.6):
+  // holds the survivor + the edits to replay with confirmMerge.
+  type CarEdits = { spz: string; brand?: string; model?: string; pricingCategory: PricingCategory };
+  const [merge, setMerge] = useState<{ target: CarRow; edits: CarEdits } | null>(null);
 
-  function onSubmit(formData: FormData) {
-    const spz = String(formData.get("spz") ?? "");
-    const brand = String(formData.get("brand") ?? "");
-    const model = String(formData.get("model") ?? "");
-    const pricingCategory = String(formData.get("pricingCategory") ?? "os") as PricingCategory;
+  function save(edits: CarEdits, confirmMerge: boolean) {
     startTransition(async () => {
-      const result = await updateCar({
-        id: car.id,
-        spz,
-        brand: brand || undefined,
-        model: model || undefined,
-        pricingCategory,
-      });
-      if (result.ok) {
-        toast.success("Zmeny uložené.");
-        onSaved();
-      } else {
+      const result = await updateCar({ id: car.id, ...edits, confirmMerge });
+      if (!result.ok) {
         toast.error(result.message);
+        return;
       }
+      if ("needsMergeConfirm" in result) {
+        setMerge({ target: result.existingCar, edits });
+        return;
+      }
+      if ("mergedInto" in result) {
+        toast.success("Autá spojené.");
+        onSaved();
+        return;
+      }
+      toast.success("Zmeny uložené.");
+      onSaved();
     });
   }
 
+  function onSubmit(formData: FormData) {
+    const brand = String(formData.get("brand") ?? "");
+    const model = String(formData.get("model") ?? "");
+    save(
+      {
+        spz: String(formData.get("spz") ?? ""),
+        brand: brand || undefined,
+        model: model || undefined,
+        pricingCategory: String(formData.get("pricingCategory") ?? "os") as PricingCategory,
+      },
+      false,
+    );
+  }
+
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) {
+          setMerge(null);
+          onClose();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-md">
-        <form action={onSubmit}>
-          <DialogHeader>
-            <DialogTitle>Upraviť auto {formatCarPrimary(car)}</DialogTitle>
-            <DialogDescription>
-              {car.spz
-                ? "Upravte ŠPZ, značku, model a kategóriu."
-                : "Doplňte ŠPZ (ak ju už poznáte), značku, model a kategóriu."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-car-spz">ŠPZ (nepovinné)</Label>
-              <Input id="edit-car-spz" name="spz" defaultValue={car.spz ?? ""} placeholder="BV123AB" />
+        {merge ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Spojiť autá</DialogTitle>
+              <DialogDescription>
+                Auto {formatCarPrimary(car)} spojiť s autom {formatCarPrimary(merge.target)}?
+                Objednávky a klienti auta {formatCarPrimary(car)} sa presunú na auto{" "}
+                {formatCarPrimary(merge.target)}. Pôvodné auto sa odstráni a akcia sa nedá vrátiť.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setMerge(null)}>
+                Zrušiť
+              </Button>
+              <Button type="button" disabled={pending} onClick={() => save(merge.edits, true)}>
+                {pending ? "Spájam…" : "Spojiť"}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <form action={onSubmit}>
+            <DialogHeader>
+              <DialogTitle>Upraviť auto {formatCarPrimary(car)}</DialogTitle>
+              <DialogDescription>
+                {car.spz
+                  ? "Upravte ŠPZ, značku, model a kategóriu."
+                  : "Doplňte ŠPZ (ak ju už poznáte), značku, model a kategóriu."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-car-spz">ŠPZ (nepovinné)</Label>
+                <Input id="edit-car-spz" name="spz" defaultValue={car.spz ?? ""} placeholder="BV123AB" />
+              </div>
+              <BrandField id="edit-car-brand" name="brand" initial={car.brand ?? ""} />
+              <div className="space-y-2">
+                <Label htmlFor="model">Model</Label>
+                <Input id="model" name="model" defaultValue={car.model ?? ""} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pricingCategory">Kategória</Label>
+                <CategorySelect defaultValue={car.pricing_category} />
+              </div>
             </div>
-            <BrandField id="edit-car-brand" name="brand" initial={car.brand ?? ""} />
-            <div className="space-y-2">
-              <Label htmlFor="model">Model</Label>
-              <Input id="model" name="model" defaultValue={car.model ?? ""} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="pricingCategory">Kategória</Label>
-              <CategorySelect defaultValue={car.pricing_category} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>
-              Zrušiť
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Ukladám…" : "Uložiť"}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={onClose}>
+                Zrušiť
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? "Ukladám…" : "Uložiť"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

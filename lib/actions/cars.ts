@@ -5,7 +5,8 @@ import { getCurrentStaff } from "@/lib/auth/session";
 import { requireManager } from "@/lib/auth/require";
 import { writeAudit } from "@/lib/audit";
 import { getServiceClient } from "@/lib/supabase/server";
-import type { CarRow } from "@/lib/supabase/types";
+import type { CurrentStaff } from "@/lib/auth/session";
+import type { CarRow, PricingCategory } from "@/lib/supabase/types";
 import { type ActionResult, toActionError } from "./result";
 import {
   addCarToClientSchema,
@@ -21,6 +22,12 @@ export type AddCarResult =
   | { ok: true; carId: string }
   | { ok: true; alreadyLinked: true; carId: string }
   | { ok: true; needsLinkConfirm: true; existingCar: CarRow }
+  | { ok: false; message: string };
+
+export type UpdateCarResult =
+  | { ok: true }
+  | { ok: true; needsMergeConfirm: true; existingCar: CarRow }
+  | { ok: true; mergedInto: string }
   | { ok: false; message: string };
 
 /**
@@ -130,10 +137,14 @@ export async function linkExistingCar(input: unknown): Promise<ActionResult> {
 /**
  * Edit car fields (ŠPZ, model, category) — manager only (mirrors order-data
  * editing). A manager may add a plate to a previously plateless car; if that
- * plate already belongs to another car row we reject (the shared-ŠPZ merge is
- * not a silent update — the existing car should be used instead).
+ * plate already belongs to another car row the two rows are the same physical
+ * car and are **merged** (spec 02 §2.6) — `confirmMerge` gates the destructive
+ * step: without it we return `needsMergeConfirm`, with it we fold the edited car
+ * into the existing plated one (survivor), reassigning its orders + client links
+ * and hard-deleting the empty source. Clearing a plate off a shared car is
+ * rejected (would silently break the shared-ŠPZ link).
  */
-export async function updateCar(input: unknown): Promise<ActionResult> {
+export async function updateCar(input: unknown): Promise<UpdateCarResult> {
   try {
     const data = updateCarSchema.parse(input);
     const actor = await getCurrentStaff();
@@ -166,21 +177,27 @@ export async function updateCar(input: unknown): Promise<ActionResult> {
       }
     }
 
-    // Setting/changing the plate: guard against colliding with another car's
-    // plate (the UNIQUE index also backstops this, caught as 23505 below).
+    // Setting/changing the plate to one already held by another car → the two
+    // rows are the same physical car: merge them (spec 02 §2.6) rather than
+    // duplicate. confirmMerge gates the destructive step.
     if (data.spz != null && data.spz !== before.spz) {
       const { data: clash, error: clashErr } = await db
         .from("cars")
-        .select("id")
+        .select("*")
         .eq("spz", data.spz)
         .neq("id", data.id)
         .maybeSingle();
       if (clashErr) throw clashErr;
       if (clash) {
-        return {
-          ok: false,
-          message: "Auto s touto ŠPZ už existuje. Použite existujúce auto.",
-        };
+        if (!data.confirmMerge) {
+          return { ok: true, needsMergeConfirm: true, existingCar: clash };
+        }
+        return await mergeInto(actor, data.id, clash, {
+          spz: data.spz,
+          brand: data.brand ?? null,
+          model: data.model ?? null,
+          pricingCategory: data.pricingCategory,
+        });
       }
     }
 
@@ -193,7 +210,16 @@ export async function updateCar(input: unknown): Promise<ActionResult> {
         pricing_category: data.pricingCategory,
       })
       .eq("id", data.id);
-    if (isUniqueViolation(error)) {
+    // A plate raced in between the check above and this write → fall back to the
+    // merge prompt rather than a dead-end error.
+    if (isUniqueViolation(error) && data.spz != null) {
+      const { data: raced } = await db
+        .from("cars")
+        .select("*")
+        .eq("spz", data.spz)
+        .neq("id", data.id)
+        .maybeSingle();
+      if (raced) return { ok: true, needsMergeConfirm: true, existingCar: raced };
       return { ok: false, message: "Auto s touto ŠPZ už existuje. Použite existujúce auto." };
     }
     if (error) throw error;
@@ -211,4 +237,42 @@ export async function updateCar(input: unknown): Promise<ActionResult> {
   } catch (error) {
     return toActionError(error);
   }
+}
+
+/**
+ * Fold the edited car (`sourceId`) into the existing plated car (`target`) — the
+ * survivor (spec 02 §2.6). `merge_cars` (migration 0018) reassigns the source's
+ * orders + client links to the target, applies the manager's edited fields, and
+ * hard-deletes the source — all in one transaction. Audited as `car.merge`.
+ */
+async function mergeInto(
+  actor: CurrentStaff,
+  sourceId: string,
+  target: CarRow,
+  edits: { spz: string; brand: string | null; model: string | null; pricingCategory: PricingCategory },
+): Promise<UpdateCarResult> {
+  const db = getServiceClient();
+  const { data: stats, error } = await db.rpc("merge_cars", {
+    p_source: sourceId,
+    p_target: target.id,
+    // The generated RPC types understate nullability (text params → `string`);
+    // null is a valid value the merge stores as-is.
+    p_brand: edits.brand as string,
+    p_model: edits.model as string,
+    p_category: edits.pricingCategory,
+  });
+  if (error) throw error;
+  const row = Array.isArray(stats) ? stats[0] : stats;
+
+  await writeAudit(actor, "car.merge", "car", target.id, {
+    source_id: sourceId,
+    target_id: target.id,
+    spz: edits.spz,
+    reassigned_orders: row?.reassigned_orders ?? 0,
+    merged_clients: row?.merged_clients ?? 0,
+  });
+
+  revalidatePath("/clients");
+  revalidatePath("/clients/[id]", "page");
+  return { ok: true, mergedInto: target.id };
 }

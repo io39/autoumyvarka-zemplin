@@ -165,9 +165,10 @@ Migration `0002_clients_cars.sql`:
   a `CHECK (spz is null or btrim(spz) <> '')` backstop so a blank string can never land in
   the column. The unique index treats NULLs as distinct, so plateless cars never collide.
 - Migration `0018_merge_cars.sql`: the `merge_cars(source, target, brand, model, category)`
-  function (§2.6). `SECURITY DEFINER`, `EXECUTE` revoked from `public`/`anon`/`authenticated`
-  and granted to `service_role` — mirrors `delete_client_cascade` (`0014`) and `search_clients`
-  (`0002`). It runs the whole merge in one transaction.
+  function (§2.6). `EXECUTE` revoked from `public`/`anon`/`authenticated` and granted to
+  `service_role` — mirrors `delete_client_cascade` (`0014`) and `search_clients` (`0002`).
+  It relies on the `service_role` caller (which bypasses RLS), so no `SECURITY DEFINER` is
+  needed; the function body is one transaction.
 
 ### 2.5 Error handling & loading states
 
@@ -205,7 +206,7 @@ the *client* to the one car row; a plateless car has no key to dedup on).
   **irreversible**.
 
 **`merge_cars(source, target, brand, model, category)`** (migration `0018`) runs the whole
-operation in **one transaction** (`SECURITY DEFINER`, called by RPC — the app can't do this
+operation in **one transaction** (called by RPC as `service_role` — the app can't do this
 atomically across statements):
 1. `update orders set car_id = target where car_id = source` (all statuses, incl. history).
 2. Link every `source`-owner to `target`: `insert into client_cars (client_id, target) …
@@ -393,9 +394,9 @@ pnpm test clients/spz validation/clients cars/format    # exits 0
 - As **prevádzka**: `updateCar` (and therefore the merge) is rejected with `ForbiddenError`.
 
 ```bash
-# Function exists and is SECURITY DEFINER (prosecdef = t):
+# Function exists:
 psql "$LOCAL_DB_URL" -c \
-  "select proname, prosecdef from pg_proc where proname = 'merge_cars';"
+  "select proname from pg_proc where proname = 'merge_cars';"
 # EXECUTE not granted to anon/authenticated (inspect proacl — expect service_role only):
 psql "$LOCAL_DB_URL" -c \
   "select proacl from pg_proc where proname = 'merge_cars';"

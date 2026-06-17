@@ -570,6 +570,19 @@ export type Database = {
           deleted_orders: number
         }[]
       }
+      merge_cars: {
+        Args: {
+          p_brand: string
+          p_category: Database["public"]["Enums"]["pricing_category"]
+          p_model: string
+          p_source: string
+          p_target: string
+        }
+        Returns: {
+          merged_clients: number
+          reassigned_orders: number
+        }[]
+      }
       search_clients: {
         Args: { lim?: number; q: string }
         Returns: {
