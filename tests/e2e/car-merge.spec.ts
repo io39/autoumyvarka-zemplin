@@ -2,11 +2,13 @@ import { test, expect } from "@playwright/test";
 import {
   accessHeaders,
   MANAGER_EMAIL,
+  WORKER_EMAIL,
   uniquePhone,
   uniqueSpz,
   createClientViaUI,
   addCarViaUI,
   seedOrderFor,
+  seedClientWithCar,
   serviceClient,
 } from "./support";
 
@@ -18,11 +20,15 @@ test.describe("car merge — setting a colliding plate (spec 02 §2.6)", () => {
     const spzX = uniqueSpz("MX");
     const spzY = uniqueSpz("MY");
 
-    // Two clients, each with their own plated car + one order.
+    // Two clients, each with their own plated car + one order. Wait for each
+    // car to render before reading the DB — addCarViaUI returns on click, before
+    // the Server Action has committed the row.
     const idA = await createClientViaUI(page, { phone: uniquePhone(), name: "Merge A" });
     await addCarViaUI(page, spzX);
+    await expect(page.getByText(spzX, { exact: true }).first()).toBeVisible();
     const idB = await createClientViaUI(page, { phone: uniquePhone(), name: "Merge B" });
     await addCarViaUI(page, spzY);
+    await expect(page.getByText(spzY, { exact: true }).first()).toBeVisible();
 
     const { data: carX } = await db.from("cars").select("id").eq("spz", spzX).single();
     const { data: carY } = await db.from("cars").select("id").eq("spz", spzY).single();
@@ -76,7 +82,10 @@ test.describe("car merge — setting a colliding plate (spec 02 §2.6)", () => {
       .limit(1)
       .maybeSingle();
     expect(mergeAudit?.action).toBe("car.merge");
-    expect((mergeAudit?.details as { reassigned_orders?: number })?.reassigned_orders).toBe(1);
+    const details = mergeAudit?.details as { reassigned_orders?: number; merged_clients?: number };
+    expect(details?.reassigned_orders).toBe(1);
+    // Client A newly gained the survivor; B already owned it → 1 link actually added.
+    expect(details?.merged_clients).toBe(1);
   });
 
   test("cancelling the merge leaves both cars untouched", async ({ page }) => {
@@ -86,8 +95,10 @@ test.describe("car merge — setting a colliding plate (spec 02 §2.6)", () => {
 
     const idA = await createClientViaUI(page, { phone: uniquePhone(), name: "Cancel A" });
     await addCarViaUI(page, spzX);
+    await expect(page.getByText(spzX, { exact: true }).first()).toBeVisible();
     await createClientViaUI(page, { phone: uniquePhone(), name: "Cancel B" });
     await addCarViaUI(page, spzY);
+    await expect(page.getByText(spzY, { exact: true }).first()).toBeVisible();
 
     await page.goto(`/clients?id=${idA}`);
     await page.getByRole("button", { name: "Upraviť auto" }).click();
@@ -107,5 +118,18 @@ test.describe("car merge — setting a colliding plate (spec 02 §2.6)", () => {
       .eq("spz", spzY);
     expect(xCount).toBe(1);
     expect(yCount).toBe(1);
+  });
+});
+
+test.describe("car merge — worker (prevadzka)", () => {
+  test.use({ extraHTTPHeaders: accessHeaders(WORKER_EMAIL) });
+
+  test("the merge is unreachable — a worker has no edit-car control", async ({ page }) => {
+    // updateCar (and therefore the merge) is requireManager-gated; a worker can't
+    // even open the edit dialog, so the merge confirm is never reachable (§4.10).
+    const { clientId, carId } = await seedClientWithCar();
+    await page.goto(`/clients?id=${clientId}`);
+    await expect(page.locator(`[data-car-id="${carId}"]`)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Upraviť auto" })).toHaveCount(0);
   });
 });

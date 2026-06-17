@@ -42,11 +42,12 @@ begin
   update orders set car_id = p_target where car_id = p_source;
 
   -- 2) Move the source car's ownership links to the target, deduping when a
-  --    client already owns the target.
-  select count(*) into v_clients from client_cars where car_id = p_source;
+  --    client already owns the target. Count only the links actually added —
+  --    a client that already owned the target is a no-op, not a moved link.
   insert into client_cars (client_id, car_id, created_at)
     select client_id, p_target, created_at from client_cars where car_id = p_source
   on conflict (client_id, car_id) do nothing;
+  get diagnostics v_clients = row_count;
   delete from client_cars where car_id = p_source;
 
   -- 3) The survivor takes the manager's edited descriptive fields.
