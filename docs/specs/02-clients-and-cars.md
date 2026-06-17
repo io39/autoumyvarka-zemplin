@@ -216,14 +216,16 @@ atomically across statements):
 
 The action calls the RPC, then writes the audit (audit stays in the action layer to capture
 the actor — CLAUDE.md): `car.merge` on `entity_id = target` with
-`{ source_id, target_id, spz, reassigned_orders, merged_clients }`.
+`{ source_id, target_id, spz, reassigned_orders, merged_clients }`. The `needsMergeConfirm`
+result also carries **`existingOwners`** — the clients linked to the survivor `Y` (name, or
+phone when nameless) — so the confirm can name whose car the edited one folds into.
 
 **UI.** `client-detail`'s edit-car dialog: a `needsMergeConfirm` result opens a confirm
-naming both cars and the consequence — *"Auto {X} spojiť s autom {Y}? Objednávky a klienti
-auta {X} sa presunú na auto {Y}. Pôvodné auto sa odstráni a akcia sa nedá vrátiť."* —
-**Spojiť** re-calls `updateCar` with `confirmMerge: true`; on success it toasts "Autá
-spojené." and refreshes (the open client is now linked to `Y`). A cancel path leaves both
-rows untouched.
+naming both cars, **who owns the survivor**, and the consequence — *"Auto {X} spojiť s autom
+{Y}? Auto {Y} patrí klientovi/klientom: {owners}. Objednávky a klienti auta {X} sa presunú na
+auto {Y}. Pôvodné auto sa odstráni a akcia sa nedá vrátiť."* — **Spojiť** re-calls `updateCar`
+with `confirmMerge: true`; on success it toasts "Autá spojené." and refreshes (the open client
+is now linked to `Y`). A cancel path leaves both rows untouched.
 
 **Concurrency.** Check-then-act, no DB-level lock — the same accepted TOCTOU posture as the
 box-overlap soft check (single-operator wash). If `target` is concurrently deleted, the FK

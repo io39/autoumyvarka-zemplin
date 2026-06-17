@@ -24,9 +24,13 @@ export type AddCarResult =
   | { ok: true; needsLinkConfirm: true; existingCar: CarRow }
   | { ok: false; message: string };
 
+/** A client who owns a car — shown in the merge confirm so the manager knows
+ *  whose car the edited one will be folded into. */
+export type CarOwner = { name: string | null; phone: string };
+
 export type UpdateCarResult =
   | { ok: true }
-  | { ok: true; needsMergeConfirm: true; existingCar: CarRow }
+  | { ok: true; needsMergeConfirm: true; existingCar: CarRow; existingOwners: CarOwner[] }
   | { ok: true; mergedInto: string }
   | { ok: false; message: string };
 
@@ -190,7 +194,7 @@ export async function updateCar(input: unknown): Promise<UpdateCarResult> {
       if (clashErr) throw clashErr;
       if (clash) {
         if (!data.confirmMerge) {
-          return { ok: true, needsMergeConfirm: true, existingCar: clash };
+          return await mergeConfirm(clash);
         }
         return await mergeInto(actor, data.id, clash, {
           spz: data.spz,
@@ -219,7 +223,7 @@ export async function updateCar(input: unknown): Promise<UpdateCarResult> {
         .eq("spz", data.spz)
         .neq("id", data.id)
         .maybeSingle();
-      if (raced) return { ok: true, needsMergeConfirm: true, existingCar: raced };
+      if (raced) return await mergeConfirm(raced);
       return { ok: false, message: "Auto s touto ŠPZ už existuje. Použite existujúce auto." };
     }
     if (error) throw error;
@@ -237,6 +241,24 @@ export async function updateCar(input: unknown): Promise<UpdateCarResult> {
   } catch (error) {
     return toActionError(error);
   }
+}
+
+/**
+ * Build the `needsMergeConfirm` result, including the clients who own the
+ * survivor car, so the confirm dialog can tell the manager whose car the edited
+ * one will be folded into (spec 02 §2.6).
+ */
+async function mergeConfirm(target: CarRow): Promise<UpdateCarResult> {
+  const db = getServiceClient();
+  const { data, error } = await db
+    .from("client_cars")
+    .select("client:client_id(name, phone)")
+    .eq("car_id", target.id);
+  if (error) throw error;
+  const existingOwners: CarOwner[] = (data ?? [])
+    .map((r) => (r as { client: CarOwner | null }).client)
+    .filter((c): c is CarOwner => c != null);
+  return { ok: true, needsMergeConfirm: true, existingCar: target, existingOwners };
 }
 
 /**

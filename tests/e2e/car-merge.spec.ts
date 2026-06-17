@@ -41,9 +41,12 @@ test.describe("car merge — setting a colliding plate (spec 02 §2.6)", () => {
     await page.getByLabel("ŠPZ").fill(spzY);
     await page.getByRole("button", { name: "Uložiť" }).click();
 
-    // Confirm dialog names both cars + the irreversible consequence.
-    await expect(page.getByText("Spojiť autá")).toBeVisible();
-    await expect(page.getByText(/sa nedá vrátiť/)).toBeVisible();
+    // Confirm dialog names both cars, the survivor's owner, and the consequence.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("Spojiť autá")).toBeVisible();
+    await expect(dialog.getByText(/patrí klientovi/)).toBeVisible();
+    await expect(dialog.getByText("Merge B", { exact: true })).toBeVisible(); // the survivor's owner
+    await expect(dialog.getByText(/sa nedá vrátiť/)).toBeVisible();
     await page.getByRole("button", { name: "Spojiť" }).click();
 
     // Dialog closes on success (onSaved → setEditCar(null) + refresh). Wait on the

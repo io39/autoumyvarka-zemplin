@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Settings, Trash2 } from "lucide-react";
 import { updateClient, deleteClient } from "@/lib/actions/clients";
-import { addCarToClient, linkExistingCar, updateCar } from "@/lib/actions/cars";
+import { addCarToClient, linkExistingCar, updateCar, type CarOwner } from "@/lib/actions/cars";
 import type {
   CarRow,
   ClientRow,
@@ -648,7 +648,9 @@ function EditCarDialog({
   // Set when the entered plate already belongs to another car (spec 02 §2.6):
   // holds the survivor + the edits to replay with confirmMerge.
   type CarEdits = { spz: string; brand?: string; model?: string; pricingCategory: PricingCategory };
-  const [merge, setMerge] = useState<{ target: CarRow; edits: CarEdits } | null>(null);
+  const [merge, setMerge] = useState<{ target: CarRow; owners: CarOwner[]; edits: CarEdits } | null>(
+    null,
+  );
 
   function save(edits: CarEdits, confirmMerge: boolean) {
     startTransition(async () => {
@@ -658,7 +660,7 @@ function EditCarDialog({
         return;
       }
       if ("needsMergeConfirm" in result) {
-        setMerge({ target: result.existingCar, edits });
+        setMerge({ target: result.existingCar, owners: result.existingOwners, edits });
         return;
       }
       if ("mergedInto" in result) {
@@ -702,6 +704,17 @@ function EditCarDialog({
               <DialogTitle>Spojiť autá</DialogTitle>
               <DialogDescription>
                 Auto {formatCarPrimary(car)} spojiť s autom {formatCarPrimary(merge.target)}?
+                {merge.owners.length > 0 && (
+                  <>
+                    {" "}
+                    Auto {formatCarPrimary(merge.target)} patrí{" "}
+                    {merge.owners.length > 1 ? "klientom" : "klientovi"}:{" "}
+                    <span className="font-medium">
+                      {merge.owners.map((o) => o.name?.trim() || o.phone).join(", ")}
+                    </span>
+                    .
+                  </>
+                )}{" "}
                 Objednávky a klienti auta {formatCarPrimary(car)} sa presunú na auto{" "}
                 {formatCarPrimary(merge.target)}. Pôvodné auto sa odstráni a akcia sa nedá vrátiť.
               </DialogDescription>
