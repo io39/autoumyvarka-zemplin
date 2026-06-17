@@ -109,6 +109,15 @@ without a plate there is no reliable shared identity, so each is owned only by t
 who added it (a brand/model is required so it stays identifiable). PRD §13#1 shared-ŠPZ
 linking applies only to plated cars.
 
+> **Merge / hard-delete (migration `0018_merge_cars.sql`, spec 02 §2.6):** when a manager
+> sets a car's ŠPZ to a plate that already belongs to another car row, the two rows are the
+> same physical car and are merged by `merge_cars(source, target, …)` (SECURITY DEFINER, one
+> transaction): the source car's orders (`orders.car_id`) and `client_cars` links move to the
+> surviving (pre-existing plated) car, then the emptied source row is **hard-deleted**. This
+> is the **second** documented exception to the soft-delete rule (after the client hard-delete,
+> `0014`) — nothing is lost (all history moved to the survivor) and the merge is recorded in
+> `audit_log` as `car.merge`. Irreversible.
+
 ### 2.4 `client_cars` (M:N)
 
 The same plate brought by client A (dad) and client B (son) links to one `cars`
