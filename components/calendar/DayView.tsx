@@ -207,33 +207,29 @@ export function DayView({
               className="relative z-10"
               style={{ gridColumn: bi + 2, gridRow: `2 / ${n + 2}` }}
             >
-              {/* Closed zones (before open / after close) — striped grey + a
-                  label so it's clearly "outside opening hours". Behind the cards;
-                  the label only in the first box to avoid duplication. */}
+              {/* Closed zones (before open / after close) — striped grey hatch +
+                  a boundary line + a label, so it clearly reads as "outside
+                  opening hours". Rendered behind the cards. */}
               {closedTopPx > 0 && (
                 <div
                   data-closed-zone="before"
-                  className="pointer-events-none absolute inset-x-0 flex items-start justify-center overflow-hidden border-b border-zinc-300 bg-zinc-200/70"
+                  className="pointer-events-none absolute inset-x-0 flex items-center justify-center overflow-hidden border-b border-zinc-300 bg-zinc-200/70"
                   style={{ top: 0, height: closedTopPx, backgroundImage: CLOSED_HATCH }}
                 >
-                  {bi === 0 && (
-                    <span className="mt-1 px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-                      Mimo otváracích hodín
-                    </span>
-                  )}
+                  <span className="px-1 text-center text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                    Mimo otváracích hodín
+                  </span>
                 </div>
               )}
               {closedBottomPx < totalPx && (
                 <div
                   data-closed-zone="after"
-                  className="pointer-events-none absolute inset-x-0 flex items-start justify-center overflow-hidden border-t border-zinc-300 bg-zinc-200/70"
+                  className="pointer-events-none absolute inset-x-0 flex items-center justify-center overflow-hidden border-t border-zinc-300 bg-zinc-200/70"
                   style={{ top: closedBottomPx, height: totalPx - closedBottomPx, backgroundImage: CLOSED_HATCH }}
                 >
-                  {bi === 0 && (
-                    <span className="mt-1 px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-                      Mimo otváracích hodín
-                    </span>
-                  )}
+                  <span className="px-1 text-center text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                    Mimo otváracích hodín
+                  </span>
                 </div>
               )}
               {placed.map((p) => {
