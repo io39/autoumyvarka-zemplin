@@ -44,6 +44,7 @@ export const saveOpeningHoursSchema = z.object({
       (rows) => new Set(rows.map((r) => r.dayOfWeek)).size === 7,
       { message: "Každý deň v týždni musí byť uvedený práve raz.", path: ["rows"] },
     ),
+  allowOutsideHours: z.boolean().optional(),
 });
 
 // Accept ISO date "YYYY-MM-DD". The DB column is `date`; supabase-js sends
@@ -59,6 +60,7 @@ export const upsertDayOverrideSchema = z
     openTime: timeSchema.optional(),
     closeTime: timeSchema.optional(),
     label: labelSchema,
+    allowOutsideHours: z.boolean().optional(),
   })
   .refine((v) => v.isClosed || (v.openTime && v.closeTime), {
     message: "Pri otvorenom dni je potrebný čas otvorenia aj zatvorenia.",
@@ -69,7 +71,10 @@ export const upsertDayOverrideSchema = z
     path: ["closeTime"],
   });
 
-export const removeDayOverrideSchema = z.object({ day: daySchema });
+export const removeDayOverrideSchema = z.object({
+  day: daySchema,
+  allowOutsideHours: z.boolean().optional(),
+});
 
 export const getDayOverridesSchema = z
   .object({ from: daySchema.optional(), to: daySchema.optional() })
