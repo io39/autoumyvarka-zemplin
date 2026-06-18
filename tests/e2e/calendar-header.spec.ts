@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { accessHeaders, expandSidebar, MANAGER_EMAIL, WORKER_EMAIL } from "./support";
+import { accessHeaders, expandSidebar, MANAGER_EMAIL, WORKER_EMAIL, seedOrder } from "./support";
 
 /** Bratislava-local today key, matching the app. */
 function todayKey(): string {
@@ -58,6 +58,21 @@ test.describe("calendar header & controls (manager, desktop)", () => {
     await page.locator("[data-today-button]").click();
     await expect(page).toHaveURL(new RegExp(`date=${todayKey()}`));
     await expect(page.locator("[data-today-pill]")).toBeVisible();
+  });
+
+  test("an order outside opening hours renders without a NaN height error", async ({ page }) => {
+    // Regression: a booking starting at/after the grid's last slot pushed the
+    // day-view card's end slot to rowTop[n+1] (undefined → NaN height). 18:00 is
+    // after the 17:00 close; seedOrder inserts directly, bypassing the hours check.
+    const errors: string[] = [];
+    page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+    page.on("pageerror", (e) => errors.push(String(e)));
+
+    await seedOrder({ date: "2031-03-14", time: "18:00" });
+    await page.goto("/?view=day&date=2031-03-14");
+    await expect(page.locator("[data-box]").first()).toBeVisible();
+
+    expect(errors.filter((e) => /NaN|invalid value for the .* css/i.test(e))).toEqual([]);
   });
 });
 

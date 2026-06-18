@@ -189,9 +189,14 @@ export function DayView({
             >
               {placed.map((p) => {
                 // top/height from the cumulative (variable) row offsets so the
-                // card aligns with the grown rows and the axis.
-                const sSlot = Math.max(0, Math.min(n, Math.round(p.startMin / SLOT_MIN)));
-                const eSlot = Math.max(sSlot + 1, Math.min(n, Math.round(p.endMin / SLOT_MIN)));
+                // card aligns with the grown rows and the axis. Clamp to the
+                // SAME bounds as computeRowLayout — sSlot ≤ n-1 and eSlot ≤ n —
+                // so a booking that falls at/after the grid's last slot (e.g. one
+                // created outside the day's open hours) renders as a 1-slot
+                // sliver at the bottom instead of indexing rowTop[n+1] (undefined
+                // → NaN height).
+                const sSlot = Math.max(0, Math.min(n - 1, Math.round(p.startMin / SLOT_MIN)));
+                const eSlot = Math.min(n, Math.max(sSlot + 1, Math.round(p.endMin / SLOT_MIN)));
                 const top = rowTop[sSlot];
                 const height = rowTop[eSlot] - rowTop[sSlot];
                 return (
