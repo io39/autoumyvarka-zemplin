@@ -121,7 +121,6 @@ export function BookingDetailSheet({
               role={role}
               detail={bundle.detail}
               allWorkers={bundle.allWorkers}
-              services={bundle.services}
               sms={bundle.sms}
               recentVisits={bundle.recentVisits}
               clientFlags={bundle.clientFlags}

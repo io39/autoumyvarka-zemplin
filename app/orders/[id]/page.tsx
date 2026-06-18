@@ -4,7 +4,6 @@ import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { getOrder, getRecentCarVisits, getClientFlags } from "@/lib/actions/orders";
 import { getOrderSms } from "@/lib/actions/sms";
-import { listServices } from "@/lib/actions/services";
 import { getServiceClient } from "@/lib/supabase/server";
 import { OrderDetailView } from "@/components/orders/order-detail";
 
@@ -26,10 +25,9 @@ export default async function OrderPage({
   if (!detail) notFound();
 
   const db = getServiceClient();
-  const [{ data: workerList, error: workerErr }, services, sms, recentVisits, clientFlags] =
+  const [{ data: workerList, error: workerErr }, sms, recentVisits, clientFlags] =
     await Promise.all([
       db.from("workers").select("id, display_name, active").eq("active", true).order("display_name"),
-      listServices({ includeInactive: false }),
       getOrderSms({ orderId: id }),
       getRecentCarVisits({ carId: detail.car.id, excludeOrderId: id, limit: 3 }),
       getClientFlags({ clientId: detail.client.id }),
@@ -42,7 +40,6 @@ export default async function OrderPage({
         role={staff.role}
         detail={detail}
         allWorkers={workerList ?? []}
-        services={services}
         sms={sms}
         recentVisits={recentVisits}
         clientFlags={clientFlags}

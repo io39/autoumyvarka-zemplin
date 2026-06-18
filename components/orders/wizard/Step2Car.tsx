@@ -9,6 +9,8 @@ import { formatCarLabel, formatCarPrimary } from "@/lib/cars/format";
 import type { CarRow, PricingCategory } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 import { BrandField } from "@/components/cars/brand-field";
+import { EditCarDialog } from "@/components/cars/edit-car-dialog";
+import { CATEGORIES, CATEGORY_LABEL } from "@/components/cars/category-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,20 +32,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const CATEGORY_LABEL: Record<PricingCategory, string> = {
-  os: "Osobné",
-  suv: "SUV",
-  van: "Van",
-  dod: "Dodávka",
-  motorka: "Motorka",
-  stavba: "Stavebné",
-};
-const CATEGORIES = Object.keys(CATEGORY_LABEL) as PricingCategory[];
-
 /**
  * Step 2 — Auto (UI-STRUCTURE §8). Pick one of the client's cars or add a new
  * one (ŠPZ, model, kategória) via `addCarToClient` (shared-ŠPZ aware). The car's
  * pricing category drives step-3 pricing. In edit mode the car list is locked.
+ * Each row is **ŠPZ (left) · značka/model + kategória (middle) · Upraviť (right)**;
+ * managers (`canEdit`) get the **Upraviť** button to edit that car (spec 02 §2.6,
+ * merge-aware) — on save the list is refreshed via `onCarEdited`.
  */
 export function Step2Car({
   clientId,
@@ -51,18 +46,25 @@ export function Step2Car({
   sharedCarIds,
   selectedCarId,
   locked,
+  canEdit,
   onSelect,
   onCarAdded,
+  onCarEdited,
 }: {
   clientId: string;
   cars: CarRow[];
   sharedCarIds: string[];
   selectedCarId: string | null;
   locked?: boolean;
+  /** Manager: show the per-row "Upraviť" car-edit button. */
+  canEdit?: boolean;
   onSelect: (carId: string) => void;
   onCarAdded: (carId: string) => void;
+  /** Re-fetch the client's cars after an edit/merge (the edited car's id). */
+  onCarEdited?: (carId: string) => void;
 }) {
   const shared = new Set(sharedCarIds);
+  const [editingCar, setEditingCar] = useState<CarRow | null>(null);
   return (
     <section className="space-y-3" data-step="car">
       {cars.length === 0 && (
@@ -70,19 +72,20 @@ export function Step2Car({
       )}
       <ul className="space-y-1" aria-label="Autá klienta">
         {cars.map((c) => (
-          <li key={c.id}>
+          <li
+            key={c.id}
+            className={cn(
+              "flex items-center gap-2 rounded-md border p-2 text-sm transition-colors",
+              c.id === selectedCarId ? "border-primary bg-accent" : "hover:bg-accent/60",
+            )}
+          >
             <button
               type="button"
               data-car-id={c.id}
               disabled={locked && c.id !== selectedCarId}
               aria-pressed={c.id === selectedCarId}
               onClick={() => onSelect(c.id)}
-              className={cn(
-                "flex w-full items-center justify-between gap-2 rounded-md border p-2 text-left text-sm transition-colors",
-                c.id === selectedCarId
-                  ? "border-primary bg-accent"
-                  : "hover:bg-accent/60 disabled:opacity-50",
-              )}
+              className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left disabled:opacity-50"
             >
               <span className="flex min-w-0 items-center gap-2">
                 <span className="font-medium">{formatCarPrimary(c)}</span>
@@ -98,11 +101,35 @@ export function Step2Car({
                 {CATEGORY_LABEL[c.pricing_category]}
               </span>
             </button>
+            {canEdit && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0"
+                data-edit-car-id={c.id}
+                onClick={() => setEditingCar(c)}
+              >
+                Upraviť
+              </Button>
+            )}
           </li>
         ))}
       </ul>
 
       {!locked && <NewCarDialog clientId={clientId} onAdded={onCarAdded} />}
+
+      {editingCar && (
+        <EditCarDialog
+          car={editingCar}
+          onClose={() => setEditingCar(null)}
+          onSaved={() => {
+            const editedId = editingCar.id;
+            setEditingCar(null);
+            onCarEdited?.(editedId);
+          }}
+        />
+      )}
     </section>
   );
 }

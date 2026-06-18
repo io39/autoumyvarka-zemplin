@@ -18,6 +18,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "order.create": "Vytvorenie objednávky",
   "order.status_change": "Zmena stavu",
   "order.move": "Presun objednávky",
+  "order.car_change": "Zmena auta",
   "order.delete": "Zrušenie objednávky",
   "order.assign": "Priradenie pracovníka",
   "order.unassign": "Odobratie pracovníka",

@@ -26,9 +26,13 @@ test.describe("worker — role-gated controls on order detail", () => {
     await expect(
       page.getByRole("button", { name: "Zrušiť objednávku" }),
     ).toHaveCount(0);
-    // Manager-only "Pridať službu" not visible.
+    // Manager-only service editing not visible: the "Pridať služby" link (it
+    // routes to the manager-only edit wizard) and the Auto-card "Zmeniť".
     await expect(
-      page.getByRole("button", { name: "Pridať službu" }),
+      page.getByRole("link", { name: "Pridať služby" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Zmeniť", exact: true }),
     ).toHaveCount(0);
 
     // hotova transition (both-role) succeeds.

@@ -5,6 +5,7 @@ import { requireManager } from "@/lib/auth/require";
 import { isForbiddenError, isUnauthenticatedError } from "@/lib/auth/errors";
 import { ForbiddenView, UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { getOrder } from "@/lib/actions/orders";
+import { getClientWithCars } from "@/lib/actions/clients";
 import { listServices } from "@/lib/actions/services";
 import { getOpeningHours } from "@/lib/actions/settings";
 import { bratislavaDateKey, bratislavaHHMM } from "@/lib/settings/availability";
@@ -13,17 +14,25 @@ import { formatCarPrimary } from "@/lib/cars/format";
 import { BookingWizard } from "@/components/orders/wizard/BookingWizard";
 import type { PickedSlot } from "@/components/orders/wizard/types";
 
+/** Map the `?step=` entry point to the wizard's 0-indexed step. */
+const STEP_INDEX: Record<string, number> = { car: 1, services: 2, time: 3 };
+
 /**
- * "Zmeniť čas" edit surface (spec 16 §2.9, manager-only). Mounts the booking
- * wizard in edit mode: client/car prefilled + locked, opened on the Služby step
- * (manual "Trvanie" override + service edits available) → Termín to pick a new
- * slot. Finishing applies the diff to this order (service add/remove + moveOrder,
- * which also persists the duration override) rather than creating one.
+ * Order-edit surface (spec 16 §2.9/§2.10, manager-only). Mounts the booking
+ * wizard in edit mode with the client locked and the car prefilled. The `?step=`
+ * query picks the entry point: `car` → Auto ("Zmeniť"), `services` → Služby
+ * ("Pridať služby", default), `time` → Termín ("Zmeniť čas"). The car is
+ * switchable only while the order is still `vytvorena` (the re-pricing
+ * re-snapshots the lines); then the full car list is loaded for the picker.
+ * Finishing applies the diff to this order (changeOrderCar + service add/remove +
+ * moveOrder + note/price) rather than creating one.
  */
 export default async function EditOrderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ step?: string }>;
 }) {
   try {
     const actor = await getCurrentStaff();
@@ -35,6 +44,7 @@ export default async function EditOrderPage({
   }
 
   const { id } = await params;
+  const { step: stepParam } = await searchParams;
   const [detail, services, hours] = await Promise.all([
     getOrder({ id }),
     listServices({ includeInactive: false }),
@@ -43,6 +53,14 @@ export default async function EditOrderPage({
   if (!detail) notFound();
 
   const { order, client, car } = detail;
+  // The car can only be switched while the order is still pending — switching
+  // re-prices the lines, which mustn't happen once a wash is done/paid.
+  const carEditable = order.status === "vytvorena";
+  // The picker needs the client's whole fleet; otherwise just the current car.
+  const clientCars = carEditable ? await getClientWithCars(client.id) : null;
+  const cars = clientCars?.cars ?? [car];
+  const sharedCarIds = clientCars?.sharedCarIds ?? [];
+  const initialStep = (stepParam ? STEP_INDEX[stepParam] : undefined) ?? STEP_INDEX.services;
   const active = detail.services.filter((s) => !s.removed_at);
   const selections = active.map((l) => ({ serviceId: l.service_id, quantity: l.quantity }));
   const originalLines = active.map((l) => ({
@@ -73,11 +91,13 @@ export default async function EditOrderPage({
         services={services}
         hours={hours}
         canPriceOverride // edit is manager-only
+        canEditCars // edit is manager-only
+        lockCar={!carEditable}
         initial={{
-          step: 2,
+          step: initialStep,
           client,
-          cars: [car],
-          sharedCarIds: [],
+          cars,
+          sharedCarIds,
           carId: car.id,
           selections,
           priceOverride:
@@ -88,6 +108,7 @@ export default async function EditOrderPage({
         }}
         edit={{
           orderId: id,
+          originalCarId: car.id,
           originalLines,
           currentSlot,
           originalNote: order.note,

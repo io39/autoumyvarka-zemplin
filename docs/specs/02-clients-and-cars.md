@@ -220,7 +220,9 @@ the actor — CLAUDE.md): `car.merge` on `entity_id = target` with
 result also carries **`existingOwners`** — the clients linked to the survivor `Y` (name, or
 phone when nameless) — so the confirm can name whose car the edited one folds into.
 
-**UI.** `client-detail`'s edit-car dialog: a `needsMergeConfirm` result opens a confirm
+**UI.** The shared **`EditCarDialog`** (`components/cars/edit-car-dialog.tsx`, used by the
+clients detail page **and** the booking wizard's Auto step — managers get an **Upraviť** button
+per car row in both): a `needsMergeConfirm` result opens a confirm
 naming both cars, **who owns the survivor**, and the consequence — *"Auto {X} spojiť s autom
 {Y}? Auto {Y} patrí klientovi/klientom: {owners}. Objednávky a klienti auta {X} sa presunú na
 auto {Y}. Pôvodné auto sa odstráni a akcia sa nedá vrátiť."* — **Spojiť** re-calls `updateCar`

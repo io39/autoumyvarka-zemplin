@@ -23,10 +23,10 @@ import type {
 } from "@/lib/supabase/types";
 import { formatCarPrimary } from "@/lib/cars/format";
 import { type ActionResult, toActionError } from "./result";
-import { listServices, type ServiceWithPrices } from "./services";
 import { getOrderSms } from "./sms";
 import {
   addOrderServiceSchema,
+  changeOrderCarSchema,
   createOrderSchema,
   deleteOrderSchema,
   getCalendarSchema,
@@ -526,7 +526,6 @@ export async function getClientFlags(input: { clientId: string }): Promise<Clien
 export interface OrderDetailBundle {
   detail: OrderDetail;
   allWorkers: Array<Pick<WorkerRow, "id" | "display_name" | "active">>;
-  services: ServiceWithPrices[];
   sms: SmsMessageRow[];
   recentVisits: RecentVisit[];
   clientFlags: ClientFlags;
@@ -536,9 +535,9 @@ export interface OrderDetailBundle {
  * Everything the order-detail cards render, in one client-callable read — used
  * by the calendar popup Sheet (spec 15 §2.4). Composes the same reads the
  * `/orders/[id]` page does server-side (`getOrder` + active workers +
- * `listServices` + `getOrderSms`); `getOrder` already gates on `getCurrentStaff`.
- * Returns null when the order is missing/cancelled (so the Sheet can show an
- * inline error). Read-only — no mutation, no authz change.
+ * `getOrderSms` + recent visits + client flags); `getOrder` already gates on
+ * `getCurrentStaff`. Returns null when the order is missing/cancelled (so the
+ * Sheet can show an inline error). Read-only — no mutation, no authz change.
  */
 export async function getOrderDetailBundle(input: unknown): Promise<OrderDetailBundle | null> {
   const { id } = getOrderSchema.parse(input);
@@ -546,21 +545,20 @@ export async function getOrderDetailBundle(input: unknown): Promise<OrderDetailB
   if (!detail) return null;
 
   const db = getServiceClient();
-  const [{ data: workerList, error: workerErr }, services, sms, recentVisits, clientFlags] =
+  const [{ data: workerList, error: workerErr }, sms, recentVisits, clientFlags] =
     await Promise.all([
       db
         .from("workers")
         .select("id, display_name, active")
         .eq("active", true)
         .order("display_name"),
-      listServices({ includeInactive: false }),
       getOrderSms({ orderId: id }),
       getRecentCarVisits({ carId: detail.car.id, excludeOrderId: id, limit: 3 }),
       getClientFlags({ clientId: detail.client.id }),
     ]);
   if (workerErr) throw workerErr;
 
-  return { detail, allWorkers: workerList ?? [], services, sms, recentVisits, clientFlags };
+  return { detail, allWorkers: workerList ?? [], sms, recentVisits, clientFlags };
 }
 
 export async function setStatus(input: unknown): Promise<ActionResult> {
@@ -725,6 +723,154 @@ export async function moveOrder(input: unknown): Promise<ActionResult> {
 
     revalidatePath("/");
     revalidatePath(`/orders/${id}`);
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/**
+ * Switch an order to a different car of the SAME client (manager-only, spec 16
+ * §2.10). The new car's pricing category re-prices every active service line, so
+ * this re-snapshots their duration/price/category in place. Allowed only while
+ * the order is still `vytvorena` — re-pricing must not rewrite the immutable
+ * snapshots of a done/paid wash (PRD §10). The order's `duration_min` is
+ * deliberately NOT recomputed here — the wizard edit flow re-runs `moveOrder`
+ * with the final duration (which re-checks the box conflict + opening hours);
+ * standalone callers should follow with a move when the duration changes.
+ * Resolving all lines up front means a service that isn't available for the new
+ * vehicle leaves the order untouched.
+ *
+ * NOTE: like the other multi-statement order actions, this is not a single DB
+ * transaction. The line re-snapshots run BEFORE the `car_id` swap, so a failure
+ * mid-way leaves `car_id` on the OLD car (and a retry — `car_id` still differs —
+ * re-runs the whole re-snapshot idempotently rather than short-circuiting).
+ */
+export async function changeOrderCar(input: unknown): Promise<ActionResult> {
+  try {
+    const { id, carId } = changeOrderCarSchema.parse(input);
+    const actor = await getCurrentStaff();
+    requireManager(actor);
+    const db = getServiceClient();
+
+    const { data: order, error: oErr } = await db
+      .from("orders")
+      .select("id, client_id, car_id, status, deleted_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (oErr) throw oErr;
+    if (!order || order.deleted_at) {
+      return { ok: false, message: NOT_FOUND_MESSAGE };
+    }
+    // No-op when the car is unchanged.
+    if (order.car_id === carId) return { ok: true };
+    // Re-pricing is only safe while the wash hasn't happened — once hotová/
+    // zaplatená the line snapshots are frozen history (spec 16 §2.10).
+    if (order.status !== "vytvorena") {
+      return { ok: false, message: "Auto možno zmeniť len na nevykonanej objednávke." };
+    }
+
+    // The new car must belong to the same client (data-model §2.4) — the wizard
+    // only offers this client's cars, but enforce it server-side anyway.
+    const { data: link, error: linkErr } = await db
+      .from("client_cars")
+      .select("client_id")
+      .eq("client_id", order.client_id)
+      .eq("car_id", carId)
+      .maybeSingle();
+    if (linkErr) throw linkErr;
+    if (!link) return { ok: false, message: "Auto nepatrí klientovi." };
+
+    const { data: car, error: carErr } = await db
+      .from("cars")
+      .select("id, pricing_category")
+      .eq("id", carId)
+      .maybeSingle();
+    if (carErr) throw carErr;
+    if (!car) return { ok: false, message: "Auto sa nenašlo." };
+
+    // Re-price every active line at the new car's category. Resolve them ALL
+    // (and bail) before mutating, so an unavailable service leaves the order as-is.
+    const { data: lineRows, error: linesErr } = await db
+      .from("order_services")
+      .select("id, service_id, name_snapshot, quantity")
+      .eq("order_id", order.id)
+      .is("removed_at", null);
+    if (linesErr) throw linesErr;
+
+    const active = lineRows ?? [];
+    const serviceIds = [...new Set(active.map((l) => l.service_id))];
+    const pricesByService = new Map<string, ServicePriceRow[]>();
+    if (serviceIds.length > 0) {
+      const { data: prices, error: pErr } = await db
+        .from("service_prices")
+        .select("*")
+        .in("service_id", serviceIds);
+      if (pErr) throw pErr;
+      for (const p of prices ?? []) {
+        const arr = pricesByService.get(p.service_id) ?? [];
+        arr.push(p);
+        pricesByService.set(p.service_id, arr);
+      }
+    }
+
+    const resnaps: Array<{
+      id: string;
+      duration_min_snapshot: number | null;
+      price_cents_snapshot: number;
+    }> = [];
+    for (const l of active) {
+      const resolved = resolveServicePrice(
+        pricesByService.get(l.service_id) ?? [],
+        car.pricing_category,
+      );
+      if (!resolved.ok) {
+        return {
+          ok: false,
+          message: `Službu „${l.name_snapshot}“ nie je možné preceniť pre tento typ vozidla. Najprv ju odstráňte.`,
+        };
+      }
+      resnaps.push({
+        id: l.id,
+        duration_min_snapshot:
+          resolved.durationMin != null ? resolved.durationMin * l.quantity : null,
+        price_cents_snapshot: resolved.priceCents * l.quantity,
+      });
+    }
+
+    // Re-snapshot each line's price/duration/category for the new vehicle FIRST…
+    for (const r of resnaps) {
+      const { error: rErr } = await db
+        .from("order_services")
+        .update({
+          duration_min_snapshot: r.duration_min_snapshot,
+          price_cents_snapshot: r.price_cents_snapshot,
+          category_snapshot: car.pricing_category,
+        })
+        .eq("id", r.id);
+      if (rErr) throw rErr;
+    }
+
+    // …then swap the car LAST, so a mid-loop failure leaves `car_id` on the old
+    // car and a retry re-runs the full re-snapshot (the `car_id === carId` guard
+    // above only short-circuits once the swap has fully committed).
+    const { error: updErr } = await db
+      .from("orders")
+      .update({ car_id: carId, updated_at: new Date().toISOString() })
+      .eq("id", order.id);
+    if (updErr) throw updErr;
+
+    await writeAudit(
+      actor,
+      "order.car_change",
+      "order",
+      order.id,
+      { from_car_id: order.car_id, to_car_id: carId, category: car.pricing_category },
+      order.id,
+    );
+
+    revalidatePath("/");
+    revalidatePath(`/orders/${order.id}`);
     return { ok: true };
   } catch (error) {
     return toActionError(error);

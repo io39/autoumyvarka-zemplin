@@ -61,6 +61,7 @@ export default async function NewOrderPage({
         services={services}
         hours={hours}
         canPriceOverride={canPriceOverride}
+        canEditCars={canPriceOverride}
         initial={{
           step,
           client,

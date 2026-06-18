@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import {
   accessHeaders,
   MANAGER_EMAIL,
+  pickAFreeSlot,
   seedOrder,
   serviceClient,
 } from "./support";
@@ -9,63 +10,62 @@ import {
 test.describe("order services on existing order (manager)", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
 
-  test("add a service to a zaplatena order; pay it; original lines stay paid", async ({
+  test("add a service via the wizard to a zaplatena order; pay it; original lines stay paid", async ({
     page,
   }) => {
     const db = serviceClient();
-    // Pin into the safe 11:00–12:45 window so adding another 60-min service
-    // still fits within the seeded 17:00 close and doesn't overlap fixtures
-    // from other suites.
+    // Pin into the safe 11:00–12:45 window so adding another service still fits
+    // within the seeded 17:00 close and doesn't overlap fixtures from other suites.
     const o = await seedOrder({ status: "zaplatena", time: "11:00" });
-    // Mark the original line paid (a paid order would normally have all
-    // lines paid before transition).
-    await db
-      .from("order_services")
-      .update({ paid: true })
-      .eq("id", o.serviceLineId);
+    // Mark the original line paid (a paid order would normally have all lines
+    // paid before transition).
+    await db.from("order_services").update({ paid: true }).eq("id", o.serviceLineId);
 
+    // Adding a service routes into the wizard's Služby step (no inline add form).
     await page.goto(`/orders/${o.orderId}`);
+    await page.getByRole("link", { name: "Pridať služby" }).click();
+    await expect(page.locator('[data-step="services"]')).toBeVisible();
 
-    // Pick a deterministic second service that is always seeded active
-    // and priced for 'os'. Avoids flake when other tests deactivate
-    // catalog entries earlier in the run.
-    const { data: candidate } = await db
-      .from("services")
-      .select("id, name")
-      .eq("name", "Exteriér Classic")
-      .single();
-    expect(candidate).not.toBeNull();
-    // Re-activate if a prior test left it inactive.
-    await db.from("services").update({ active: true }).eq("id", candidate!.id);
+    // Check the first unchecked, enabled service → a second line.
+    const boxes = page.locator('[data-step="services"] label[data-service-id] input');
+    const count = await boxes.count();
+    for (let i = 0; i < count; i++) {
+      const cb = boxes.nth(i);
+      if (!(await cb.isChecked()) && (await cb.isEnabled())) {
+        await cb.check();
+        break;
+      }
+    }
+    // Toggling a service clears the pre-picked slot (its length may now differ),
+    // so re-confirm a free slot, then save.
+    await page.getByRole("button", { name: "Ďalej" }).click(); // → Termín
+    await pickAFreeSlot(page);
+    await page.getByRole("button", { name: "Uložiť zmeny" }).click();
+    await expect(page.getByText("Zmeny uložené.")).toBeVisible();
 
-    // Add it via the UI.
-    await page.locator("#add-service").click();
-    await page.getByRole("option", { name: candidate!.name }).click();
-    await page
-      .getByRole("button", { name: "Pridať službu" })
-      .click();
-    await expect(page.getByText("Služba pridaná.")).toBeVisible();
-
-    // The new line exists and is unpaid; original stays paid.
+    // Two active lines: the original (paid) + the new (unpaid).
     const { data: lines } = await db
       .from("order_services")
-      .select("id, service_id, paid, removed_at")
+      .select("id, paid")
       .eq("order_id", o.orderId)
-      .order("added_at");
+      .is("removed_at", null);
     expect(lines!.length).toBe(2);
-    expect(lines![0].paid).toBe(true);
-    expect(lines![1].paid).toBe(false);
+    const original = lines!.find((l) => l.id === o.serviceLineId)!;
+    const added = lines!.find((l) => l.id !== o.serviceLineId)!;
+    expect(original.paid).toBe(true);
+    expect(added.paid).toBe(false);
 
-    // Pay the new line via the UI.
+    // Pay the new line via the inline toggle on the order detail (kept).
+    await page.goto(`/orders/${o.orderId}`);
     await page
-      .locator(`[data-service-line-id="${lines![1].id}"]`)
+      .locator(`[data-service-line-id="${added.id}"]`)
       .locator('input[type="checkbox"]')
       .click();
     await expect(page.getByText("Platba zmenená.")).toBeVisible();
     const { data: after } = await db
       .from("order_services")
       .select("paid")
-      .eq("id", lines![1].id)
+      .eq("id", added.id)
       .single();
     expect(after!.paid).toBe(true);
   });
@@ -129,63 +129,4 @@ test.describe("order services on existing order (manager)", () => {
     expect(after!.paid).toBe(true);
   });
 
-  test("adding a service that would overlap the next booking warns, then allows on confirm", async ({
-    page,
-  }) => {
-    const db = serviceClient();
-    // Order A at 11:00 box 1 (60 min → ends 12:00), with B booked right after it
-    // in the same box, so A cannot extend in place.
-    const a = await seedOrder({ box: 1, time: "11:00" });
-    const endHHMM = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Bratislava",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(a.endsAt));
-    await seedOrder({ box: 1, date: a.date, time: endHHMM });
-
-    await page.goto(`/orders/${a.orderId}`);
-
-    // A service (other than the seeded one) with a positive 'os' duration, so the
-    // extension definitely overflows into B and must be refused.
-    const { data: priced } = await db
-      .from("service_prices")
-      .select("service_id, duration_min")
-      .eq("pricing_category", "os")
-      .gt("duration_min", 0)
-      .neq("service_id", a.serviceId);
-    const ids = [...new Set((priced ?? []).map((p) => p.service_id))];
-    const { data: actives } = await db
-      .from("services")
-      .select("id, name")
-      .in("id", ids)
-      .eq("active", true)
-      .order("name");
-    const candidate = actives![0];
-    expect(candidate).toBeTruthy();
-
-    await page.locator("#add-service").click();
-    await page.getByRole("option", { name: candidate!.name }).click();
-    await page.getByRole("button", { name: "Pridať službu" }).click();
-
-    // Warn-but-allow (migration 0016): a confirm dialog names the clash and the
-    // line is NOT added yet.
-    await expect(page.getByRole("heading", { name: "Termín sa prekrýva" })).toBeVisible();
-    const before = await db
-      .from("order_services")
-      .select("id")
-      .eq("order_id", a.orderId)
-      .is("removed_at", null);
-    expect(before.data!.length).toBe(1);
-
-    // Confirm → the service is added despite the overlap.
-    await page.locator("[data-overlap-confirm]").click();
-    await expect(page.getByText("Služba pridaná.")).toBeVisible();
-    const after = await db
-      .from("order_services")
-      .select("id")
-      .eq("order_id", a.orderId)
-      .is("removed_at", null);
-    expect(after.data!.length).toBe(2);
-  });
 });

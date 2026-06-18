@@ -88,6 +88,13 @@ export const moveOrderSchema = z.object({
   allowOverlap: z.boolean().optional(),
 });
 
+export const changeOrderCarSchema = z.object({
+  id: idSchema,
+  // The car to switch the order to — must belong to the same client. Its
+  // pricing_category re-prices every active service line.
+  carId: idSchema,
+});
+
 export const deleteOrderSchema = z.object({ id: idSchema });
 
 export const orderWorkerSchema = z.object({
@@ -135,6 +142,7 @@ export const getUnpaidOrdersSchema = z.object({
 
 export type SetStatusInput = z.infer<typeof setStatusSchema>;
 export type MoveOrderInput = z.infer<typeof moveOrderSchema>;
+export type ChangeOrderCarInput = z.infer<typeof changeOrderCarSchema>;
 export type OrderWorkerInput = z.infer<typeof orderWorkerSchema>;
 export type SetNoteInput = z.infer<typeof setNoteSchema>;
 export type AddOrderServiceInput = z.infer<typeof addOrderServiceSchema>;

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   addOrderService,
+  changeOrderCar,
   createOrder,
   getClientFlags,
   moveOrder,
@@ -39,6 +40,8 @@ type SlotView = "day" | "3day";
 
 export interface EditContext {
   orderId: string;
+  /** The order's car at load — to detect a car switch on save. */
+  originalCarId: string;
   originalLines: Array<{ orderServiceId: string; serviceId: string; quantity: number }>;
   currentSlot: PickedSlot;
   originalNote: string | null;
@@ -55,6 +58,14 @@ export interface BookingWizardProps {
   hours: OpeningHoursRow[];
   /** Only managers may override the order's duration/price (PRD §3). */
   canPriceOverride: boolean;
+  /** Managers may edit a car (the per-row "Upraviť" in the Auto step). */
+  canEditCars?: boolean;
+  /**
+   * Edit mode only: lock the car step (default true). Set false to let the
+   * manager switch the order's car — allowed only while it's still `vytvorena`
+   * (the re-pricing re-snapshots the lines). Ignored in create mode.
+   */
+  lockCar?: boolean;
   initial: {
     step: number;
     client: ClientRow | null;
@@ -72,10 +83,13 @@ export interface BookingWizardProps {
 }
 
 /**
- * Nová rezervácia / Zmeniť čas wizard (UI-STRUCTURE §8, spec 16). Steps Klient →
- * Auto → Služby → Termín for all roles. In edit mode (Zmeniť čas) client/car are
- * locked, it opens on step 3, and finishing applies the diff against the
- * existing order (service add/remove + `moveOrder`) instead of creating one.
+ * Nová rezervácia / order-edit wizard (UI-STRUCTURE §8, spec 16). Steps Klient →
+ * Auto → Služby → Termín for all roles. In edit mode the client is always locked
+ * and the wizard opens on the step its entry point chose (Auto = "Zmeniť",
+ * Služby = "Pridať služby", Termín = "Zmeniť čas"). The car is switchable only
+ * while the order is still `vytvorena` (lockCar=false). Finishing applies the
+ * diff against the existing order (`changeOrderCar` + service add/remove +
+ * `moveOrder` + note/price) instead of creating one.
  */
 const ZERO_FLAGS: ClientFlags = { overdueUnpaidCount: 0, unpaidAmountCents: 0, noShowCount: 0 };
 
@@ -84,6 +98,8 @@ export function BookingWizard({
   services,
   hours,
   canPriceOverride,
+  canEditCars = false,
+  lockCar = true,
   initial,
   edit,
 }: BookingWizardProps) {
@@ -93,10 +109,6 @@ export function BookingWizard({
   // actions can be dropped when their revalidatePath re-renders the current
   // route inside a transition (intermittent "stays on step 4, no redirect").
   const [submitting, setSubmitting] = useState(false);
-  // Goes false when the component unmounts (i.e. a successful navigation away),
-  // so the post-submit hard-nav fallback knows the soft push actually took.
-  const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const [step, setStep] = useState(initial.step);
   const [maxReached, setMaxReached] = useState(initial.step);
@@ -166,6 +178,14 @@ export function BookingWizard({
     });
   }
 
+  // In edit mode, switching the car may change the slot length (a different
+  // pricing category re-prices/re-times the lines), so drop the pre-picked slot
+  // to force a fresh Termín confirmation — mirrors onServicesChanged.
+  function selectCar(id: string) {
+    setCarId(id);
+    if (isEdit) setPicked(null);
+  }
+
   function onCarAdded(newCarId: string) {
     start(async () => {
       if (!client) return;
@@ -175,6 +195,26 @@ export function BookingWizard({
         setSharedCarIds(data.sharedCarIds);
       }
       setCarId(newCarId);
+    });
+  }
+
+  // A car was edited (or merged) in the Auto step → re-fetch the client's cars.
+  // A merge can delete the edited row; if the selection vanished, clear it. If the
+  // *selected* car was edited, its category may have changed, so drop the picked
+  // slot (it was sized for the old category) — both create and edit modes.
+  function onCarEdited(editedCarId: string) {
+    start(async () => {
+      if (!client) return;
+      const data = await getClientWithCars(client.id);
+      if (!data) return;
+      setCars(data.cars);
+      setSharedCarIds(data.sharedCarIds);
+      if (carId && !data.cars.some((c) => c.id === carId)) {
+        setCarId(null);
+        setPicked(null);
+      } else if (editedCarId === carId) {
+        setPicked(null);
+      }
     });
   }
 
@@ -228,13 +268,14 @@ export function BookingWizard({
     // shows the toast and keeps SPA nav, but the action's `revalidatePath("/")`
     // (and, on the overlap-confirm retry, the closing dialog) can DROP it, leaving
     // the button stuck on "Ukladám…" even though the order was saved. So we add a
-    // hard-navigation fallback that fires only if the push was dropped (the
-    // component is still mounted shortly after).
+    // hard-navigation fallback keyed off the REAL URL (ground truth — the earlier
+    // mount-state check could miss the stuck case): if we're still not on the
+    // calendar shortly after the push, force a full navigation.
     const goToCalendar = () => {
       const url = `/?date=${slot.dateKey}`;
       router.push(url);
       window.setTimeout(() => {
-        if (mountedRef.current) window.location.assign(url);
+        if (window.location.pathname !== "/") window.location.assign(url);
       }, 600);
     };
     void (async () => {
@@ -249,6 +290,14 @@ export function BookingWizard({
           setSubmitting(false);
           router.refresh();
         };
+        // 0) Car switch (manager re-assigned the order to another of the
+        //    client's cars). Re-prices/re-times the active lines at the new
+        //    category in place — do it BEFORE the move so moveOrder re-checks
+        //    the (possibly longer) booking. It doesn't move, so it can't conflict.
+        if (carId && carId !== edit.originalCarId) {
+          const r = await changeOrderCar({ id: edit.orderId, carId });
+          if (!r.ok) return fail(r.message ?? "Zmena auta zlyhala.");
+        }
         // 1) Move FIRST, to the picked slot with the *final* duration. Doing the
         //    service diff first would widen the order at its OLD position (where
         //    a neighbour may sit) and falsely conflict before it ever moves.
@@ -379,9 +428,11 @@ export function BookingWizard({
           cars={cars}
           sharedCarIds={sharedCarIds}
           selectedCarId={carId}
-          locked={isEdit}
-          onSelect={setCarId}
+          locked={isEdit && lockCar}
+          canEdit={canEditCars}
+          onSelect={selectCar}
           onCarAdded={onCarAdded}
+          onCarEdited={onCarEdited}
         />
       )}
       {step === 2 && (

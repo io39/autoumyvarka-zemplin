@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  addOrderService,
   addOrderWorker,
   deleteOrder,
   removeOrderService,
@@ -20,7 +19,6 @@ import type { OverlapInfo } from "@/lib/orders/overlap";
 import { effectiveTotalCents } from "@/lib/orders/booking";
 import { OverlapConfirmDialog } from "./OverlapConfirmDialog";
 import { resendSms, sendOrderSms } from "@/lib/actions/sms";
-import type { ServiceWithPrices } from "@/lib/actions/services";
 import { bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
 import type { OrderStatus, SmsMessageRow, StaffRole, WorkerRow } from "@/lib/supabase/types";
 import { STATE_LABEL } from "@/types";
@@ -42,7 +40,6 @@ interface OrderDetailBodyProps {
   role: StaffRole;
   detail: OrderDetail;
   allWorkers: WorkerLite[];
-  services: ServiceWithPrices[];
   sms: SmsMessageRow[];
   recentVisits: RecentVisit[];
   clientFlags: ClientFlags;
@@ -60,7 +57,6 @@ export function OrderDetailBody({
   role,
   detail,
   allWorkers,
-  services,
   sms,
   recentVisits,
   clientFlags,
@@ -76,6 +72,11 @@ export function OrderDetailBody({
   } | null>(null);
   const { order, client, car } = detail;
   const isManager = role === "manazer";
+  // The car/services/time edits all route into the manager-only edit wizard at
+  // the matching step. The car switch re-prices the lines, so it's offered only
+  // while the order is still pending.
+  const editBase = `/orders/${order.id}/edit`;
+  const carEditable = isManager && order.status === "vytvorena";
 
   const activeServices = detail.services.filter((s) => !s.removed_at);
   const lineSumCents = activeServices.reduce((a, l) => a + l.price_cents_snapshot, 0);
@@ -137,7 +138,7 @@ export function OrderDetailBody({
       {isManager && (
         <section className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-4">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/orders/${order.id}/edit`}>Zmeniť čas</Link>
+            <Link href={`${editBase}?step=time`}>Zmeniť čas</Link>
           </Button>
           <DeleteOrderDialog
             disabled={order.status === "zaplatena" || pending}
@@ -152,7 +153,7 @@ export function OrderDetailBody({
       {/* Klient + Auto, side by side on every width (incl. the mobile sheet) */}
       <div className="grid grid-cols-2 gap-3">
         <BookingClientCard client={client} flags={clientFlags} />
-        <BookingCarCard car={car} />
+        <BookingCarCard car={car} editHref={carEditable ? `${editBase}?step=car` : undefined} />
       </div>
 
       {/* História auta — the car's last few visits, each links to its order */}
@@ -180,22 +181,14 @@ export function OrderDetailBody({
         }
       />
 
-      {/* Služby */}
+      {/* Služby — adding routes to the wizard (Služby step); per-line remove +
+          paid toggle stay inline. */}
       <BookingServicesList
         lines={detail.services}
         canEdit={isManager}
         canRemove={order.status === "vytvorena"}
         pending={pending}
-        services={services}
-        existingServiceIds={new Set(activeServices.map((l) => l.service_id))}
-        onAdd={(serviceId, quantity) =>
-          call(
-            "Služba pridaná.",
-            (allowOverlap) =>
-              addOrderService({ id: order.id, serviceId, quantity, allowOverlap }),
-            "Pridať aj tak",
-          )
-        }
+        addHref={isManager ? `${editBase}?step=services` : undefined}
         onRemove={(orderServiceId) =>
           call("Služba odstránená.", () => removeOrderService({ orderServiceId }))
         }

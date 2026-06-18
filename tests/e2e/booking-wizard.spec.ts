@@ -9,6 +9,7 @@ import {
   seedOrder,
   serviceClient,
   uniquePhone,
+  uniqueSpz,
   wizardGoToDate,
 } from "./support";
 
@@ -146,54 +147,98 @@ test.describe("booking wizard — create (manager)", () => {
     await expect(page.locator('[data-step="car"]')).toBeVisible();
     await expect(page.locator('[data-stepper] [data-step="1"][data-active]')).toBeVisible();
   });
+
+  test("Auto step: manager can edit one of the client's cars via Upraviť", async ({ page }) => {
+    const { clientId, carId } = await seedClientWithCar();
+    const db = serviceClient();
+
+    await page.goto(`/orders/new?clientId=${clientId}`);
+    await expect(page.locator('[data-step="car"]')).toBeVisible();
+
+    // The per-row "Upraviť" opens the shared edit-car dialog.
+    await page.locator(`[data-edit-car-id="${carId}"]`).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: /Upraviť auto/ })).toBeVisible();
+    const newSpz = uniqueSpz("ED");
+    await dialog.locator("#edit-car-spz").fill(newSpz);
+    await dialog.getByRole("button", { name: "Uložiť", exact: true }).click();
+    await expect(page.getByText("Zmeny uložené.")).toBeVisible();
+
+    // Persisted, and the refreshed row shows the new plate.
+    const { data: car } = await db.from("cars").select("spz").eq("id", carId).single();
+    expect(car!.spz).toBe(newSpz);
+    await expect(page.locator(`[data-car-id="${carId}"]`)).toContainText(newSpz);
+  });
 });
 
-test.describe("booking wizard — edit mode / Zmeniť čas", () => {
+test.describe("booking wizard — edit mode", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
 
-  test("Zmeniť čas opens on Služby with a manual duration input; saves new duration + slot", async ({
+  test("Zmeniť čas opens on the Termín step; picking a new slot saves", async ({ page }) => {
+    const o = await seedOrder();
+    const db = serviceClient();
+    const { data: before } = await db
+      .from("orders")
+      .select("starts_at")
+      .eq("id", o.orderId)
+      .single();
+
+    // From the order detail, Zmeniť čas → edit wizard, landing on Termín.
+    await page.goto(`/orders/${o.orderId}`);
+    await page.getByRole("link", { name: "Zmeniť čas" }).click();
+    await expect(page).toHaveURL(new RegExp(`/orders/${o.orderId}/edit\\?step=time`));
+    await expect(page.locator('[data-step="termin"]')).toBeVisible();
+
+    await pickAFreeSlot(page);
+    await page.getByRole("button", { name: "Uložiť zmeny" }).click();
+    await expect(page.getByText("Zmeny uložené.")).toBeVisible();
+    // After a time edit the user lands on the calendar at the new date.
+    await expect(page).toHaveURL(/\/\?date=\d{4}-\d{2}-\d{2}/);
+
+    const { data: after } = await db
+      .from("orders")
+      .select("starts_at")
+      .eq("id", o.orderId)
+      .single();
+    expect(after!.starts_at).not.toBe(before!.starts_at);
+  });
+
+  test("edit (Služby step) exposes the manual Trvanie override; saves new duration", async ({
     page,
   }) => {
     const o = await seedOrder();
     const db = serviceClient();
     const { data: before } = await db
       .from("orders")
-      .select("starts_at, duration_min")
+      .select("duration_min")
       .eq("id", o.orderId)
       .single();
 
-    // From the order detail, Zmeniť čas → edit wizard.
-    await page.goto(`/orders/${o.orderId}`);
-    await page.getByRole("link", { name: "Zmeniť čas" }).click();
-    await expect(page).toHaveURL(new RegExp(`/orders/${o.orderId}/edit`));
-
-    // Opens on Služby; the manual "Trvanie" override input is available in edit
-    // (it used to be create-only — the bug).
+    // The Služby entry point (?step=services) shows the manual "Trvanie"
+    // override (it used to be create-only — the bug).
+    await page.goto(`/orders/${o.orderId}/edit?step=services`);
     await expect(page.locator('[data-step="services"]')).toBeVisible();
     const override = page.locator("#override");
     await expect(override).toBeVisible();
 
-    // Set a manual duration, then pick a new slot and save.
     const newDuration = (before!.duration_min ?? 30) + 15;
     await override.fill(String(newDuration));
     await page.getByRole("button", { name: "Ďalej" }).click();
     await pickAFreeSlot(page);
     await page.getByRole("button", { name: "Uložiť zmeny" }).click();
     await expect(page.getByText("Zmeny uložené.")).toBeVisible();
-    // After confirming a time edit, the user lands on the calendar (not back on
-    // the order detail) so the updated slot is visible in context.
-    await expect(page).toHaveURL(/\/\?date=\d{4}-\d{2}-\d{2}/);
 
     const { data: after } = await db
       .from("orders")
-      .select("starts_at, duration_min")
+      .select("duration_min")
       .eq("id", o.orderId)
       .single();
     expect(after!.duration_min).toBe(newDuration);
-    expect(after!.starts_at).not.toBe(before!.starts_at);
   });
 
-  test("Zmeniť čas: add a service + move slot saves (no false conflict)", async ({ page }) => {
+  test("Pridať služby button opens the Služby step; adding a service + move slot saves", async ({
+    page,
+  }) => {
     const o = await seedOrder();
     const db = serviceClient();
     const linesBefore = await db
@@ -202,8 +247,10 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
       .eq("order_id", o.orderId)
       .is("removed_at", null);
 
+    // The order-detail "Pridať služby" button routes into the wizard's Služby step.
     await page.goto(`/orders/${o.orderId}`);
-    await page.getByRole("link", { name: "Zmeniť čas" }).click();
+    await page.getByRole("link", { name: "Pridať služby" }).click();
+    await expect(page).toHaveURL(new RegExp(`/orders/${o.orderId}/edit\\?step=services`));
     await expect(page.locator('[data-step="services"]')).toBeVisible();
 
     // Add another (enabled, unchecked) service — this widens the duration.
@@ -218,7 +265,7 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
     }
 
     // Pick a free slot for the new (longer) duration and save — must not falsely
-    // report the box as occupied (the move now precedes the service widening).
+    // report the box as occupied (the move precedes the service widening).
     await page.getByRole("button", { name: "Ďalej" }).click();
     await pickAFreeSlot(page);
     await page.getByRole("button", { name: "Uložiť zmeny" }).click();
@@ -233,14 +280,13 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
     expect((linesAfter.data ?? []).length).toBe((linesBefore.data ?? []).length + 1);
   });
 
-  test("Zmeniť čas: add a service but a shorter manual duration wins (no false hours error)", async ({
+  test("edit: add a service but a shorter manual duration wins (no false hours error)", async ({
     page,
   }) => {
     const o = await seedOrder({ time: "11:00" });
     const db = serviceClient();
 
-    await page.goto(`/orders/${o.orderId}`);
-    await page.getByRole("link", { name: "Zmeniť čas" }).click();
+    await page.goto(`/orders/${o.orderId}/edit?step=services`);
     await expect(page.locator('[data-step="services"]')).toBeVisible();
 
     // Add another (longer) service…
@@ -271,10 +317,11 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
     expect(after!.duration_min).toBe(15);
   });
 
-  test("Zmeniť čas: manager can set a manual price; it persists", async ({ page }) => {
+  test("edit: manager can set a manual price; it persists", async ({ page }) => {
     const o = await seedOrder();
     const db = serviceClient();
 
+    // No ?step= → defaults to the Služby step.
     await page.goto(`/orders/${o.orderId}/edit`);
     await expect(page.locator('[data-step="services"]')).toBeVisible();
     await page.locator("[data-price-override]").fill("123,45");
@@ -290,6 +337,57 @@ test.describe("booking wizard — edit mode / Zmeniť čas", () => {
       .eq("id", o.orderId)
       .single();
     expect(after!.price_override_cents).toBe(12345);
+  });
+
+  test("Zmeniť (Auto): switching the order's car re-prices the lines at the new category", async ({
+    page,
+  }) => {
+    const o = await seedOrder({ time: "11:00" });
+    const db = serviceClient();
+    // Give the same client a second car in a DIFFERENT pricing category, so the
+    // switch re-prices the seeded line.
+    const { data: suvCar } = await db
+      .from("cars")
+      .insert({ spz: uniqueSpz("SV"), pricing_category: "suv" })
+      .select("id")
+      .single();
+    await db.from("client_cars").insert({ client_id: o.clientId, car_id: suvCar!.id });
+    const { data: suvPrice } = await db
+      .from("service_prices")
+      .select("price_cents")
+      .eq("service_id", o.serviceId)
+      .eq("pricing_category", "suv")
+      .single();
+    expect(suvPrice).not.toBeNull();
+
+    // From the order detail, the Auto card's "Zmeniť" → wizard Auto step.
+    await page.goto(`/orders/${o.orderId}`);
+    await page.getByRole("link", { name: "Zmeniť", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/orders/${o.orderId}/edit\\?step=car`));
+    await expect(page.locator('[data-step="car"]')).toBeVisible();
+
+    // Pick the SUV car, advance through Služby → Termín, re-confirm a slot, save.
+    await page.locator(`[data-step="car"] [data-car-id="${suvCar!.id}"]`).click();
+    await page.getByRole("button", { name: "Ďalej" }).click(); // → Služby
+    await page.getByRole("button", { name: "Ďalej" }).click(); // → Termín
+    await pickAFreeSlot(page);
+    await page.getByRole("button", { name: "Uložiť zmeny" }).click();
+    await expect(page.getByText("Zmeny uložené.")).toBeVisible();
+
+    // The order now points at the SUV car and the line carries the SUV price.
+    const { data: order } = await db
+      .from("orders")
+      .select("car_id")
+      .eq("id", o.orderId)
+      .single();
+    expect(order!.car_id).toBe(suvCar!.id);
+    const { data: line } = await db
+      .from("order_services")
+      .select("price_cents_snapshot, category_snapshot")
+      .eq("id", o.serviceLineId)
+      .single();
+    expect(line!.category_snapshot).toBe("suv");
+    expect(line!.price_cents_snapshot).toBe(suvPrice!.price_cents);
   });
 });
 
@@ -313,5 +411,12 @@ test.describe("booking wizard — edit route gating (prevádzka)", () => {
 
     await expect(page.locator('[data-step="services"]')).toBeVisible();
     await expect(page.locator("[data-price-override]")).toHaveCount(0);
+  });
+
+  test("prevádzka does not see the per-car Upraviť button on the Auto step", async ({ page }) => {
+    const { clientId } = await seedClientWithCar();
+    await page.goto(`/orders/new?clientId=${clientId}`);
+    await expect(page.locator('[data-step="car"]')).toBeVisible();
+    await expect(page.locator('[data-step="car"] [data-edit-car-id]')).toHaveCount(0);
   });
 });

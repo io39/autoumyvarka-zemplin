@@ -1,30 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
 import type { OrderDetail } from "@/lib/actions/orders";
-import type { ServiceWithPrices } from "@/lib/actions/services";
 import { formatPriceCents } from "@/lib/services/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-/** Service lines + totals + add (manager) (UI-STRUCTURE §7 #6). */
+/**
+ * Service lines + totals (UI-STRUCTURE §7 #6). Removing a line and toggling its
+ * "Zaplatené" stay inline (manager); adding a service routes to the edit wizard
+ * (Služby step) via `addHref` — there is no inline add form.
+ */
 export function BookingServicesList({
   lines,
   canEdit,
   canRemove,
   pending,
-  services,
-  existingServiceIds,
-  onAdd,
+  addHref,
   onRemove,
   onPaid,
   totalCents,
@@ -34,17 +26,14 @@ export function BookingServicesList({
   canEdit: boolean;
   canRemove: boolean;
   pending: boolean;
-  services: ServiceWithPrices[];
-  existingServiceIds: Set<string>;
-  onAdd: (serviceId: string, quantity?: number) => void;
+  /** When set (manager), show the "Pridať služby" button linking to the wizard. */
+  addHref?: string;
   onRemove: (id: string) => void;
   onPaid: (id: string, paid: boolean) => void;
   totalCents: number;
   /** True when the total is a manager override (not the summed lines). */
   priceOverridden?: boolean;
 }) {
-  const [selected, setSelected] = useState<string>("");
-  const [quantity, setQuantity] = useState<string>("1");
   return (
     <section data-section="services" className="space-y-2 rounded-lg border p-4">
       <h2 className="text-sm font-medium">Služby</h2>
@@ -103,47 +92,10 @@ export function BookingServicesList({
         Cena spolu: <span className="font-medium">{formatPriceCents(totalCents)}</span>
       </div>
 
-      {canEdit && (
-        <div className="flex flex-wrap items-end gap-2 border-t pt-2">
-          <div className="min-w-[200px] flex-1 space-y-1">
-            <Label htmlFor="add-service">Pridať službu</Label>
-            <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger id="add-service">
-                <SelectValue placeholder="Vyberte…" />
-              </SelectTrigger>
-              <SelectContent>
-                {services
-                  .filter((s) => !existingServiceIds.has(s.service.id))
-                  .map((s) => (
-                    <SelectItem key={s.service.id} value={s.service.id}>
-                      {s.service.name}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="add-qty">Počet</Label>
-            <Input
-              id="add-qty"
-              inputMode="numeric"
-              className="w-20"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-            />
-          </div>
-          <Button
-            size="sm"
-            disabled={!selected || pending}
-            onClick={() => {
-              if (!selected) return;
-              const q = Math.max(1, Number(quantity) || 1);
-              onAdd(selected, q);
-              setSelected("");
-              setQuantity("1");
-            }}
-          >
-            Pridať službu
+      {addHref && (
+        <div className="border-t pt-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href={addHref}>Pridať služby</Link>
           </Button>
         </div>
       )}

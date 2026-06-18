@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { OrderDetail, RecentVisit } from "@/lib/actions/orders";
-import type { ServiceWithPrices } from "@/lib/actions/services";
 import type { ClientFlags } from "@/lib/orders/unpaid";
 import type { SmsMessageRow, StaffRole, WorkerRow } from "@/lib/supabase/types";
 import { OrderDetailBody } from "./OrderDetailBody";
@@ -14,7 +13,6 @@ interface Props {
   role: StaffRole;
   detail: OrderDetail;
   allWorkers: WorkerLite[];
-  services: ServiceWithPrices[];
   sms: SmsMessageRow[];
   recentVisits: RecentVisit[];
   clientFlags: ClientFlags;
@@ -31,7 +29,6 @@ export function OrderDetailView({
   role,
   detail,
   allWorkers,
-  services,
   sms,
   recentVisits,
   clientFlags,
@@ -58,7 +55,6 @@ export function OrderDetailView({
         role={role}
         detail={detail}
         allWorkers={allWorkers}
-        services={services}
         sms={sms}
         recentVisits={recentVisits}
         clientFlags={clientFlags}

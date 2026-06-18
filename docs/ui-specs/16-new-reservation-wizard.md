@@ -64,9 +64,11 @@ picker whose header mirrors the calendar (§4).
 - **Duplicate hints are advisory, not enforcement** — the phone/vehicle warnings are
   non-blocking; `createClient`/`addCarToClient` remain the authoritative de-dupe/link on
   submit (telefón = key, shared-ŠPZ link — spec 02). No hard block on duplicates.
-- **Edit mode is in scope** (§2.9): this spec wires **Zmeniť čas** to reuse the wizard
-  (prefilled, services + slot editable) and repoints spec 15's button. It does **not**
-  allow changing the order's client/car (those stay locked in edit mode).
+- **Edit mode is in scope** (§2.9): this spec wires the order-detail edit entry points
+  (**Zmeniť čas** → Termín, **Pridať služby** → Služby, Auto-card **Zmeniť** → Auto) to reuse
+  the wizard prefilled, and repoints spec 15's buttons. The order's **client stays locked**;
+  the **car may be switched** to another of the client's cars while the order is still
+  `vytvorena` (§2.10) — the one genuinely new Server Action this spec adds (`changeOrderCar`).
 
 > **Persistence note:** the prototype marked new client/car as "not persisted (Phase 2)".
 > **Not applicable to Zemplín** — `createClient` / `addCar` (spec 02) persist immediately,
@@ -119,11 +121,21 @@ picker whose header mirrors the calendar (§4).
 
 ### 2.3 Step 2 — Auto (`Step2Car`)
 
-- List the client's cars (ŠPZ — model (kategória)); pick one → `carId`. A **"zdieľané
+- Each row is laid out **ŠPZ (left) · značka/model + kategória (middle) · Upraviť (right)**;
+  the ŠPZ/middle area is the selectable button (pick → `carId`, highlighted). A **"zdieľané
   auto"** `Badge` (same style as the history view) marks cars in `sharedCarIds` — cars linked
   to >1 client. `getClientWithCars` returns `sharedCarIds` (one extra read-only query),
   threaded through `/orders/new` + `/orders/[id]/edit` + `BookingWizard`. The car's
   `pricing_category` drives step-3 pricing (as today).
+- **Upraviť (per row, managers only — `canEditCars`)** opens the **shared `EditCarDialog`**
+  (`components/cars/edit-car-dialog.tsx`, extracted from the clients detail page along with
+  `CategorySelect` → `components/cars/category-select.tsx`): edit ŠPZ / značka / model /
+  kategória via `updateCar`, **merge-aware** (a colliding plate → "Spojiť autá", spec 02
+  §2.6). On save the wizard re-fetches the client's cars (`onCarEdited`): a merge can delete
+  the edited row (selection cleared if it vanished), and in edit mode editing the **selected**
+  car re-confirms the Termín slot (its category may have changed). Note: editing a car's
+  category here does **not** re-snapshot an existing order's lines — that only happens when the
+  car is *switched* (§2.10); snapshots are immutable history (matches the clients page).
 - **"+ nové auto"** Dialog (ŠPZ, model, kategória) → `addCarToClient` (spec 02) → select. As
   the ŠPZ is typed, an exact normalized-ŠPZ match (on `searchClients`' `matchedSpz`) shows a
   **non-blocking** hint naming the client the vehicle is found under (`data-dup-vehicle`);
@@ -246,29 +258,39 @@ from spec 14 (`lib/calendar/`).
   action's Slovak error surfaces as a toast, user stays on step 4.
 - New client/car action failures → inline dialog error, no step advance.
 
-### 2.9 Edit mode — "Zmeniť čas" reuses the wizard (replaces spec-15's dialog)
+### 2.9 Edit mode — the order-detail edit entry points reuse the wizard
 
-The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wizard in an
-**edit mode** instead of the interim `ChangeTimeDialog`. Behavior:
+The order-detail surface (spec 15, manager-only) opens this wizard in an **edit mode**
+(`mode: 'edit'`) from three entry points, each landing on the matching step:
 
-- **Entry:** `app/orders/[id]/edit/page.tsx` (manager-gated) — or `/orders/new?editOrderId=`
-  — loads the existing order (client, car, services, current box/slot) and mounts
-  `BookingWizard` with `mode: 'edit'` + the prefilled state.
-- **Prefill + start step:** client (step 1) and car (step 2) are prefilled and **locked**
-  (the order's client/car don't change here); the wizard **opens on step 3 (Služby)** so the
-  manager can adjust services **and the manual "Trvanie" duration** (empty by default — the
-  duration tracks the live service sum, §2.4), then **step 4 (Termín)** to pick a new slot.
-  Steps 1–2 are visible but locked.
+| Order-detail control | `?step=` | Lands on |
+| --- | --- | --- |
+| **Zmeniť čas** (Akcie) | `time` | Termín (step 4) |
+| **Pridať služby** (Služby card) | `services` | Služby (step 3, default) |
+| **Zmeniť** (Auto card — only while `vytvorena`) | `car` | Auto (step 2) |
+
+- **Entry:** `app/orders/[id]/edit/page.tsx` (manager-gated) reads `?step=` (default
+  `services`), loads the existing order (client, car, services, current box/slot), and mounts
+  `BookingWizard` with `mode: 'edit'` + the prefilled state on the chosen step. The stepper is
+  freely navigable (the entry step just picks where you start).
+- **Prefill + locking:** the order's **client is always locked**; the **car is locked unless
+  the order is `vytvorena`** (`lockCar`) — see §2.10. When the car is editable the page loads
+  the client's whole fleet (`getClientWithCars`) so the picker can switch cars. The manual
+  "Trvanie" duration override is available on Služby (empty by default — duration tracks the
+  live service sum, §2.4).
 - **Apply on finish** (not `createOrder`): persist the diff against the existing order using
-  the **existing actions** — `addOrderService`/`removeOrderService` for the service changes,
-  `moveOrder({ id, box, startsAt, durationMin? })` for the new slot **and the duration
-  override** (spec 06; `moveOrder` now takes an optional `durationMin` and re-checks
-  conflict/hours with the new end), `setNote` when the Poznámka changed (prefilled via
-  `EditContext.originalNote` / `initial.note`), and **`setOrderPrice` when the manager price
-  override changed** (`EditContext.originalPriceOverrideCents`; `null` clears it — manager
-  only). `moveOrder` runs when the slot **or** the duration changed
-  (`EditContext.originalDuration`). The conflict check excludes the order's **own** current
-  slot so "same time" isn't a false conflict.
+  the **existing actions plus `changeOrderCar`** (§2.10), in this order:
+  1. **`changeOrderCar({ id, carId })`** first when the car changed (re-prices the lines; it
+     doesn't move, so it can't conflict) — see §2.10.
+  2. **`moveOrder({ id, box, startsAt, durationMin? })`** for the new slot **and the duration**
+     (spec 06; optional `durationMin`, re-checks conflict/hours with the new end). Runs when
+     the slot **or** the duration changed (`EditContext.originalDuration`); the conflict check
+     excludes the order's **own** current slot so "same time" isn't a false conflict.
+  3. **`addOrderService`/`removeOrderService`** for the service diff (`recomputeDuration:false`
+     — moveOrder owns the duration).
+  4. **`setNote`** when the Poznámka changed (`EditContext.originalNote` / `initial.note`).
+  5. **`setOrderPrice`** when the manager price override changed
+     (`EditContext.originalPriceOverrideCents`; `null` clears it — manager only).
 - **Final label:** "Uložiť zmeny" (not "Vytvoriť rezerváciu"); on success → **redirect to
   the calendar** at the (possibly new) date (`/?date=…`) + toast, **not** back to the order
   detail — so the updated slot is immediately visible in its schedule context.
@@ -280,15 +302,43 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
   by the action's `revalidatePath("/")` re-render — and, on the **overlap-confirm retry**, by
   the closing Radix dialog — leaving the button stuck on "Ukladám…" though the order saved. So
   the success redirect (`goToCalendar`) does `router.push` (keeping the toast + SPA nav) **plus
-  a hard-navigation fallback**: a `window.location.assign` that fires only if the push was
-  dropped — detected by the component still being **mounted ~600 ms later** (`mountedRef`).
-  On a successful push the wizard unmounts and the fallback no-ops. Same for create + edit.
+  a hard-navigation fallback**: ~600 ms later it checks the **real URL** (`window.location.pathname`,
+  ground truth) and `window.location.assign`s the target if we're **still not on `/`**. On a
+  successful push we're already on `/` and the fallback no-ops. (This URL check replaced an
+  earlier React mount-state check that could miss the stuck case.) Same for create + edit.
   Step navigation (Step 0→1, Auto add) keeps the transition.
-- **Repoint spec 15:** replace `ChangeTimeDialog` wiring with a link/navigation to this
-  edit entry. (This is why spec 16 depends on spec 15.)
+- **Repoint spec 15:** `ChangeTimeDialog` is gone — the three controls are `Link`s into this
+  edit entry (Zmeniť čas → `?step=time`, Pridať služby → `?step=services`, Auto Zmeniť →
+  `?step=car`). (This is why spec 16 depends on spec 15.)
 
-> Scope note: edit mode reuses Step3/Step4 UI; the only genuinely new pieces are the edit
-> entry route, the locked-prefill, and the apply-diff-on-finish path.
+> Scope note: edit mode reuses Step2/Step3/Step4 UI; the genuinely new pieces are the edit
+> entry route (with `?step=`), the locked-prefill, the apply-diff-on-finish path, and the
+> `changeOrderCar` action (§2.10).
+
+### 2.10 Switching the order's car (`changeOrderCar`)
+
+The Auto-card **Zmeniť** (manager, **only while the order is `vytvorena`**) routes into the
+wizard's Auto step so the manager can reassign the order to **another of the same client's
+cars** (the picker offers this client's fleet only; a new car can be added inline as in
+create mode). Because a car carries a `pricing_category` that drives every service's price
+and duration, switching the car **re-prices the order**.
+
+- **New Server Action `changeOrderCar({ id, carId })`** (`lib/actions/orders.ts`,
+  manager-only, zod-validated): verifies the new car belongs to the order's client, then
+  **re-snapshots every active service line** (price/duration/category) at the new car's
+  category and swaps `orders.car_id`. It resolves **all** lines first and bails before
+  mutating, so a service that isn't available for the new vehicle leaves the order untouched
+  (Slovak error naming the service — remove it first). It does **not** recompute
+  `orders.duration_min` (the wizard's `moveOrder` owns the final duration) and does **not**
+  move, so it never conflicts. Audited **`order.car_change`** (`from_car_id`/`to_car_id`).
+- **Restriction:** the car can only be switched while `vytvorena` — re-pricing must not
+  rewrite a wash that's already done/paid; once `hotova`+ the Auto card shows no **Zmeniť**.
+  `changeOrderCar` **enforces this server-side** (rejects a non-`vytvorena` order), not just
+  in the UI. The line re-snapshots run **before** the `car_id` swap so a mid-way failure
+  leaves the order on its old car (a retry then re-runs cleanly).
+- **Wizard wiring:** `EditContext.originalCarId` detects the switch; selecting a different car
+  clears the picked slot (its length may change → re-confirm Termín). On finish
+  `changeOrderCar` runs **before** `moveOrder` (§2.9). No other action/authz changes.
 
 ---
 
@@ -301,10 +351,12 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
 5. **(L)** `Step4TimeSlot` — Deň/3-dni header (shared §14 controls), quick slots
    (`suggestSlots`), full picker with free-range computation + MINULOSŤ overlay. (dep: 4)
 6. **(M)** Page rewrite: drop the `/clients` redirect; prefill→step 2 when `clientId`.
-7. **(L)** **Edit mode** (§2.9): edit entry route loading an existing order; `mode:'edit'`
-   wizard (locked client/car, open on step 3); apply-diff on finish (service add/remove +
-   `moveOrder`, self-slot excluded from conflict); **repoint spec-15 Zmeniť čas** to it.
-   (dep: 5, spec 15)
+7. **(L)** **Edit mode** (§2.9/§2.10): edit entry route with `?step=` (car/services/time)
+   loading an existing order; `mode:'edit'` wizard (client locked; car locked unless
+   `vytvorena`); apply-diff on finish (`changeOrderCar` → `moveOrder` → service add/remove →
+   note/price, self-slot excluded from conflict); new **`changeOrderCar`** action (re-price
+   lines, `order.car_change` audit); **repoint spec-15 Zmeniť čas / Pridať služby / Auto
+   Zmeniť** to it. (dep: 5, spec 15)
 8. **(M)** Refinements: Step-1 new-client row (→ pre-filled dialog) on unregistered number + Step-2 dup-vehicle hints (debounced
    `searchClients`); `getClientWithCars.sharedCarIds` + Step-2 **zdieľané auto** badge;
    Step-3 **Doplnkové accordion** + `addonGroup` sub-headers + **Poznámka** field (→
@@ -312,8 +364,9 @@ The order-detail **Zmeniť čas** button (spec 15, manager-only) opens this wiza
    3-dni desktop no-scroll + box-header counts. (dep: 5, 7)
 9. **(M)** Tests: e2e (blank flow creates an order end-to-end; client-prefill starts at
    step 2; quick slot + full picker pick; conflict rejected; per-unit qty; **edit mode**:
-   Zmeniť čas opens prefilled at step 3, change a service + move the slot, saves) + unit
-   (range/finish math, `addonGroup`). (dep: 5, 6, 7, 8)
+   Zmeniť čas opens on Termín, Pridať služby opens on Služby + adds a service, Auto Zmeniť
+   switches the car and re-prices, move the slot, saves) + unit (range/finish math,
+   `addonGroup`). (dep: 5, 6, 7, 8)
 
 ---
 
@@ -354,16 +407,22 @@ pnpm test e2e/booking-wizard         # exits 0
 grep -rn "return=/orders/new\|redirect(\"/clients" app/orders/new | wc -l
 ```
 
-### 4.4 Edit mode — Zmeniť čas (e2e, must pass)
+### 4.4 Edit mode — entry points (e2e, must pass)
 
-- From an order's **Zmeniť čas** (manager): the wizard opens **prefilled** with that order's
-  client/car (locked) on **Služby**, where the **manual "Trvanie" duration input is present**;
-  the manager adjusts services/duration, then on Termín picks a new slot; **"Uložiť zmeny"**
-  applies the changes to the **same** order (no new order created; the duration override is
-  persisted) and
+- From an order's **Zmeniť čas** (manager): the wizard opens **prefilled** on **Termín**
+  (`?step=time`); picking a new slot + **"Uložiť zmeny"** moves the **same** order and
   **lands on the calendar** at the new date (`/?date=…`) — not back on the order detail.
+- From the Služby card's **Pridať služby** (manager): the wizard opens on **Služby**
+  (`?step=services`), where the **manual "Trvanie" duration input is present**; adding a
+  service + saving adds the line to the same order (the slot is re-confirmed since the
+  duration changed). The same entry persists a duration/price override.
+- From the Auto card's **Zmeniť** (manager, **only while `vytvorena`**): the wizard opens on
+  **Auto** (`?step=car`); picking another of the client's cars and saving **switches the car
+  and re-prices** the lines (line `category_snapshot` + `price_cents_snapshot` follow the new
+  car's category) — `order.car_change` audited.
 - Keeping the same time is **not** flagged as a conflict (own slot excluded).
-- prevádzka has no Zmeniť čas affordance (manager-only).
+- prevádzka has no edit affordance (Zmeniť čas / Pridať služby / Auto Zmeniť are manager-only;
+  the edit route 403s).
 
 ### 4.5 Manual checks
 

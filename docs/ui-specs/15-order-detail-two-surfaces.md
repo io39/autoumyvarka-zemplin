@@ -53,12 +53,15 @@ actions.
 
 ### 1.3 Non-goals
 
-- **No change to the order Server Actions or their authz** — `setStatus`, `setNote`,
-  `addOrderService`, `moveOrder`, `deleteOrder`, `resendSms`, worker add/remove, per-line
-  paid all stay as-is (specs 06/07). This is presentation + composition only.
+- **No change to the order Server Actions or their authz here** — `setStatus`, `setNote`,
+  `moveOrder`, `deleteOrder`, `resendSms`, worker add/remove, per-line paid all stay as-is
+  (specs 06/07). This is presentation + composition only. (Service **add**, car **switch**,
+  and change-time are no longer inline mutations on this surface — they route into the spec-16
+  edit wizard; the one new action, `changeOrderCar`, is defined in spec 16 §2.10.)
 - **No new SMS features** — the existing delivery log (`SmsSection`) is renamed
   `SmsStatusCard`; behavior unchanged.
-- No "Zmeniť čas → calendar slot picker" rework — see §2.5.
+- The order-edit affordances (Zmeniť čas, Pridať služby, Auto Zmeniť) open the spec-16 wizard
+  — see §2.5.
 
 ---
 
@@ -74,12 +77,11 @@ Move each existing inline section into `components/orders/sections/`, props-only
 | `BookingStatusBadge` | header `Badge` | — |
 | `BookingStatusActions` | "Stav" section buttons | advance: all; Nedostavil sa: manager |
 | `BookingClientCard` | Klient block: name + phone + warning flags (ClientFlagBadges, spec 10); the vehicle's visits live in the História auta box | — |
-| `BookingCarCard` | Auto block | — |
-| `BookingServicesList` | `ServicesSection` | add/remove/paid: manager |
+| `BookingCarCard` | Auto block | **Zmeniť** (→ wizard Auto step) — manager, only while `vytvorena` |
+| `BookingServicesList` | `ServicesSection` | remove/paid: manager (inline); **add → "Pridať služby"** (→ wizard Služby step), manager |
 | `BookingWorkerCard` | `WorkersSection` | add/remove: all roles |
 | `BookingNotes` | `NoteSection` | edit: manager |
 | `SmsStatusCard` | `SmsSection` | resend: manager |
-| `ChangeTimeDialog` | `MoveDialog` | manager |
 | `DeleteOrderDialog` | `DeleteDialog` | manager (before zaplatena) |
 
 Mutations stay where they are (parent passes the same `call(...)` callbacks). The cards
@@ -88,8 +90,9 @@ already implement the read-only-vs-editable split via a `canEdit`/role prop — 
 ### 2.2 Shared body — `OrderDetailBody`
 
 A single component rendering the cards in the order above (§1.1 #4), given
-`{ role, detail, allWorkers, services, sms, recentVisits, clientFlags, onRefresh }`. Both
-surfaces render `<OrderDetailBody/>`:
+`{ role, detail, allWorkers, sms, recentVisits, clientFlags, onRefresh }`. Both surfaces
+render `<OrderDetailBody/>` (it no longer needs the catalog `services` — adding a service
+now routes to the wizard, so neither surface fetches/passes `listServices`):
 
 - **`OrderDetailView`** (page) wraps it with the page title ("Rezervácia") and, for
   managers, a subtle "História zmien →" link (muted, hover-underline). No back-to-calendar
@@ -121,23 +124,27 @@ Spacing/readability: sections use `space-y-5`, each card `p-4`, with section lab
 
 ### 2.4 Data — one client-callable bundle action
 
-The page loads `getOrder` + worker list + `listServices` + `getOrderSms` server-side. Add
+The page loads `getOrder` + worker list + `getOrderSms` server-side. Add
 **`getOrderDetailBundle({ id })`** in `lib/actions/orders.ts` returning
-`{ detail, allWorkers, services, sms, recentVisits, clientFlags }` (composing the existing
-reads + `getRecentCarVisits` + `getClientFlags`), callable from the Sheet on open. The `/orders/[id]` page may switch to it too (single source). Role comes
-from the calendar's existing `role` prop (no extra fetch).
+`{ detail, allWorkers, sms, recentVisits, clientFlags }` (composing the existing reads +
+`getRecentCarVisits` + `getClientFlags`), callable from the Sheet on open. Role comes from
+the calendar's existing `role` prop (no extra fetch). (Neither surface loads the service
+catalog any more — adding a service routes to the wizard, §2.5.)
 
-### 2.5 "Zmeniť čas" — interim move, upgraded by spec 16
+### 2.5 Edit affordances — three entry points into the spec-16 wizard
 
-The target behavior (confirmed): **Zmeniť čas opens the wizard** prefilled (client/car/
-services), starting at the services/termín steps so the manager can adjust services **and**
-pick a new slot in the interactive calendar — see **spec 16 §2.9** (it owns the wizard edit
-mode and **repoints this button**).
+The order-detail editing controls are **manager-only `Link`s into the spec-16 edit wizard**
+(`/orders/[id]/edit?step=…`, §16 §2.9), not inline mutations:
 
-In **this** spec, ship Zmeniť čas as the **existing working `MoveDialog`** (relabeled
-`ChangeTimeDialog`, manager-only) so order-detail is self-contained and `main` stays
-releasable before spec 16 lands. Spec 16 then replaces the dialog with the wizard edit
-flow. (Don't disable it — Zemplín's move already works.)
+| Control | Where | `?step=` | Gating |
+| --- | --- | --- | --- |
+| **Zmeniť čas** | Akcie row (left) | `time` → Termín | manager |
+| **Pridať služby** | Služby card (bottom) | `services` → Služby | manager |
+| **Zmeniť** | Auto card (right of the label) | `car` → Auto | manager, **only while `vytvorena`** (switching the car re-prices the lines — §16 §2.10) |
+
+Per-line **Odstrániť** and the **Zaplatené** toggle stay **inline** on the Služby card
+(manager) — only *adding* a service moves to the wizard. The interim `ChangeTimeDialog`
+(`MoveDialog`) is **removed**; Zmeniť čas is now the link above.
 
 ### 2.6 Note styling
 
@@ -166,7 +173,10 @@ with the new palette). Workers see it read-only.
    bundle; loading/error states. (dep: 3, 4)
 6. **(M)** Wire `BookingBlock` → open Sheet (replace the spec-14 `Link`); pass `role`.
    (dep: 5)
-7. **(S)** Relabel MoveDialog → "Zmeniť čas" (`ChangeTimeDialog`), keep functional. (dep: 2)
+7. **(S)** Edit affordances (§2.5): **Zmeniť čas** / **Pridať služby** / Auto **Zmeniť** as
+   manager-only `Link`s into the spec-16 edit wizard (`?step=time|services|car`). The interim
+   `ChangeTimeDialog` was removed once spec 16 landed; per-line Odstrániť/Zaplatené stay
+   inline. (dep: 2, spec 16)
 8. **(M)** Tests: e2e (block opens Sheet with all cards in §7 order; advance status from
    Sheet; add/remove worker as prevádzka; manager-only controls hidden for prevádzka;
    SmsStatusCard empty state + resend manager-only; full page renders same cards). (dep: 6)
@@ -200,7 +210,8 @@ grep -rln "OrderDetailBody" components app | wc -l   # >= 2
 
 ### 4.4 Role gating (e2e, must pass)
 
-- prevádzka: no Zmeniť čas / Zmazať / Nedostavil sa / note-edit / service-edit / resend;
+- prevádzka: no Zmeniť čas / Pridať služby / Auto Zmeniť / Zmazať / Nedostavil sa /
+  note-edit / per-line remove / paid-toggle / resend (services show a read-only paid badge);
   **can** advance Hotová/Zaplatená and add/remove workers.
 - manager: all of the above present; delete disabled once `zaplatena`.
 
