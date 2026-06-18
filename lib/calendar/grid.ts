@@ -108,6 +108,18 @@ export function diffMinutes(a: string, b: string): number {
   return toMinutes(b) - toMinutes(a);
 }
 
+/** Round an "HH:MM" down to the 15-min grid (e.g. 06:07 → 06:00). */
+export function floorTo15(hhmm: string): string {
+  const m = Math.floor(toMinutes(hhmm) / SLOT_MIN) * SLOT_MIN;
+  return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+}
+
+/** Round an "HH:MM" up to the 15-min grid (e.g. 06:55 → 07:00). */
+export function ceilTo15(hhmm: string): string {
+  const m = Math.ceil(toMinutes(hhmm) / SLOT_MIN) * SLOT_MIN;
+  return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+}
+
 /** "HH:MM" rows on a 15-min grid from `open` (inclusive) to `close` (exclusive). */
 export function buildRows(open: string, close: string): string[] {
   const o = toMinutes(open);

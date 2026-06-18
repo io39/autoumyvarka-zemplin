@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useRouter } from "next/navigation";
 import { getCalendar, type CalendarBlock } from "@/lib/actions/orders";
 import type { DayOverrideRow, OpeningHoursRow, StaffRole } from "@/lib/supabase/types";
-import { bratislavaDateKey, getOpenInterval } from "@/lib/settings/availability";
-import { buildRows, weekDateKeys, type Interval } from "@/lib/calendar/grid";
+import { bratislavaDateKey, bratislavaHHMM, getOpenInterval } from "@/lib/settings/availability";
+import { buildRows, ceilTo15, floorTo15, weekDateKeys, type Interval } from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import type { CalendarView as ViewMode } from "@/lib/calendar/types";
 import { useRealtimeChannel } from "@/lib/realtime/use-realtime";
@@ -92,11 +92,31 @@ export function CalendarView({
     return map;
   }, [weekDays, hours, overrides]);
 
-  // Grid range. Day view: that day's interval (else default). Week view: the
-  // union over the week (else default), so every block's slot is visible.
+  const dayBlocks = useMemo(
+    () => blocks.filter((b) => bratislavaDateKey(new Date(b.order.starts_at)) === date),
+    [blocks, date],
+  );
+
+  // The displayed day's TRUE open interval (null = closed) — drives the greyed
+  // closed-zone overlay in DayView. Only meaningful in day view.
+  const dayOpenInterval = view === "day" ? (dayIntervals.get(date) ?? null) : null;
+
+  // Grid range. Day view: that day's open interval (else default), **extended to
+  // cover any bookings that fall outside hours** so an out-of-hours order renders
+  // at its true time inside the greyed closed zone (not clamped to the edge).
+  // Week view: the union over the week (else default), so every block's slot is visible.
   const interval = useMemo<Interval>(() => {
     if (view === "day") {
-      return dayIntervals.get(date) ?? DEFAULT_INTERVAL;
+      const base = dayIntervals.get(date) ?? DEFAULT_INTERVAL;
+      let open = base.open;
+      let close = base.close;
+      for (const b of dayBlocks) {
+        const s = bratislavaHHMM(new Date(b.order.starts_at));
+        const e = bratislavaHHMM(new Date(b.order.ends_at));
+        if (s < open) open = floorTo15(s);
+        if (e > close) close = ceilTo15(e);
+      }
+      return { open, close };
     }
     let minOpen: string | null = null;
     let maxClose: string | null = null;
@@ -106,7 +126,7 @@ export function CalendarView({
       if (maxClose === null || v.close > maxClose) maxClose = v.close;
     }
     return { open: minOpen ?? DEFAULT_INTERVAL.open, close: maxClose ?? DEFAULT_INTERVAL.close };
-  }, [view, date, dayIntervals]);
+  }, [view, date, dayIntervals, dayBlocks]);
 
   const rows = useMemo(() => buildRows(interval.open, interval.close), [interval]);
 
@@ -160,11 +180,6 @@ export function CalendarView({
   const onNext = useCallback(() => gotoOffset(1), [gotoOffset]);
   const onToday = useCallback(() => pushTo(view, todayKey(new Date())), [pushTo, view]);
   const onPick = useCallback((key: string) => pushTo(view, key), [pushTo, view]);
-
-  const dayBlocks = useMemo(
-    () => blocks.filter((b) => bratislavaDateKey(new Date(b.order.starts_at)) === date),
-    [blocks, date],
-  );
 
   return (
     <OpenOrderSheetContext.Provider value={setSheetOrderId}>
@@ -224,8 +239,8 @@ export function CalendarView({
           date={date}
           rows={rows}
           interval={interval}
+          openInterval={dayOpenInterval}
           blocks={dayBlocks}
-          dayClosed={dayIntervals.get(date) === null}
         />
       ) : (
         <WeekView

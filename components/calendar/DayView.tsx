@@ -38,18 +38,18 @@ export function DayView({
   date,
   rows,
   interval,
+  openInterval,
   blocks,
-  dayClosed,
 }: {
   activeBox: 1 | 2;
   date: string;
   rows: string[];
+  /** The grid range — the open interval **extended** to cover out-of-hours bookings. */
   interval: Interval;
+  /** The day's TRUE open interval (null = closed). The parts of `interval` outside
+      it are greyed (closed zones), and a booking outside it is marked out-of-hours. */
+  openInterval: Interval | null;
   blocks: CalendarBlock[];
-  /** The day is fully closed (grid uses the default interval) → every booking is
-      out of hours. The offset check below can't detect this (a 09:00 order sits
-      inside the default 08:00–17:00 grid), so flag it explicitly. */
-  dayClosed: boolean;
 }) {
   const isDesktop = useMediaQuery("(min-width: 640px)");
   const boxes: (1 | 2)[] = isDesktop ? [1, 2] : [activeBox];
@@ -66,6 +66,16 @@ export function DayView({
     })),
     n,
   );
+
+  // Closed-zone greying: the parts of the (extended) grid that lie outside the
+  // day's true open interval. Offsets come from the cumulative row tops so they
+  // align with the variable-height rows. A fully-closed day greys the whole grid.
+  const totalPx = rowTop[n];
+  const slotPx = (mins: number) => rowTop[Math.max(0, Math.min(n, Math.round(mins / SLOT_MIN)))];
+  const openStartMin = openInterval ? diffMinutes(interval.open, openInterval.open) : 0;
+  const openEndMin = openInterval ? diffMinutes(interval.open, openInterval.close) : 0;
+  const closedTopPx = openInterval ? slotPx(openStartMin) : totalPx;
+  const closedBottomPx = openInterval ? slotPx(openEndMin) : totalPx;
 
   // "Now" indicator: a ticking clock so the line slides during the day. Only
   // shown when the displayed day is today and the moment falls inside the grid.
@@ -192,6 +202,19 @@ export function DayView({
               className="relative z-10"
               style={{ gridColumn: bi + 2, gridRow: `2 / ${n + 2}` }}
             >
+              {/* Greyed closed zones (before open / after close), behind the cards. */}
+              {closedTopPx > 0 && (
+                <div
+                  className="pointer-events-none absolute inset-x-0 bg-zinc-200/60"
+                  style={{ top: 0, height: closedTopPx }}
+                />
+              )}
+              {closedBottomPx < totalPx && (
+                <div
+                  className="pointer-events-none absolute inset-x-0 bg-zinc-200/60"
+                  style={{ top: closedBottomPx, height: totalPx - closedBottomPx }}
+                />
+              )}
               {placed.map((p) => {
                 // top/height from the cumulative (variable) row offsets so the
                 // card aligns with the grown rows and the axis. Clamp to the
@@ -204,7 +227,10 @@ export function DayView({
                 const eSlot = Math.min(n, Math.max(sSlot + 1, Math.round(p.endMin / SLOT_MIN)));
                 const top = rowTop[sSlot];
                 const height = rowTop[eSlot] - rowTop[sSlot];
-                const outsideHours = dayClosed || p.startMin < 0 || p.endMin > n * SLOT_MIN;
+                // Out of hours = outside the day's TRUE open interval (the grid is
+                // extended to cover it, so compare against openInterval, not the grid).
+                const outsideHours =
+                  !openInterval || p.startMin < openStartMin || p.endMin > openEndMin;
                 return (
                   <BookingCard
                     key={p.block.order.id}

@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   ROW_PX,
   buildRows,
+  ceilTo15,
   computeRowLayout,
   diffMinutes,
+  floorTo15,
   formatDMY,
   formatWeekRange,
   skWeekdayShort,
@@ -12,6 +14,20 @@ import {
   weekDateKeys,
   weekRange,
 } from "@/lib/calendar/grid";
+
+describe("floorTo15 / ceilTo15", () => {
+  it("leaves a 15-aligned time unchanged", () => {
+    expect(floorTo15("06:00")).toBe("06:00");
+    expect(ceilTo15("06:00")).toBe("06:00");
+    expect(floorTo15("06:45")).toBe("06:45");
+  });
+  it("rounds down / up to the 15-min grid", () => {
+    expect(floorTo15("06:07")).toBe("06:00");
+    expect(ceilTo15("06:55")).toBe("07:00");
+    expect(floorTo15("18:14")).toBe("18:00");
+    expect(ceilTo15("18:01")).toBe("18:15");
+  });
+});
 
 describe("computeRowLayout", () => {
   it("all rows are ROW_PX when nothing is short", () => {
