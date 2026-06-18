@@ -149,17 +149,20 @@ through).
   `data-section="outside-hours"` + mobile cards), each row → `/orders/[id]`. **Resolve** by
   the order's existing **Zmeniť čas** (reschedule into hours) or **Zrušiť** — the row
   auto-drops (derived). No inline actions.
-- **Badge** `components/outside-hours/outside-hours-badge.tsx` in the desktop `Sidebar` beside
-  `UnpaidBadge` ("Mimo hodín: N", hidden at 0, manager-only); `AppShell` mints the count.
+- **Badge** `components/outside-hours/outside-hours-badge.tsx` ("Mimo hodín: N", hidden at 0,
+  manager-only) in **two breakpoint slots** beside `UnpaidBadge`: the desktop `Sidebar` (count
+  minted by `AppShell`) and the mobile-only `CalendarHeader` (count minted by `app/page.tsx`) —
+  one visible at a time, like the unpaid badge.
 - **Realtime:** list + badge subscribe to **`orders` only** (reschedule/cancel drops a row
   live). `opening_hours`/`day_overrides` are **not** in the `supabase_realtime` publication —
   subscribing to a non-published table poisons the channel — so an *hours* change refreshes
   the surfaces via the editor's `router.refresh()` / fresh server render on navigation, not a
   push. (No publication migration.)
-- **Calendar marker:** an out-of-hours card on the calendar keeps its clamped position but
-  gets an amber ring + `title="Mimo otváracích hodín"` + `data-outside-hours` so it isn't
-  silently shown at the wrong time (`BookingCard.outsideHours`, computed in `DayView`/
-  `WeekView`).
+- **Calendar rendering:** the calendar grid **extends to show an out-of-hours order at its
+  true time** (not clamped), inside a hatched greyed **closed zone**, and the card gets an amber
+  ring + `title="Mimo otváracích hodín"` + `data-outside-hours` (`BookingCard.outsideHours`,
+  computed in `DayView`/`WeekView`). See spec 14 (calendar rendering) for the extended-range +
+  `ClosedZone` details.
 
 ---
 

@@ -12,11 +12,14 @@ pushing is hook-blocked here. A **TEST deployment is now live** (Coolify + Supab
 EU + Cloudflare Access) — see the **Deployment status** section below and the full runbook
 `docs/deployment.md`. **Production hardening (Phase 4) is NOT done** and the VPS origin is
 unhardened (no tunnel) — test/fake data only. Still ahead: the real SMS provider and the
-client's open questions. **A further round of UI work (2026-06-18) is committed to `main`:**
-order-detail edits now route into the wizard (+ a `changeOrderCar` action), a per-car
-**Upraviť** in the wizard Auto step, shadcn **Checkbox** everywhere, a **collapsible desktop
-sidebar** (collapsed by default), and a **desktop horizontal scrollbar** on the calendar — see
-the first "Recent app fixes" entry. **Last updated:** 2026-06-18.
+client's open questions. **Two rounds of work (2026-06-18) are committed to `main` (all
+unpushed — 27 commits ahead of `origin/main`):** (1) a new **orders-outside-opening-hours**
+feature — derived warning when a manager narrows/closes hours over an existing order, a
+`/mimo-hodin` worklist + badge, and the calendar now showing such orders at their **true time**
+inside hatched closed zones (specs 04/10/14); (2) the earlier UI round — order-detail edits
+route into the wizard (+ `changeOrderCar`), per-car **Upraviť**, shadcn **Checkbox** everywhere,
+a **collapsible desktop sidebar**, and a **desktop horizontal scrollbar** on the calendar. Both
+are in the first two "Recent app fixes" entries. **Last updated:** 2026-06-18.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -75,6 +78,50 @@ plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- **Orders outside opening hours — warning + worklist + calendar rendering** (2026-06-18, a
+  spec-driven feature built on a short-lived `feat/orders-outside-opening-hours` branch, merged
+  to `main` via `abeb804`, plus calendar follow-ups; **all unpushed**). Built via the
+  superpowers brainstorm→plan→subagent-driven flow — **design** `docs/superpowers/specs/
+  2026-06-18-orders-outside-opening-hours-design.md`, **plan** `docs/superpowers/plans/
+  2026-06-18-orders-outside-opening-hours.md`. **Folded into specs 04 §2.3 + 10 §2.7 + 14**
+  (calendar rendering). **The problem:** orders are always created **inside** hours
+  (`createOrder`/`moveOrder` enforce `isRangeOpen`), so the only way one ends up out of hours is
+  a **manager narrowing/closing hours after it exists**. The earlier symptom was a `NaN` crash /
+  a 06:00 order clamped to a 10:00–10:15 sliver.
+  - **NaN-clamp prereq** (`335cb75`+`9a714af`, before the feature): a booking at/after the day
+    grid's last slot indexed `rowTop[n+1]` (undefined → `NaN` height). Clamp day-view booking
+    slots to `computeRowLayout`'s bounds; regression test covers before-open **and** after-close.
+  - **Detection — derived, never stored** (`37d9a5c`): pure `isOutsideHours(o, hours, overrides,
+    todayKey)` (`lib/orders/out-of-hours.ts`, reuses `isRangeOpen`) — upcoming (`start ≥ today`)
+    **`vytvorena`**, non-deleted order whose window doesn't fit the day's interval. No migration;
+    auto-drops once resolved. Unit-tested.
+  - **Worklist + badge** (`3a3ad0c`→`f40e60e`→`3773b44`): manager-only `getOutsideHoursOrders` /
+    `getOutsideHoursCount`; `/mimo-hodin` page + list (mirrors `/unpaid`); sidebar badge
+    ("Mimo hodín: N") + later the **mobile `CalendarHeader`** badge next to "Po termíne"
+    (`243d3f8`). Resolve = the order's existing **Zmeniť čas** / **Zrušiť** (row auto-drops).
+    **Realtime subscribes to `orders` only** — `opening_hours`/`day_overrides` aren't in the
+    `supabase_realtime` publication and subscribing to a non-published table **poisons the
+    channel** (learned the hard way); hours-change freshness comes from `router.refresh()` /
+    server re-render, not a push.
+  - **Warn-but-allow at the hours change** (`59b1293`+`da08b0a`): `saveOpeningHours` /
+    `upsertDayOverride` / `removeDayOverride` gain `allowOutsideHours`; a change that **newly**
+    orphans upcoming orders (outside proposed AND inside current config — the delta, so unrelated
+    saves aren't nagged) returns a soft `outsideHoursWarning` and **doesn't save** until the
+    `OutsideHoursConfirmDialog` is confirmed. Mirrors the box-overlap `allowOverlap` pattern;
+    `ActionResult` gained `outsideHoursWarning?`.
+  - **Calendar shows out-of-hours orders at true time + hatched closed zones**
+    (`3b9b8d6`→`627d246`→`3b6748e`→`7652476`, the calendar follow-ups): `CalendarView` **extends
+    the day/week grid range** to cover out-of-hours bookings (`floorTo15`/`ceilTo15`), so they
+    render at their real time; the closed parts use a shared **`ClosedZone`**
+    (`components/calendar/closed-zone.tsx`) — diagonal grey **hatch** + boundary line + a "Mimo
+    otváracích hodín" label (day view; week columns omit the label, hatch carries it; a fully-
+    closed day keeps "zatvorené"). The out-of-hours card keeps the amber ring.
+  - **Verified:** typecheck/lint clean, **237 unit**, **29 e2e** on a clean DB; final
+    code-reviewer pass (0 blockers; 2 should-fix applied — the closed-day day-view marker + a
+    parallelized `AppShell` count). ⚠️ **Known flake:** the `/mimo-hodin` realtime live-drop e2e
+    is timing-sensitive under full-suite load (channel-establish latency) — passes in isolation
+    on a clean reset; the assertion already uses a 20s timeout. Same class as the documented
+    trigram-search / shared-DB flakes — not a regression.
 - **Order-detail edits → wizard, per-car Upraviť, car switch, redirect fix, checkbox + nav +
   scrollbar UI** (4 commits, 2026-06-18; `7453628`→`af23e06`→`2a0cfbc`→`2c40977`). All
   verified (typecheck/lint/229 unit + targeted e2e on a clean reset). Specs updated in place

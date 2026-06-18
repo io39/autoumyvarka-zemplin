@@ -184,6 +184,17 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
   equal lanes, one per order (2 → halves, 3 → thirds …); non-overlapping orders are full
   width. Each lane has a **minimum width** (car name legible); a box needing more lanes than
   fit **widens its column and the grid scrolls horizontally** rather than squeezing cards.
+- **Out-of-hours bookings & closed zones.** Orders are created inside hours, but a manager can
+  later narrow/close hours (spec 04 §2.3 / spec 10 §2.7), leaving an existing order outside them.
+  Both grids **extend their time range** to the union of the open interval and all that
+  day/week's booking extents (`CalendarView`, via `floorTo15`/`ceilTo15`), so such an order
+  renders at its **true** time instead of clamping to the edge. The parts of the (extended) grid
+  outside the day's open interval are drawn as a shared **`ClosedZone`**
+  (`components/calendar/closed-zone.tsx`): a diagonal grey **hatch** + a boundary line at the
+  open/close edge, with a "Mimo otváracích hodín" label in the wide day-view columns (omitted in
+  the narrow week columns; a fully-closed day also shows "zatvorené"). The out-of-hours card
+  keeps its amber ring (spec 10 §2.7). A booking at/after the grid's last slot is still clamped
+  to a 1-slot sliver as a `NaN`-height guard, but with the extended range that path is unreached.
 - **Horizontal scroll affordance.** Both grids are wrapped in the shadcn **`ScrollArea`**
   (`components/ui/scroll-area.tsx`, unified `radix-ui` import) with a horizontal `ScrollBar`,
   `type="auto"` (the bar shows only when the content actually overflows). The bottom scrollbar
