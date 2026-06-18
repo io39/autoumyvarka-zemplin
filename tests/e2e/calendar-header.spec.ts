@@ -60,15 +60,17 @@ test.describe("calendar header & controls (manager, desktop)", () => {
     await expect(page.locator("[data-today-pill]")).toBeVisible();
   });
 
-  test("an order outside opening hours renders without a NaN height error", async ({ page }) => {
-    // Regression: a booking starting at/after the grid's last slot pushed the
-    // day-view card's end slot to rowTop[n+1] (undefined → NaN height). 18:00 is
-    // after the 17:00 close; seedOrder inserts directly, bypassing the hours check.
+  test("orders outside opening hours render without a NaN height error", async ({ page }) => {
+    // Regression: a booking at/after the grid's last slot pushed the day-view
+    // card's end slot to rowTop[n+1] (undefined → NaN height). Both edges are
+    // covered — 18:00 is after the 17:00 close, 06:00 is before the 08:00 open;
+    // seedOrder inserts directly, bypassing the hours check.
     const errors: string[] = [];
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
     page.on("pageerror", (e) => errors.push(String(e)));
 
     await seedOrder({ date: "2031-03-14", time: "18:00" });
+    await seedOrder({ date: "2031-03-14", time: "06:00" });
     await page.goto("/?view=day&date=2031-03-14");
     await expect(page.locator("[data-box]").first()).toBeVisible();
 
