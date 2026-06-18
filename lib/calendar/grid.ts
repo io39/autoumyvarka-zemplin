@@ -114,7 +114,11 @@ export function floorTo15(hhmm: string): string {
   return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 }
 
-/** Round an "HH:MM" up to the 15-min grid (e.g. 06:55 → 07:00). */
+/**
+ * Round an "HH:MM" up to the 15-min grid (e.g. 06:55 → 07:00). Callers pass
+ * booking end times, which are ≤ 23:45 in practice (orders are created inside
+ * hours on a 15-min boundary), so this never has to produce "24:00".
+ */
 export function ceilTo15(hhmm: string): string {
   const m = Math.ceil(toMinutes(hhmm) / SLOT_MIN) * SLOT_MIN;
   return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;

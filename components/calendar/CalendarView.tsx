@@ -198,7 +198,6 @@ export function CalendarView({
     <OpenOrderSheetContext.Provider value={setSheetOrderId}>
       <div className="space-y-4">
       <CalendarHeader
-        date={date}
         role={role}
         staffName={staffName}
         unpaidCount={unpaidCount}

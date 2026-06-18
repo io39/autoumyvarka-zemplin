@@ -206,9 +206,21 @@ export function DayView({
               {/* Closed zones (before open / after close) — striped grey hatch +
                   a boundary line + a label, so it clearly reads as "outside
                   opening hours". Rendered behind the cards. */}
-              {closedTopPx > 0 && <ClosedZone top={0} height={closedTopPx} side="before" label />}
+              {closedTopPx > 0 && (
+                <ClosedZone
+                  top={0}
+                  height={closedTopPx}
+                  side="before"
+                  label={openInterval ? "Mimo otváracích hodín" : "Zatvorené"}
+                />
+              )}
               {closedBottomPx < totalPx && (
-                <ClosedZone top={closedBottomPx} height={totalPx - closedBottomPx} side="after" label />
+                <ClosedZone
+                  top={closedBottomPx}
+                  height={totalPx - closedBottomPx}
+                  side="after"
+                  label="Mimo otváracích hodín"
+                />
               )}
               {placed.map((p) => {
                 // top/height from the cumulative (variable) row offsets so the

@@ -8,8 +8,9 @@ export const CLOSED_HATCH =
 /**
  * A greyed, hatched closed-hours band inside a calendar box column (absolutely
  * positioned). `side` draws the boundary line at the open edge ("before" → line
- * at the bottom, "after" → line at the top). The Slovak `label` only fits the
- * wide day-view columns; the week view omits it (the hatch carries the meaning).
+ * at the bottom, "after" → line at the top). The Slovak `label` (e.g. "Mimo
+ * otváracích hodín", or "Zatvorené" for a fully-closed day) only fits the wide
+ * day-view columns; the week view omits it (the hatch carries the meaning).
  */
 export function ClosedZone({
   top,
@@ -20,7 +21,7 @@ export function ClosedZone({
   top: number;
   height: number;
   side: "before" | "after";
-  label?: boolean;
+  label?: string;
 }) {
   return (
     <div
@@ -33,7 +34,7 @@ export function ClosedZone({
     >
       {label && (
         <span className="px-1 text-center text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-          Mimo otváracích hodín
+          {label}
         </span>
       )}
     </div>
