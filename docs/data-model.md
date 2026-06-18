@@ -43,12 +43,15 @@ create type sms_status        as enum ('pending', 'sent', 'delivered', 'failed')
 
 Maps an edge-authenticated identity to a role (PRD §3). The app reads
 `Cf-Access-Authenticated-User-Email`, looks it up here, and gets the role.
+Since migration `0009` (spec 11) `staff` is **login identity only** — the
+order-assignable pool lives in the separate `workers` table (§2.15); a login is
+**not** automatically an assignable worker.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid pk | |
 | `email` | text **unique not null** | matches the Cloudflare Access identity |
-| `display_name` | text not null | shown on orders / assignment |
+| `display_name` | text not null | shown in the audit log / account list |
 | `role` | `staff_role` not null | `manazer` \| `prevadzka` |
 | `active` | boolean not null default true | soft-disable; inactive ≠ deleted (history integrity) |
 | `created_at` | timestamptz not null default now() | |
@@ -329,19 +332,39 @@ hours.
 
 Workers assigned to an order. An order may have several workers; a worker is on many
 orders (PRD §3: either role may assign self or others). Replaces the former single
-`orders.assigned_staff_id`.
+`orders.assigned_staff_id`. Since migration `0009` (spec 11) the assigned worker is a
+`workers` row (§2.15), **not** a `staff` login — `staff_id` was renamed to `worker_id`
+and repointed; only `assigned_by` (who performed the assignment) still references `staff`.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `order_id` | uuid fk → orders not null | |
-| `staff_id` | uuid fk → staff not null | the assigned worker |
-| `assigned_by` | uuid fk → staff not null | who made the assignment (audit) |
+| `worker_id` | uuid fk → workers not null | the assigned worker (renamed from `staff_id` in `0009`) |
+| `assigned_by` | uuid fk → staff not null | which **login** made the assignment (audit) |
 | `assigned_at` | timestamptz not null default now() | |
-| **pk** | (`order_id`, `staff_id`) | a worker is assigned at most once per order |
+| **pk** | (`order_id`, `worker_id`) | a worker is assigned at most once per order |
 
-**Indexes:** `(order_id)`, `(staff_id)` (the latter for "orders for worker X" and
-history-by-worker views). Assignments are added/removed directly (no soft-delete); each
-add/remove writes `audit_log` (`order.assign` / `order.unassign`).
+**Indexes:** `(order_id)`, `(worker_id)` (`order_staff_worker_idx` — for "orders for
+worker X" and history-by-worker views). Assignments are added/removed directly (no
+soft-delete); each add/remove writes `audit_log` (`order.assign` / `order.unassign`).
+
+### 2.15 `workers`
+
+The order-assignable pool (PRD §3), introduced by migration `0009` (spec 11) to split
+the formerly overloaded `staff` table. A worker is a **name only** — no email, no role,
+no login. Managed manager-only (`worker.create` / `update` / `activate` / `deactivate`
+audits). A `prevadzka` login is **not** auto-added as a worker; to credit a person on an
+order they are added here as a separate entry (spec 11 §1.3).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid pk | |
+| `display_name` | text not null | shown on orders / assignment |
+| `active` | boolean not null default true | soft-disable; inactive worker stays on past orders (history integrity) |
+| `created_at` | timestamptz not null default now() | |
+
+**Index:** partial `workers_active_idx (active) where active`. RLS deny-by-default
+(0 policies). Referenced by `order_staff.worker_id` (§2.14).
 
 ---
 
@@ -394,6 +417,7 @@ skeleton's Realtime slice.
 | Table | Strategy | Why |
 | --- | --- | --- |
 | `staff` | `active` flag | preserve FK refs in history/audit (PRD §10) |
+| `workers` | `active` flag | preserve order-assignment history; inactive ≠ deleted (PRD §10, spec 11) |
 | `services` | `active` flag | catalog integrity (PRD §9.1) |
 | `orders` | `deleted_at` (only before `zaplatena`) | cancel ≠ erase; stays in client history (PRD §6, §10) |
 | `order_services` | `removed_at` (only if not performed) | history integrity (PRD §9.3) |
