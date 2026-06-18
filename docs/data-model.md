@@ -410,6 +410,20 @@ This requires `SUPABASE_JWT_SECRET` in the env map (architecture §3.2) and a
 token-minting helper in `lib/`. The first spec wires it as part of the walking
 skeleton's Realtime slice.
 
+**Browser client is a shared singleton.** All Realtime consumers (calendar +
+unpaid/out-of-hours badges & lists) share **one** browser Supabase client
+(`lib/realtime/browser.ts`), subscribed via the `useRealtimeChannel` hook
+(`lib/realtime/use-realtime.ts`) — one client = one websocket = one `GoTrueClient`.
+A per-consumer client (the earlier shape) created a fresh `GoTrueClient` per consumer
+and per calendar re-subscribe under the same auth storage key, which logged "Multiple
+GoTrueClient instances detected" and accumulated unbounded on a long-lived shared
+tablet (PRD §3). The singleton is safe because authorization is per-JWT-claim and the
+edge identity is constant for the life of the browser context (an identity change is a
+Cloudflare Access re-auth = full reload). Since the client is shared, channel topics
+must be globally unique, so the hook assigns each subscription a unique name (per
+component instance + per re-subscribe); the token is refreshed in place (ref-counted)
+so a re-mint never tears channels down.
+
 ---
 
 ## 4. Soft-delete vs hard-delete summary

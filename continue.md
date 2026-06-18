@@ -19,7 +19,11 @@ feature — derived warning when a manager narrows/closes hours over an existing
 inside hatched closed zones (specs 04/10/14); (2) the earlier UI round — order-detail edits
 route into the wizard (+ `changeOrderCar`), per-car **Upraviť**, shadcn **Checkbox** everywhere,
 a **collapsible desktop sidebar**, and a **desktop horizontal scrollbar** on the calendar. Both
-are in the first two "Recent app fixes" entries. **Last updated:** 2026-06-18.
+are in the first two "Recent app fixes" entries. **Three more commits this session are committed
+to `main` locally but NOT yet pushed** (push from your own terminal): the **Realtime
+shared-singleton client** fix (`3d6229f` — kills the "Multiple GoTrueClient instances" warning),
+the **e2e shared-DB flake fixes** (`8d13389`), and a **`data-model.md` workers/order_staff doc
+fix** (`e75371d`) — see the top "Recent app fixes" entry. **Last updated:** 2026-06-18.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -78,6 +82,33 @@ plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- **Realtime browser client → shared singleton** (2026-06-18, commit `3d6229f`; committed to
+  `main` locally, **NOT yet pushed** — push from your own terminal). Fixes the browser console
+  warning *"Multiple GoTrueClient instances detected in the same browser context"*. Each Realtime
+  consumer (calendar + unpaid/out-of-hours badges & lists) was doing its own `createClient`, and
+  the calendar re-created one on every view/date re-subscribe → a new `GoTrueClient` per consumer/
+  re-subscribe under the same auth storage key → the warning + unbounded instance/websocket
+  accumulation on a long-lived shared tablet (PRD §3). Now **one shared client**
+  (`lib/realtime/browser.ts` `getBrowserRealtimeClient` singleton + **ref-counted** token refresh
+  `acquireRealtimeTokenRefresh`); `useRealtimeChannel` removes only its **own** channel on cleanup
+  (not `removeAllChannels`) and hands each `subscribe(client, channelName)` a **globally-unique**
+  name (`useId` per instance + a `seq` per re-subscribe — the seq matters because `removeChannel`
+  is async). **Why unique names:** the shared client caches channels by topic, so the duplicated
+  unpaid badge (mobile header + desktop sidebar) reusing `"unpaid-badge"` made the 2nd `.on()` throw
+  *"cannot add postgres_changes callbacks after subscribe()"* and **crashed the home page** — that
+  was the real bug, not the warning. **No security change** (authz is per-JWT-claim; identity is
+  constant for the context's life — a CF Access identity change is a full reload). All 5 consumers
+  + the hook updated; docs in **data-model §3.1** + the `edge-auth-authz` skill. New regression
+  test `tests/e2e/realtime-singleton.spec.ts`. Verified on a clean reset + **fresh** prod server
+  (`CI=1`, no server reuse): typecheck/lint clean, **240 unit**, **137 e2e (0 failed/flaky)**.
+  ⚠️ **Verifying e2e locally:** keep `pnpm dev` off port 3000 (Playwright `reuseExistingServer`
+  silently reuses it → broken hydration → false failures); run `CI=1 pnpm test:e2e …` to force a
+  fresh build that fails loudly if 3000 is taken, and don't pipe to `tail` (hides the build log —
+  `grep -c "next build"` ≥1 proves a valid run). Same session also: **e2e shared-DB flakes fixed**
+  (commit `8d13389` — deterministic `createClientViaUI` via DB-id lookup, full-ŠPZ/letter-tag
+  searches, out-of-hours confirm in `settings-permissions`, 20s realtime timeout, local retries
+  0→1) and **`data-model.md` workers/order_staff doc fix** (commit `e75371d`, the post-0009 §2.14
+  + new §2.15). Both committed locally, **not yet pushed**.
 - **Orders outside opening hours — warning + worklist + calendar rendering** (2026-06-18, a
   spec-driven feature built on a short-lived `feat/orders-outside-opening-hours` branch, merged
   to `main` via `abeb804`, plus calendar follow-ups; **pushed to `origin/main`**). Built via the

@@ -45,6 +45,17 @@ So the browser must **not** rely on anon read policies for client data.
   (`lib/realtime/token.ts`, signed with `SUPABASE_JWT_SECRET`, carrying
   `role: 'authenticated'` + identity). RLS read policies require that claim; the bare
   anon key grants nothing.
+- **Always subscribe via the `useRealtimeChannel` hook** (`lib/realtime/use-realtime.ts`),
+  never `createClient` directly. The browser Supabase client is a **shared singleton**
+  (`lib/realtime/browser.ts`): many consumers mount per page (calendar + unpaid/
+  out-of-hours badges & lists) and one client = one websocket = one `GoTrueClient`
+  (avoids the "Multiple GoTrueClient instances" warning + unbounded accumulation on a
+  long-lived tablet). Because the client is shared, **channel topics must be globally
+  unique** — the hook hands your `subscribe(client, channelName)` callback a unique
+  name; pass it to `client.channel(channelName)` and **do not hardcode a topic**
+  (a reused name makes the 2nd `.on()` throw "cannot add postgres_changes callbacks
+  after subscribe()" and crashes the page). The hook also keeps the token fresh in
+  place (ref-counted refresh) so a re-mint never tears the channel down.
 
 ## Typical Server Action shape
 
