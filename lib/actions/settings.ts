@@ -24,13 +24,18 @@ const OUTSIDE_HOURS_MESSAGE = "Táto zmena ponechá objednávky mimo otváracíc
 
 /**
  * Upcoming vytvorená orders (today onward, optionally just one date) that would
- * fall OUTSIDE the PROPOSED hours config. Returns an OutsideHoursWarning (count +
- * up to 5 samples) or null when none. Reuses isOutsideHours.
+ * be NEWLY pushed outside opening hours by the PROPOSED config change. Only
+ * orders that are currently inside hours but would fall outside the proposed
+ * config are counted — orders already outside hours before the change are
+ * ignored. Returns an OutsideHoursWarning (count + up to 5 samples) or null
+ * when none. Reuses isOutsideHours.
  */
 async function checkOutsideHours(
   db: ReturnType<typeof getServiceClient>,
   proposedHours: OpeningHoursRow[],
   proposedOverrides: DayOverrideRow[],
+  currentHours: OpeningHoursRow[],
+  currentOverrides: DayOverrideRow[],
   dayFilter?: string,
 ): Promise<OutsideHoursWarning | null> {
   const today = bratislavaDateKey(new Date());
@@ -56,8 +61,11 @@ async function checkOutsideHours(
     deleted_at: string | null;
     car: { spz: string | null; brand: string | null; model: string | null } | null;
   };
-  const affected = ((data ?? []) as unknown as Row[]).filter((o) =>
-    isOutsideHours(o, proposedHours, proposedOverrides, today),
+  // Only flag orders newly orphaned by this change: outside proposed AND currently inside.
+  const affected = ((data ?? []) as unknown as Row[]).filter(
+    (o) =>
+      isOutsideHours(o, proposedHours, proposedOverrides, today) &&
+      !isOutsideHours(o, currentHours, currentOverrides, today),
   );
   if (affected.length === 0) return null;
   return {
@@ -120,7 +128,13 @@ export async function saveOpeningHours(input: unknown): Promise<ActionResult> {
 
     if (!data.allowOutsideHours) {
       const { data: overrides } = await db.from("day_overrides").select("*");
-      const warning = await checkOutsideHours(db, payload as OpeningHoursRow[], (overrides ?? []) as DayOverrideRow[]);
+      const warning = await checkOutsideHours(
+        db,
+        payload as OpeningHoursRow[],
+        (overrides ?? []) as DayOverrideRow[],
+        (before ?? []) as OpeningHoursRow[],
+        (overrides ?? []) as DayOverrideRow[],
+      );
       if (warning) return { ok: false, message: OUTSIDE_HOURS_MESSAGE, outsideHoursWarning: warning };
     }
 
@@ -172,11 +186,19 @@ export async function upsertDayOverride(input: unknown): Promise<ActionResult> {
         db.from("opening_hours").select("*"),
         db.from("day_overrides").select("*"),
       ]);
+      const currentOverrides = (existing ?? []) as DayOverrideRow[];
       const proposedOverrides = [
-        ...((existing ?? []) as DayOverrideRow[]).filter((o) => o.day !== data.day),
+        ...currentOverrides.filter((o) => o.day !== data.day),
         payload as DayOverrideRow,
       ];
-      const warning = await checkOutsideHours(db, (hours ?? []) as OpeningHoursRow[], proposedOverrides, data.day);
+      const warning = await checkOutsideHours(
+        db,
+        (hours ?? []) as OpeningHoursRow[],
+        proposedOverrides,
+        (hours ?? []) as OpeningHoursRow[],
+        currentOverrides,
+        data.day,
+      );
       if (warning) return { ok: false, message: OUTSIDE_HOURS_MESSAGE, outsideHoursWarning: warning };
     }
 
@@ -211,8 +233,16 @@ export async function removeDayOverride(input: unknown): Promise<ActionResult> {
         db.from("opening_hours").select("*"),
         db.from("day_overrides").select("*"),
       ]);
-      const proposedOverrides = ((existing ?? []) as DayOverrideRow[]).filter((o) => o.day !== data.day);
-      const warning = await checkOutsideHours(db, (hours ?? []) as OpeningHoursRow[], proposedOverrides, data.day);
+      const currentOverrides = (existing ?? []) as DayOverrideRow[];
+      const proposedOverrides = currentOverrides.filter((o) => o.day !== data.day);
+      const warning = await checkOutsideHours(
+        db,
+        (hours ?? []) as OpeningHoursRow[],
+        proposedOverrides,
+        (hours ?? []) as OpeningHoursRow[],
+        currentOverrides,
+        data.day,
+      );
       if (warning) return { ok: false, message: OUTSIDE_HOURS_MESSAGE, outsideHoursWarning: warning };
     }
 

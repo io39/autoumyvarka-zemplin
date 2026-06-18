@@ -1,6 +1,18 @@
 import { test, expect } from "@playwright/test";
 import { accessHeaders, expandSidebar, MANAGER_EMAIL, WORKER_EMAIL, seedOrder, serviceClient } from "./support";
 
+/** Date (YYYY-MM-DD, Bratislava) of the next occurrence of `dow` (0=Mon…6=Sun), ≥ 8 days out. */
+function nextWeekdayDate(dow: number): string {
+  for (let d = 8; d <= 21; d++) {
+    const t = new Date(Date.now() + d * 86_400_000);
+    const key = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(t);
+    const [y, m, dd] = key.split("-").map(Number);
+    const js = new Date(Date.UTC(y, m - 1, dd)).getUTCDay(); // 0=Sun…6=Sat
+    if ((js + 6) % 7 === dow) return key;
+  }
+  throw new Error("no matching weekday found");
+}
+
 test.describe("outside-hours worklist (manager)", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
 
@@ -39,6 +51,34 @@ test.describe("outside-hours worklist (manager)", () => {
     expect(error).toBeNull();
 
     await expect(row).toHaveCount(0);
+  });
+
+  test("narrowing a day's hours warns about an existing order, then allows on confirm", async ({ page }) => {
+    const date = nextWeekdayDate(2); // next Wednesday (open 08:00–17:00)
+    const o = await seedOrder({ date, time: "09:00" });
+
+    await page.goto("/settings/hours");
+    const wed = page.locator('[data-day="2"]'); // opening_hours: 0=Mon → Wed=2
+    const closed = wed.getByRole("checkbox");
+    if (!(await closed.isChecked())) await closed.check();
+    await page.getByRole("button", { name: "Uložiť", exact: true }).first().click();
+
+    await expect(page.getByRole("heading", { name: "Objednávky mimo otváracích hodín" })).toBeVisible();
+    await page.locator("[data-outside-hours-confirm]").click();
+    await expect(page.getByText("Otváracie hodiny uložené.")).toBeVisible();
+
+    await page.goto("/mimo-hodin");
+    await expect(page.locator(`[data-section="outside-hours"] [data-order-id="${o.orderId}"]`)).toBeVisible();
+
+    // Restore Wednesday open so other suites aren't affected.
+    await page.goto("/settings/hours");
+    const wed2 = page.locator('[data-day="2"]');
+    const c2 = wed2.getByRole("checkbox");
+    if (await c2.isChecked()) await c2.uncheck();
+    await wed2.locator('input[type="time"]').first().fill("08:00");
+    await wed2.locator('input[type="time"]').last().fill("17:00");
+    await page.getByRole("button", { name: "Uložiť", exact: true }).first().click();
+    await expect(page.getByText("Otváracie hodiny uložené.")).toBeVisible();
   });
 });
 
