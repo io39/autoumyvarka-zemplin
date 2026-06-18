@@ -104,7 +104,7 @@ export function OutsideHoursList({
           orders.map((o) => {
             const at = new Date(o.startsAt);
             return (
-              <li key={o.id} className="rounded-lg border p-3 text-sm">
+              <li key={o.id} data-order-id={o.id} className="rounded-lg border p-3 text-sm">
                 <Link href={`/orders/${o.id}`} className="block space-y-1">
                   <div className="font-medium">
                     {o.spz || formatCarLabel(o.brand, o.model) || NO_SPZ_LABEL}

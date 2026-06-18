@@ -61,6 +61,16 @@ test.describe("outside-hours worklist (manager)", () => {
     await expect(card).toHaveAttribute("data-outside-hours", "");
   });
 
+  test("a card on a fully-closed day is marked in day view too", async ({ page }) => {
+    // 2031-03-16 is a Sunday (seed: Sun closed). A 09:00 order would look fine
+    // against the default grid — the marker must still flag it (closed day).
+    const o = await seedOrder({ date: "2031-03-16", time: "09:00" });
+    await page.goto("/?view=day&date=2031-03-16");
+    const card = page.locator(`[data-order-id="${o.orderId}"]`);
+    await expect(card).toBeVisible();
+    await expect(card).toHaveAttribute("data-outside-hours", "");
+  });
+
   test("narrowing a day's hours warns about an existing order, then allows on confirm", async ({ page }) => {
     const date = nextWeekdayDate(2); // next Wednesday (open 08:00–17:00)
     const o = await seedOrder({ date, time: "09:00" });

@@ -38,9 +38,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   let outsideHoursCount = 0;
   let realtimeJwt = "";
   if (isManager) {
-    realtimeJwt = await mintRealtimeToken(await getIdentity());
-    unpaidCount = await getUnpaidCount();
-    outsideHoursCount = await getOutsideHoursCount();
+    // Independent reads — run them concurrently (the token mint + both badge counts).
+    [realtimeJwt, unpaidCount, outsideHoursCount] = await Promise.all([
+      mintRealtimeToken(await getIdentity()),
+      getUnpaidCount(),
+      getOutsideHoursCount(),
+    ]);
   }
 
   return (
