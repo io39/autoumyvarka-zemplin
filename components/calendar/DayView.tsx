@@ -21,6 +21,11 @@ const MIN_LANE_PX = 104;
 // taller minimum than the default (car name + services only).
 const MIN_CARD_PX_NOTE = 60;
 
+// Diagonal hatch marking a closed (outside-opening-hours) zone — the universal
+// "unavailable" pattern, so it reads unmistakably even at a glance.
+const CLOSED_HATCH =
+  "repeating-linear-gradient(45deg, rgba(113,113,122,0.22) 0, rgba(113,113,122,0.22) 5px, transparent 5px, transparent 11px)";
+
 /**
  * Day view (overlapping-reservations redesign): a CSS grid of the time axis +
  * one column per box. Rows are 15-min slots; a short booking **grows its row(s)**
@@ -202,18 +207,34 @@ export function DayView({
               className="relative z-10"
               style={{ gridColumn: bi + 2, gridRow: `2 / ${n + 2}` }}
             >
-              {/* Greyed closed zones (before open / after close), behind the cards. */}
+              {/* Closed zones (before open / after close) — striped grey + a
+                  label so it's clearly "outside opening hours". Behind the cards;
+                  the label only in the first box to avoid duplication. */}
               {closedTopPx > 0 && (
                 <div
-                  className="pointer-events-none absolute inset-x-0 bg-zinc-200/60"
-                  style={{ top: 0, height: closedTopPx }}
-                />
+                  data-closed-zone="before"
+                  className="pointer-events-none absolute inset-x-0 flex items-start justify-center overflow-hidden border-b border-zinc-300 bg-zinc-200/70"
+                  style={{ top: 0, height: closedTopPx, backgroundImage: CLOSED_HATCH }}
+                >
+                  {bi === 0 && (
+                    <span className="mt-1 px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                      Mimo otváracích hodín
+                    </span>
+                  )}
+                </div>
               )}
               {closedBottomPx < totalPx && (
                 <div
-                  className="pointer-events-none absolute inset-x-0 bg-zinc-200/60"
-                  style={{ top: closedBottomPx, height: totalPx - closedBottomPx }}
-                />
+                  data-closed-zone="after"
+                  className="pointer-events-none absolute inset-x-0 flex items-start justify-center overflow-hidden border-t border-zinc-300 bg-zinc-200/70"
+                  style={{ top: closedBottomPx, height: totalPx - closedBottomPx, backgroundImage: CLOSED_HATCH }}
+                >
+                  {bi === 0 && (
+                    <span className="mt-1 px-1 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                      Mimo otváracích hodín
+                    </span>
+                  )}
+                </div>
               )}
               {placed.map((p) => {
                 // top/height from the cumulative (variable) row offsets so the
