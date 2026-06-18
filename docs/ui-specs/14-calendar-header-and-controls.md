@@ -188,10 +188,16 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
   (`components/ui/scroll-area.tsx`, unified `radix-ui` import) with a horizontal `ScrollBar`,
   `type="auto"` (the bar shows only when the content actually overflows). The bottom scrollbar
   is **desktop-only** (`hidden md:flex`); on mobile the viewport touch-scrolls natively with no
-  bar. So the grid doesn't fall below the fold of the tall page, the ScrollArea is **capped to
-  the viewport on desktop** (`md:max-h-[calc(100dvh-10rem)]`) → it scrolls **internally** there
-  (vertical + horizontal, bar pinned to the bottom of the on-screen calendar); mobile stays
-  uncapped (natural page flow).
+  bar. So the bar doesn't fall below the fold of the tall page, the **`useFillHeight`** hook
+  (`lib/hooks/use-fill-height.ts`) gives the ScrollArea a **definite height** on desktop — but
+  **only when the grid content is taller than the viewport** — by measuring the wrapper's top
+  (`window.innerHeight − rect.top − margin`, floored at 240px). Then the grid scrolls
+  **internally** (vertical + horizontal, bar pinned to the bottom of the on-screen calendar);
+  when the content fits it returns `undefined` (natural height, bar right under the bookings,
+  no empty filler). A **definite height, not `max-height`**, is required so the Radix `h-full`
+  viewport clips its content. It recomputes on mount, window `resize`, the md breakpoint
+  change, and a `ResizeObserver` on the grid content (the views re-render rather than remount on
+  date nav). Mobile always returns `undefined` (natural page flow).
 - **`DayView`** is a CSS grid (columns = axis + box(es), `gridTemplateRows: auto
   repeat(N, ROW_PX)` — fixed) with a **per-box relative layer** holding the absolutely
   positioned, lane-placed cards (`top`/`height` from the cumulative row offsets, `left`/`width`

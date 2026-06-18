@@ -42,6 +42,7 @@ export function SidebarShell({
           type="button"
           onClick={() => setExpanded(true)}
           aria-label="Zobraziť menu"
+          aria-controls="desktop-sidebar"
           aria-expanded={false}
           title="Zobraziť menu"
           className="fixed left-3 top-3 z-40 hidden size-10 items-center justify-center rounded-lg border bg-background text-foreground shadow-md transition-colors hover:bg-accent hover:text-accent-foreground md:inline-flex"

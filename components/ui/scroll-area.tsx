@@ -5,6 +5,12 @@ import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Always renders a default **vertical** `ScrollBar`; pass an extra
+ * `<ScrollBar orientation="horizontal" />` as a child for horizontal scroll.
+ * With `type="auto"` a bar only appears when that axis actually overflows. To
+ * suppress the vertical bar entirely, pass `<ScrollBar className="hidden" />`.
+ */
 function ScrollArea({
   className,
   children,

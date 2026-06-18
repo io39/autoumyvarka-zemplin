@@ -49,6 +49,7 @@ export function Sidebar({
 
   return (
     <aside
+      id="desktop-sidebar"
       className={cn(
         "fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-background",
         expanded && "md:flex",
@@ -60,6 +61,7 @@ export function Sidebar({
           type="button"
           onClick={onCollapse}
           aria-label="Skryť menu"
+          aria-controls="desktop-sidebar"
           aria-expanded
           className="-mr-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
         >

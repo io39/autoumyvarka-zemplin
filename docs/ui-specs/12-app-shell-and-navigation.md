@@ -148,9 +148,12 @@ icon):
 
 - **`components/navigation/SidebarShell.tsx`** (`"use client"`) — desktop shell wrapper that
   owns the **collapsible** sidebar state and the single `<main>`. The sidebar is **collapsed
-  by default**; a **floating toggle** (`PanelLeftOpen`, `aria-label="Zobraziť menu"`) fixed in
-  the **top-left corner** (md-only, sits in the 40px content gutter so it never overlaps page
-  content) expands it. While collapsed the content reclaims the full width (`md:pl-0`);
+  by default**; a **floating toggle** (`PanelLeftOpen`, `aria-label="Zobraziť menu"`,
+  `aria-controls="desktop-sidebar"`) fixed in the **top-left corner** (`fixed left-3 top-3
+  size-10`, md-only) expands it. It sits near the page's 40px side gutter (`md:mx-10`) and is
+  visually clear of the calendar header controls (which begin below it); a few px may overlap
+  the content edge but the `shadow-md` + `z-40` keep it legible. While collapsed the content
+  reclaims the full width (`md:pl-0`);
   expanded restores the `md:pl-60` offset. State persists across soft navigations (the shell
   lives in the root layout) and resets to collapsed on a full reload. **Mobile is unaffected**
   — the sidebar is always hidden below `md` and the toggle is md-only (navigation there is the

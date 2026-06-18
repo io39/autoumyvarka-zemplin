@@ -90,7 +90,7 @@ export function WeekView({
           />
         ))}
       </div>
-        <ScrollBar orientation="horizontal" className="hidden md:flex" />
+      <ScrollBar orientation="horizontal" className="hidden md:flex" />
       </ScrollArea>
     </div>
   );
