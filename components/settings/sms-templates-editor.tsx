@@ -4,7 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { saveSmsTemplate } from "@/lib/actions/sms";
-import { SMS_TYPE_LABEL, smsSegmentCount, smsOverLimit } from "@/lib/sms/render";
+import {
+  SMS_TYPE_LABEL,
+  SMS_SINGLE_SEGMENT,
+  smsSegmentCount,
+  smsOverLimit,
+  smsCharCount,
+  stripDiacritics,
+} from "@/lib/sms/render";
 import type { SmsTemplateRow, SmsType } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -40,8 +47,10 @@ export function SmsTemplatesEditor({ initial }: Props) {
     <div className="space-y-4">
       {types.map((type) => {
         const body = bodies[type];
+        const charCount = smsCharCount(body);
         const segments = smsSegmentCount(body);
         const over = smsOverLimit(body);
+        const hasDiacritics = stripDiacritics(body) !== body;
         return (
           <section
             key={type}
@@ -56,8 +65,8 @@ export function SmsTemplatesEditor({ initial }: Props) {
                 data-counter
                 className={`text-xs ${over ? "text-red-600" : "text-muted-foreground"}`}
               >
-                {body.length} znakov · {segments} SMS
-                {over && " · nad 70 znakov"}
+                {charCount}/{SMS_SINGLE_SEGMENT} znakov · {segments} SMS
+                {over && ` · nad ${SMS_SINGLE_SEGMENT} znakov`}
               </span>
             </div>
             <textarea
@@ -68,6 +77,16 @@ export function SmsTemplatesEditor({ initial }: Props) {
                 setBodies((b) => ({ ...b, [type]: e.target.value }))
               }
             />
+            <p className="text-xs text-muted-foreground" data-sms-hint>
+              SMS sa odosielajú <strong>bez diakritiky</strong> (limit {SMS_SINGLE_SEGMENT} znakov
+              na jednu správu).
+              {hasDiacritics && (
+                <>
+                  {" "}
+                  Odoslané ako: <span data-stripped-preview>„{stripDiacritics(body)}“</span>
+                </>
+              )}
+            </p>
             <div className="flex justify-end">
               <Button
                 size="sm"

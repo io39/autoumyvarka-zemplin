@@ -258,7 +258,7 @@ Outbound SMS log (PRD §8). Failures are visible on the order and retryable.
 | `order_id` | uuid fk → orders not null | |
 | `type` | `sms_type` not null | `reminder` \| `ready` |
 | `phone` | text not null | recipient at send time |
-| `body` | text not null | rendered template (Slovak; ≤70 chars w/ diacritics — PRD §8) |
+| `body` | text not null | rendered template, **bez diakritiky** (GSM-7; targets ≤160 chars/segment — spec 07 §2.2, supersedes the original 70-char-with-diacritics rule) |
 | `status` | `sms_status` not null default `'pending'` | |
 | `provider_message_id` | text null | from the SMS provider |
 | `error` | text null | failure reason (shown on order) |

@@ -31,7 +31,8 @@ introduced here — everything else is Server Actions.
 4. **Failure visibility + retry:** failed sends are logged and shown on the order
    detail; the manager can **retry** or knows to call the client (PRD §8).
 5. **Editable templates** (`sms_templates`): simple Slovak placeholders now, replaced by
-   the client's final wording later (PRD §13#4); 70-char diacritics limit respected.
+   the client's final wording later (PRD §13#4); messages are sent **bez diakritiky**
+   (GSM-7), targeting a single **160-char** segment.
 6. SMS sends/failures are recorded; status changes already audited by spec 06.
 
 ### 1.2 User stories (PRD §8)
@@ -73,12 +74,16 @@ the order detail but don't manage it.
 
 - `sms_templates` (data-model §2.10): one row per `sms_type` (`reminder`, `ready`),
   `body` with placeholders (e.g. `{cas}`, `{spz}`, `{nazov}`).
-- `lib/sms/render.ts` — `render(type, order) → string`, substituting placeholders;
-  **warns/validates** against the **70-char** GSM-with-diacritics limit (PRD §8) — over
-  the limit is flagged in the template editor and counted (1 SMS = 70 chars w/ diacritics
-  vs 160 without). For a **plateless car** (`spz IS NULL`, spec 02) the `{spz}` token
-  expands to the car label (brand/model via `formatCarLabel`), else an empty string so the
-  sentence still reads.
+- `lib/sms/render.ts` — `renderTemplate(body, ctx) → string`, substituting placeholders
+  then **stripping diacritics** (`stripDiacritics`, applied *after* substitution so an
+  accented `{nazov}`/`{spz}` is caught too). Messages are therefore always **GSM-7**, so a
+  single SMS holds **160 chars** (concatenated parts 153), not 70. `smsCharCount` /
+  `smsSegmentCount` count the **stripped** body; the template editor shows the diacritic-free
+  preview and **warns past one 160-char segment** (PRD §8 — superseded from the original
+  70-char-with-diacritics rule). We never truncate; a runtime value (e.g. a long client name)
+  that pushes past 160 simply sends as concatenated parts. For a **plateless car**
+  (`spz IS NULL`, spec 02) the `{spz}` token expands to the car label (brand/model via
+  `formatCarLabel`), else an empty string so the sentence still reads.
 - Seed simple Slovak placeholders (replaced later, PRD §13#4), e.g.
   - reminder: `Dobrý deň, pripomíname termín umytia auta o {cas}. Autoumyváreň Zemplín.`
   - ready: `Vaše auto {spz} je umyté a pripravené na vyzdvihnutie. Autoumyváreň Zemplín.`
@@ -176,8 +181,8 @@ Migration `0008_sms.sql`:
    pg_net reminder job. (dep: 05, 06 migrations)
 2. **(M)** `lib/sms/provider.ts` adapter interface + `fake` impl + one real provider
    impl (pinned minor); env wiring. (dep: 1)
-3. **(M)** `lib/sms/render.ts` (placeholder substitution + 70-char diacritics
-   counter/validation) + unit tests. (dep: 1)
+3. **(M)** `lib/sms/render.ts` (placeholder substitution + `stripDiacritics` →
+   GSM-7 160-char counter/validation) + unit tests. (dep: 1)
 4. **(M)** `lib/sms/dispatch.ts` + wire `ORDER_READY` (spec 06) → ready SMS. (dep: 2, 3)
 5. **(M)** `POST /api/reminders` Route Handler (window query, idempotent via
    `reminded_at`, batch-safe) + secret auth. (dep: 2, 3)
@@ -220,11 +225,13 @@ psql "$LOCAL_DB_URL" -c \
 psql "$LOCAL_DB_URL" -c "select count(*) from cron.job where command ilike '%reminders%';"
 ```
 
-### 4.3 Template render & 70-char limit (unit, must pass)
+### 4.3 Template render & 160-char limit (unit, must pass)
 
-- `render('ready', order)` substitutes `{spz}` etc.; output is a non-empty string.
-- A body with diacritics > 70 chars is flagged over-limit; ≤ 70 is single-SMS; the
-  counter reports the right segment count.
+- `renderTemplate(body, ctx)` substitutes `{spz}` etc. and **strips diacritics**
+  (output contains no accented chars); output is a non-empty string.
+- `smsCharCount`/`smsSegmentCount` count the stripped GSM-7 body: ≤ 160 chars is a
+  single SMS, > 160 is flagged over-limit; 160 accented chars still fit one segment
+  (diacritics no longer halve the limit).
 
 ```bash
 pnpm test sms/render   # exits 0
@@ -283,5 +290,6 @@ pnpm test e2e/sms-permissions   # exits 0
 ### 4.8 Manual checks
 
 - [ ] No real SMS is sent in local/dev (fake adapter active).
-- [ ] Template editor shows a live diacritics-aware char count and warns past 70.
+- [ ] Template editor shows a live GSM-7 (diacritic-free) char count, the bez-diakritiky
+      preview, and warns past 160.
 - [ ] All message text + UI strings are Slovak.

@@ -3,6 +3,9 @@ import {
   renderTemplate,
   smsOverLimit,
   smsSegmentCount,
+  smsCharCount,
+  stripDiacritics,
+  SMS_SINGLE_SEGMENT,
 } from "@/lib/sms/render";
 
 const baseCtx = {
@@ -12,18 +15,15 @@ const baseCtx = {
   clientName: "Ján",
 };
 
-describe("renderTemplate", () => {
-  it("substitutes known tokens with the Bratislava-local time", () => {
-    const out = renderTemplate(
-      "Pripomíname termín o {cas}, auto {spz}.",
-      baseCtx,
-    );
-    expect(out).toBe("Pripomíname termín o 09:30, auto KE123AB.");
+describe("renderTemplate (always bez diakritiky — GSM-7)", () => {
+  it("substitutes known tokens and strips diacritics from the result", () => {
+    const out = renderTemplate("Pripomíname termín o {cas}, auto {spz}.", baseCtx);
+    expect(out).toBe("Pripominame termin o 09:30, auto KE123AB.");
   });
 
-  it("substitutes nazov when present", () => {
+  it("strips diacritics from substituted token values (e.g. the client name)", () => {
     expect(renderTemplate("Dobrý deň {nazov}, {spz}.", baseCtx)).toBe(
-      "Dobrý deň Ján, KE123AB.",
+      "Dobry den Jan, KE123AB.",
     );
   });
 
@@ -36,32 +36,59 @@ describe("renderTemplate", () => {
   it("handles missing client name without producing 'undefined'", () => {
     expect(
       renderTemplate("Dobrý deň{nazov}.", { ...baseCtx, clientName: null }),
-    ).toBe("Dobrý deň.");
+    ).toBe("Dobry den.");
   });
 });
 
-describe("smsSegmentCount / smsOverLimit (70-char diacritics, PRD §8)", () => {
+describe("stripDiacritics", () => {
+  it("maps every Slovak accented letter to ASCII", () => {
+    expect(stripDiacritics("áäčďéíĺľňóôŕšťúýž ÁČŠŽŤ")).toBe("aacdeillnoorstuyz ACSZT");
+  });
+
+  it("leaves plain GSM-7 text untouched", () => {
+    expect(stripDiacritics("Auto KE123AB je hotove.")).toBe("Auto KE123AB je hotove.");
+  });
+});
+
+describe("smsCharCount (GSM-7, diacritic-free)", () => {
+  it("counts the stripped length, so diacritics don't inflate it", () => {
+    // "Pripomíname" (11 visible chars) → "Pripominame" (11 GSM-7 chars).
+    expect(smsCharCount("Pripomíname")).toBe(11);
+  });
+
+  it("counts GSM-7 extension chars (e.g. €) as two", () => {
+    expect(smsCharCount("€")).toBe(2);
+  });
+});
+
+describe("smsSegmentCount / smsOverLimit (160-char GSM-7)", () => {
   it("0 chars → 0 segments", () => {
     expect(smsSegmentCount("")).toBe(0);
   });
 
-  it("exactly 70 chars → 1 segment, not over-limit", () => {
-    const body = "a".repeat(70);
+  it(`exactly ${SMS_SINGLE_SEGMENT} chars → 1 segment, not over-limit`, () => {
+    const body = "a".repeat(SMS_SINGLE_SEGMENT);
     expect(smsSegmentCount(body)).toBe(1);
     expect(smsOverLimit(body)).toBe(false);
   });
 
-  it("71 chars → 2 segments, over-limit", () => {
-    const body = "a".repeat(71);
+  it(`${SMS_SINGLE_SEGMENT + 1} chars → 2 segments, over-limit`, () => {
+    const body = "a".repeat(SMS_SINGLE_SEGMENT + 1);
     expect(smsSegmentCount(body)).toBe(2);
     expect(smsOverLimit(body)).toBe(true);
   });
 
-  it("137 chars (70 + 67) → 2 segments", () => {
-    expect(smsSegmentCount("a".repeat(137))).toBe(2);
+  it("diacritics no longer blow the limit: 160 accented chars still fit one segment", () => {
+    const body = "á".repeat(SMS_SINGLE_SEGMENT);
+    expect(smsSegmentCount(body)).toBe(1);
+    expect(smsOverLimit(body)).toBe(false);
   });
 
-  it("138 chars → 3 segments", () => {
-    expect(smsSegmentCount("a".repeat(138))).toBe(3);
+  it("306 chars (2 × 153) → 2 segments", () => {
+    expect(smsSegmentCount("a".repeat(306))).toBe(2);
+  });
+
+  it("307 chars → 3 segments", () => {
+    expect(smsSegmentCount("a".repeat(307))).toBe(3);
   });
 });
