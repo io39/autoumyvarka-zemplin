@@ -123,11 +123,43 @@ from the list live, decrementing the badge. No new realtime plumbing.
 No new tables; derived entirely from existing data. If the candidate query proves heavy,
 migration `0010_unpaid_index.sql` may add a partial index
 (`orders(starts_at) where status='hotova'`); otherwise no migration. No schema change.
+The `/mimo-hodin` companion (§2.7) is likewise derived — no migration.
 
 ### 2.6 Error handling & loading states
 
 - `getUnpaidOrders`/`getUnpaidCount` for `prevadzka` → `ForbiddenError` (badge hidden in
   worker UI). Loading skeleton on `/unpaid`; banner only renders when overdue > 0.
+
+### 2.7 Companion worklist — orders outside opening hours (`/mimo-hodin`)
+
+A second manager-only "needs attention" surface, built on the same derived/realtime/badge
+pattern as the unpaid alerts (no stored state, no migration). It catches orders that fell
+**outside opening hours** when a manager narrowed/closed hours after they were booked
+(spec 04 §2.3 raises the at-save warning; this is where the orphaned orders are worked
+through).
+
+- **Definition (derived):** `isOutsideHours` (`lib/orders/out-of-hours.ts`) — an upcoming
+  (`starts_at ≥ today`, Bratislava) **`vytvorena`**, non-deleted order whose
+  `[starts_at, ends_at)` doesn't fit the day's **current** open interval (`!isRangeOpen`).
+  Past/done/paid/no-show/cancelled orders are never flagged.
+- **Actions** (`lib/actions/orders.ts`, manager-only): `getOutsideHoursOrders()` returns each
+  affected order with its **true** date·time and the day's **current** hours (so the mismatch
+  is legible), soonest-first; `getOutsideHoursCount()` is the badge count.
+- **Page** `/mimo-hodin` + `components/outside-hours/outside-hours-list.tsx` (desktop table
+  `data-section="outside-hours"` + mobile cards), each row → `/orders/[id]`. **Resolve** by
+  the order's existing **Zmeniť čas** (reschedule into hours) or **Zrušiť** — the row
+  auto-drops (derived). No inline actions.
+- **Badge** `components/outside-hours/outside-hours-badge.tsx` in the desktop `Sidebar` beside
+  `UnpaidBadge` ("Mimo hodín: N", hidden at 0, manager-only); `AppShell` mints the count.
+- **Realtime:** list + badge subscribe to **`orders` only** (reschedule/cancel drops a row
+  live). `opening_hours`/`day_overrides` are **not** in the `supabase_realtime` publication —
+  subscribing to a non-published table poisons the channel — so an *hours* change refreshes
+  the surfaces via the editor's `router.refresh()` / fresh server render on navigation, not a
+  push. (No publication migration.)
+- **Calendar marker:** an out-of-hours card on the calendar keeps its clamped position but
+  gets an amber ring + `title="Mimo otváracích hodín"` + `data-outside-hours` so it isn't
+  silently shown at the wrong time (`BookingCard.outsideHours`, computed in `DayView`/
+  `WeekView`).
 
 ---
 
