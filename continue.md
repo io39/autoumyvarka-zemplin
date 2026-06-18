@@ -12,7 +12,11 @@ pushing is hook-blocked here. A **TEST deployment is now live** (Coolify + Supab
 EU + Cloudflare Access) — see the **Deployment status** section below and the full runbook
 `docs/deployment.md`. **Production hardening (Phase 4) is NOT done** and the VPS origin is
 unhardened (no tunnel) — test/fake data only. Still ahead: the real SMS provider and the
-client's open questions. **Last updated:** 2026-06-17.
+client's open questions. **A further round of UI work (2026-06-18) is committed to `main`:**
+order-detail edits now route into the wizard (+ a `changeOrderCar` action), a per-car
+**Upraviť** in the wizard Auto step, shadcn **Checkbox** everywhere, a **collapsible desktop
+sidebar** (collapsed by default), and a **desktop horizontal scrollbar** on the calendar — see
+the first "Recent app fixes" entry. **Last updated:** 2026-06-18.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -71,6 +75,55 @@ plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- **Order-detail edits → wizard, per-car Upraviť, car switch, redirect fix, checkbox + nav +
+  scrollbar UI** (4 commits, 2026-06-18; `7453628`→`af23e06`→`2a0cfbc`→`2c40977`). All
+  verified (typecheck/lint/229 unit + targeted e2e on a clean reset). Specs updated in place
+  (02/12/14/15/16).
+  - **`feat(orders)` `7453628`:** the order-detail editing controls now **route into the
+    spec-16 edit wizard** at the matching step instead of mutating inline — **Zmeniť čas** →
+    `?step=time` (Termín), the Auto card's new **Zmeniť** → `?step=car` (Auto), and the Služby
+    card's inline add-form is replaced by a **Pridať služby** button → `?step=services`
+    (per-line **Odstrániť** + the **Zaplatené** toggle stay inline). New manager-only
+    **`changeOrderCar({id, carId})`** action (zod + `requireManager` + `order.car_change`
+    audit): switches an order to another of the **same client's** cars and **re-snapshots every
+    active line** at the new `pricing_category`. Guards: rejects non-`vytvorená` server-side
+    (re-pricing must not rewrite a done/paid order's frozen snapshots); resolves all lines first
+    and **bails before mutating** if a service is unavailable for the new car; re-snapshots run
+    **before** the `car_id` swap so a failed retry self-heals; does NOT recompute
+    `orders.duration_min` (the wizard's `moveOrder` owns it). `BookingWizard` edit submit runs
+    `changeOrderCar` → `moveOrder` → service diff → note/price; `EditContext.originalCarId` +
+    `lockCar` (car editable only while `vytvorená`); edit page reads `?step=`. Order page +
+    Sheet no longer fetch the service catalog (only the removed inline add used it).
+    **Per-car Upraviť (also in this commit):** each car row in the wizard Auto step is
+    **ŠPZ · značka/model · Upraviť** (managers); the dialog was **extracted** from
+    `client-detail.tsx` into a shared **`components/cars/edit-car-dialog.tsx`** (+ `CategorySelect`
+    → `components/cars/category-select.tsx`), reused by both surfaces, merge-aware (spec 02 §2.6).
+    **Redirect fix (also here):** the wizard's post-save `goToCalendar` previously got stuck on
+    step 4 (button on "Ukladám…") though the save succeeded — replaced the React mount-state
+    fallback with a **ground-truth URL check** (`window.location.pathname !== "/"` ~600ms after
+    the push → hard `assign`). code-reviewer ran (1 blocker + 3 should-fix + 2 nits, all
+    applied — the `vytvorená` server guard was the blocker).
+  - **`refactor(ui)` `af23e06`:** every raw `<input type="checkbox">` replaced with the shadcn
+    **`Checkbox`** (order-detail Zaplatené, wizard service selection, opening-hours/day-override
+    Zatvorené, services add-form + editor `is_per_unit` + per-category "od"). Controlled boxes →
+    `onCheckedChange`; form-submitted ones keep `name=` (Radix hidden bubble input → `formData
+    "on"` still works). e2e selectors switched to `[role="checkbox"]`.
+  - **`feat(nav)` `2a0cfbc`:** **collapsible desktop sidebar, collapsed by default.** New
+    `SidebarShell` owns the state + the single `<main>`; a floating top-left toggle ("Zobraziť
+    menu") expands, a header button ("Skryť menu") collapses; `md:pl-0` collapsed / `md:pl-60`
+    expanded. **Mobile unchanged** (sidebar always hidden < md, toggle md-only, BottomNav stays).
+    New e2e `expandSidebar()` helper used by the sidebar-dependent suites.
+  - **`feat(calendar)` `2c40977`:** **visible horizontal scrollbar on the calendar, desktop
+    only.** Day/Week grids wrapped in the shadcn **`ScrollArea`** (new `components/ui/scroll-area.tsx`)
+    + horizontal `ScrollBar` `type="auto"` (shows only on real overflow), `hidden md:flex`
+    (mobile keeps native touch scroll, no bar). New **`useFillHeight`** hook
+    (`lib/hooks/use-fill-height.ts`) gives the grid a **definite** height on desktop *only when
+    its content exceeds the viewport* (fill to viewport bottom → internal scroll, bar pinned);
+    when it fits, natural height (bar right under the bookings). Definite height — not
+    `max-height` — is required so the Radix `h-full` viewport clips. **⚠️ Known:** the desktop
+    calendar then scrolls **internally** (its own vertical+horizontal scroll region) on short
+    windows rather than scrolling the whole page; intended, but if the client dislikes it, drop
+    the `useFillHeight` height and accept the bar at the very bottom of the full grid.
 - **Optional ŠPZ (plateless cars) + car-merge flow** (6 commits, 2026-06-17;
   `73f5edd`→`824e848`→`b070fe9`→`d172fbe`→`e238476`→`b6f009b`). **Client request:** register a car with
   **no plate yet**. ŠPZ stays the shared-car *linking* key, so the risk was plateless cars
