@@ -13,6 +13,8 @@ import { getServiceClient } from "@/lib/supabase/server";
 import type {
   CarRow,
   ClientRow,
+  DayOverrideRow,
+  OpeningHoursRow,
   OrderRow,
   OrderServiceRow,
   OrderStaffRow,
@@ -51,11 +53,13 @@ import {
 } from "@/lib/orders/unpaid";
 import { resolveOrderLines, totalDurationMin } from "@/lib/orders/duration";
 import { isOn15MinBoundary, suggestFreeSlots, type SlotProposal } from "@/lib/orders/slots";
-import { isRangeOpen } from "@/lib/settings/availability";
 import {
   bratislavaDateKey,
   bratislavaHHMM,
+  getOpenInterval,
+  isRangeOpen,
 } from "@/lib/settings/availability";
+import { isOutsideHours } from "@/lib/orders/out-of-hours";
 import type { OverlapInfo } from "@/lib/orders/overlap";
 import { bratislavaLocalDayRange } from "@/lib/time/bratislava";
 import { canTransition } from "@/lib/orders/transitions";
@@ -1522,4 +1526,102 @@ export async function getUnpaidCount(): Promise<number> {
   const today = bratislavaDateKey(new Date());
   const candidates = await fetchUnpaidCandidates();
   return candidates.filter((c) => isOverdue(c, today)).length;
+}
+
+// ---------------------------------------------------------------------------
+// Orders outside opening hours (manager-only, read-only/derived — spec 04/10)
+// ---------------------------------------------------------------------------
+
+export interface OutsideHoursOrderRow {
+  id: string;
+  startsAt: string;
+  clientName: string | null;
+  clientPhone: string;
+  spz: string | null;
+  brand: string | null;
+  model: string | null;
+  /** The day's CURRENT open interval, or null when the day is closed. */
+  dayHours: { open: string; close: string } | null;
+}
+
+interface OutsideHoursCandidate {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  status: OrderRow["status"];
+  deleted_at: string | null;
+  client: Pick<ClientRow, "name" | "phone"> | null;
+  car: Pick<CarRow, "spz" | "brand" | "model"> | null;
+}
+
+/**
+ * Upcoming vytvorená orders (today onward) that no longer fit the day's current
+ * hours. Fetch-and-filter (Phase-1 volume is tiny); the date floor keeps the
+ * candidate set small. Reused logic with the at-save check (settings.ts) — both
+ * call `isOutsideHours`, differing only in which hours/overrides feed it.
+ */
+async function fetchOutsideHoursCandidates(): Promise<{
+  candidates: OutsideHoursCandidate[];
+  hours: OpeningHoursRow[];
+  overrides: DayOverrideRow[];
+  today: string;
+}> {
+  const db = getServiceClient();
+  const today = bratislavaDateKey(new Date());
+  const dayStart = bratislavaLocalDayRange(today).start;
+  const [orders, hoursRes, overridesRes] = await Promise.all([
+    db
+      .from("orders")
+      .select(
+        "id, starts_at, ends_at, status, deleted_at, client:client_id(name, phone), car:car_id(spz, brand, model)",
+      )
+      .is("deleted_at", null)
+      .eq("status", "vytvorena")
+      .gte("starts_at", dayStart.toISOString())
+      .order("starts_at"),
+    db.from("opening_hours").select("*"),
+    db.from("day_overrides").select("*"),
+  ]);
+  if (orders.error) throw orders.error;
+  if (hoursRes.error) throw hoursRes.error;
+  if (overridesRes.error) throw overridesRes.error;
+  return {
+    candidates: (orders.data ?? []) as unknown as OutsideHoursCandidate[],
+    hours: (hoursRes.data ?? []) as OpeningHoursRow[],
+    overrides: (overridesRes.data ?? []) as DayOverrideRow[],
+    today,
+  };
+}
+
+/** Manager-only list of upcoming orders now outside opening hours. */
+export async function getOutsideHoursOrders(): Promise<OutsideHoursOrderRow[]> {
+  const actor = await getCurrentStaff();
+  requireManager(actor);
+  const { candidates, hours, overrides, today } = await fetchOutsideHoursCandidates();
+
+  const rows: OutsideHoursOrderRow[] = [];
+  for (const c of candidates) {
+    if (!isOutsideHours(c, hours, overrides, today)) continue;
+    const interval = getOpenInterval(new Date(c.starts_at), hours, overrides);
+    rows.push({
+      id: c.id,
+      startsAt: c.starts_at,
+      clientName: c.client?.name ?? null,
+      clientPhone: c.client?.phone ?? "",
+      spz: c.car?.spz ?? null,
+      brand: c.car?.brand ?? null,
+      model: c.car?.model ?? null,
+      dayHours: interval ? { open: interval.open, close: interval.close } : null,
+    });
+  }
+  rows.sort((a, b) => a.startsAt.localeCompare(b.startsAt)); // soonest first
+  return rows;
+}
+
+/** Lightweight count for the sidebar badge (manager-only). */
+export async function getOutsideHoursCount(): Promise<number> {
+  const actor = await getCurrentStaff();
+  requireManager(actor);
+  const { candidates, hours, overrides, today } = await fetchOutsideHoursCandidates();
+  return candidates.filter((c) => isOutsideHours(c, hours, overrides, today)).length;
 }
