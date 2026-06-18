@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { accessHeaders, MANAGER_EMAIL, WORKER_EMAIL } from "./support";
+import { accessHeaders, expandSidebar, MANAGER_EMAIL, WORKER_EMAIL } from "./support";
 
 const PREVADZKA = ["Kalendár", "Nová rezervácia", "Zákazníci"];
 const SPRAVA: Array<{ label: string; path: string }> = [
@@ -15,6 +15,7 @@ test.describe("manager — desktop sidebar", () => {
 
   test("sidebar shows the 3 PREVÁDZKA items + the SPRÁVA burger", async ({ page }) => {
     await page.goto("/");
+    await expandSidebar(page);
     const sidebar = page.locator("aside");
     for (const label of PREVADZKA) {
       await expect(sidebar.getByRole("link", { name: label })).toBeVisible();
@@ -27,8 +28,27 @@ test.describe("manager — desktop sidebar", () => {
     await expect(page.locator("main")).toHaveCount(1);
   });
 
+  test("desktop sidebar is collapsed by default; toggle expands, header button collapses", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    // Collapsed by default: the aside is hidden and the floating toggle shows.
+    await expect(page.locator("aside")).toBeHidden();
+    const expand = page.getByRole("button", { name: "Zobraziť menu" });
+    await expect(expand).toBeVisible();
+    // Expand → sidebar visible, toggle gone.
+    await expand.click();
+    await expect(page.locator("aside")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Zobraziť menu" })).toHaveCount(0);
+    // Collapse via the in-sidebar header button → hidden again, toggle returns.
+    await page.getByRole("button", { name: "Skryť menu" }).click();
+    await expect(page.locator("aside")).toBeHidden();
+    await expect(page.getByRole("button", { name: "Zobraziť menu" })).toBeVisible();
+  });
+
   test("active item reflects the current route", async ({ page }) => {
     await page.goto("/");
+    await expandSidebar(page);
     const sidebar = page.locator("aside");
     // On the calendar root, Kalendár is current; the others are not.
     await expect(sidebar.getByRole("link", { name: "Kalendár" })).toHaveAttribute(
@@ -51,6 +71,7 @@ test.describe("manager — desktop sidebar", () => {
   test("SPRÁVA burger lists all 5 admin items and each navigates", async ({ page }) => {
     for (const { label, path } of SPRAVA) {
       await page.goto("/");
+      await expandSidebar(page);
       await page.locator("aside").getByRole("button", { name: "Správa" }).click();
       const item = page.getByRole("menuitem", { name: label });
       await expect(item).toBeVisible();
@@ -66,6 +87,7 @@ test.describe("prevádzka — no SPRÁVA", () => {
 
   test("desktop sidebar shows only the 3 core items, no burger", async ({ page }) => {
     await page.goto("/");
+    await expandSidebar(page);
     const sidebar = page.locator("aside");
     for (const label of PREVADZKA) {
       await expect(sidebar.getByRole("link", { name: label })).toBeVisible();
@@ -81,6 +103,8 @@ test.describe("prevádzka — no SPRÁVA", () => {
       await expect(bottomNav.getByRole("link", { name: label })).toBeVisible();
     }
     await expect(bottomNav.getByRole("button", { name: "Správa" })).toHaveCount(0);
+    // The desktop collapse toggle never appears on mobile (md-only).
+    await expect(page.getByRole("button", { name: "Zobraziť menu" })).toHaveCount(0);
   });
 
   test("a manager-only page shows the 403 in-shell with exactly one <main>", async ({ page }) => {
@@ -89,7 +113,8 @@ test.describe("prevádzka — no SPRÁVA", () => {
     await page.goto("/audit");
     await expect(page.getByRole("heading", { name: "Nemáte oprávnenie" })).toBeVisible();
     await expect(page.locator("main")).toHaveCount(1);
-    // The sidebar nav is still present so the worker can navigate away.
+    // The sidebar nav is still reachable so the worker can navigate away.
+    await expandSidebar(page);
     await expect(page.locator("aside").getByRole("link", { name: "Kalendár" })).toBeVisible();
   });
 });

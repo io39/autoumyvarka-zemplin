@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings } from "lucide-react";
+import { PanelLeftClose, Settings } from "lucide-react";
 import type { StaffRole } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 import {
@@ -24,22 +24,47 @@ interface SidebarProps {
   staffName: string;
   unpaidCount: number;
   realtimeJwt: string;
+  /** Collapsible desktop sidebar (SidebarShell). Hidden entirely when false. */
+  expanded: boolean;
+  onCollapse: () => void;
 }
 
 /**
- * Desktop sidebar (md:+). Renders the PREVÁDZKA items, and — manager only — the
- * overdue-unpaid badge + a SPRÁVA burger (gear) opening a dropdown of the admin
- * sections. Bottom-anchors the logged-in staff name + role. Active state via
- * usePathname.
+ * Desktop sidebar (md:+), shown only when `expanded` (SidebarShell owns the
+ * state; collapsed by default). Renders the PREVÁDZKA items, a header collapse
+ * button, and — manager only — the overdue-unpaid badge + a SPRÁVA burger (gear)
+ * opening a dropdown of the admin sections. Bottom-anchors the logged-in staff
+ * name + role. Active state via usePathname.
  */
-export function Sidebar({ role, staffName, unpaidCount, realtimeJwt }: SidebarProps) {
+export function Sidebar({
+  role,
+  staffName,
+  unpaidCount,
+  realtimeJwt,
+  expanded,
+  onCollapse,
+}: SidebarProps) {
   const pathname = usePathname();
   const isManager = role === "manazer";
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-background md:flex">
-      <div className="px-4 py-5">
+    <aside
+      className={cn(
+        "fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-background",
+        expanded && "md:flex",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 px-4 py-5">
         <span className="text-sm font-semibold">Autoumyváreň Zemplín</span>
+        <button
+          type="button"
+          onClick={onCollapse}
+          aria-label="Skryť menu"
+          aria-expanded
+          className="-mr-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          <PanelLeftClose className="size-4" aria-hidden />
+        </button>
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-3" aria-label="Bočná navigácia">

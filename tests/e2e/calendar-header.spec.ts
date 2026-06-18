@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { accessHeaders, MANAGER_EMAIL, WORKER_EMAIL } from "./support";
+import { accessHeaders, expandSidebar, MANAGER_EMAIL, WORKER_EMAIL } from "./support";
 
 /** Bratislava-local today key, matching the app. */
 function todayKey(): string {
@@ -27,7 +27,9 @@ test.describe("calendar header & controls (manager, desktop)", () => {
     // Identity is NOT in the header on desktop (the sidebar footer carries it).
     await expect(page.locator("[data-identity]")).toBeHidden();
     // Nová rezervácia lives in the sidebar nav on desktop (the calendar header
-    // is mobile-only now, so there is no header action button here).
+    // is mobile-only now, so there is no header action button here). The desktop
+    // sidebar is collapsed by default → expand it first.
+    await expandSidebar(page);
     await expect(
       page
         .getByRole("navigation", { name: "Bočná navigácia" })
@@ -90,6 +92,7 @@ test.describe("calendar header — role gating", () => {
 
   test("prevádzka sees the core controls but no unpaid badge", async ({ page }) => {
     await page.goto("/");
+    await expandSidebar(page);
     await expect(
       page
         .getByRole("navigation", { name: "Bočná navigácia" })

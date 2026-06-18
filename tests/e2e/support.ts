@@ -448,6 +448,19 @@ export function bratislavaTodayKey(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava" }).format(new Date());
 }
 
+/**
+ * Expand the desktop sidebar (collapsed by default — SidebarShell). No-op on a
+ * mobile viewport or when already open (the "Zobraziť menu" toggle is md-only).
+ * Call after a `goto` before asserting on / clicking the sidebar.
+ */
+export async function expandSidebar(page: Page): Promise<void> {
+  const toggle = page.getByRole("button", { name: "Zobraziť menu" });
+  if (await toggle.isVisible().catch(() => false)) {
+    await toggle.click();
+    await expect(page.locator("aside")).toBeVisible();
+  }
+}
+
 function daysBetween(a: string, b: string): number {
   const da = new Date(`${a}T12:00:00Z`).getTime();
   const db = new Date(`${b}T12:00:00Z`).getTime();

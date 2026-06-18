@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   accessHeaders,
+  expandSidebar,
   MANAGER_EMAIL,
   serviceClient,
   seedDatedOrder,
@@ -21,6 +22,7 @@ test.describe("unpaid alerts — badge, list, live update (spec 10 §4.3)", () =
     // exists in two breakpoint slots (desktop sidebar + mobile calendar header);
     // scope to the visible one for this desktop-viewport run.
     await page.goto("/");
+    await expandSidebar(page); // the desktop badge lives in the collapsed sidebar
     const badge = page.locator("[data-unpaid-badge]:visible");
     await expect(badge).toBeVisible();
     expect(Number(await badge.getAttribute("data-count"))).toBeGreaterThanOrEqual(1);

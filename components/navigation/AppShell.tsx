@@ -3,7 +3,7 @@ import { getIdentity } from "@/lib/auth/identity";
 import { isUnauthenticatedError, isForbiddenError } from "@/lib/auth/errors";
 import { mintRealtimeToken } from "@/lib/realtime/token";
 import { getUnpaidCount } from "@/lib/actions/orders";
-import { Sidebar } from "./Sidebar";
+import { SidebarShell } from "./SidebarShell";
 import { BottomNav } from "./BottomNav";
 
 /**
@@ -43,22 +43,14 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <Sidebar
+      <SidebarShell
         role={staff.role}
         staffName={staff.display_name}
         unpaidCount={unpaidCount}
         realtimeJwt={realtimeJwt}
-      />
-      <div className="md:pl-60">
-        {/* Full-width main (no max-w cap): pages that should stay narrow set
-            their own `mx-auto max-w-*`; the calendar (app/page.tsx) has none, so
-            it fills the width. `mx-3.5` is a small side gutter. The bottom inset
-            clears the mobile BottomNav across the whole 0–md range (only the
-            top/side padding is bumped at sm), so the clearance isn't lost at sm. */}
-        <main className="mx-auto md:mx-10 min-w-0 overflow-x-hidden p-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-4 sm:pt-4 md:pb-6">
-          {children}
-        </main>
-      </div>
+      >
+        {children}
+      </SidebarShell>
       <BottomNav role={staff.role} />
     </>
   );

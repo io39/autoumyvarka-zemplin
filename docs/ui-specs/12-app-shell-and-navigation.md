@@ -18,8 +18,9 @@ page-content changes beyond reconciling each page's outer container with the new
 
 ### 1.1 What this feature does
 
-1. Introduce a **persistent app shell** that wraps every page: a **240px sidebar** on
-   desktop (`md:+`) and a **bottom nav** on mobile, replacing the `/menu` hub.
+1. Introduce a **persistent app shell** that wraps every page: a **collapsible 240px
+   sidebar** on desktop (`md:+`, **collapsed by default** — a top-left toggle expands it;
+   §2.3) and a **bottom nav** on mobile, replacing the `/menu` hub.
 2. Drive navigation from a **single data source** (`components/navigation/navItems.ts`)
    — no hardcoded nav buttons.
 3. Show the **PREVÁDZKA** items (Kalendár, Nová rezervácia, Zákazníci) to **all roles**.
@@ -75,9 +76,10 @@ page-content changes beyond reconciling each page's outer container with the new
 - **`components/navigation/AppShell.tsx`** is a **server component**. It resolves the
   current actor and decides chrome:
   - Call `getCurrentStaff()` inside a `try/catch`.
-  - **On success** → render the full shell: `<Sidebar role staffName unpaidCount realtimeJwt
-    />` (desktop), `<main>` with the page, and `<BottomNav role />` (mobile). `role` drives
-    SPRÁVA visibility (manager-only). For managers it also mints the Realtime JWT
+  - **On success** → render the full shell: `<SidebarShell role staffName unpaidCount
+    realtimeJwt>{children}</SidebarShell>` (which owns the collapsible desktop Sidebar + the
+    single `<main>`, §2.3) and `<BottomNav role />` (mobile). `role` drives SPRÁVA visibility
+    (manager-only). For managers it also mints the Realtime JWT
     (`mintRealtimeToken(getIdentity())`) + `getUnpaidCount()` for the sidebar `UnpaidBadge`.
   - **On throw** (`Unauthenticated`/`Forbidden` — authenticated by Cloudflare but not a
     provisioned active staff row) → render a **bare passthrough**: just `{children}`, no
@@ -87,8 +89,9 @@ page-content changes beyond reconciling each page's outer container with the new
   own `mx-auto max-w-*` (every page except the calendar does). Side gutter `mx-auto md:mx-10`
   (centered on mobile, 40px margins on desktop), padding `p-3 sm:px-4 sm:pt-4` (kept tight),
   `min-w-0 overflow-x-hidden`, plus bottom padding for the mobile nav +
-  `env(safe-area-inset-bottom)`. Desktop reserves the 240px sidebar gutter
-  (`md:pl-60` or a flex/grid two-column layout).
+  `env(safe-area-inset-bottom)`. Desktop reserves the 240px sidebar gutter **only when the
+  sidebar is expanded** (`md:pl-60`); collapsed it's `md:pl-0` (full width). `SidebarShell`
+  owns this `<main>` + the toggle.
 - **Dedupe the actor lookup:** `AppShell` and every page both call `getCurrentStaff()`
   (two DB lookups/request). Wrap it (or `getIdentity`) in React **`cache()`** so the shell
   and the page share one result per request. Cheap to do now, annoying to retrofit.
@@ -143,15 +146,27 @@ icon):
 
 ### 2.3 Components
 
+- **`components/navigation/SidebarShell.tsx`** (`"use client"`) — desktop shell wrapper that
+  owns the **collapsible** sidebar state and the single `<main>`. The sidebar is **collapsed
+  by default**; a **floating toggle** (`PanelLeftOpen`, `aria-label="Zobraziť menu"`) fixed in
+  the **top-left corner** (md-only, sits in the 40px content gutter so it never overlaps page
+  content) expands it. While collapsed the content reclaims the full width (`md:pl-0`);
+  expanded restores the `md:pl-60` offset. State persists across soft navigations (the shell
+  lives in the root layout) and resets to collapsed on a full reload. **Mobile is unaffected**
+  — the sidebar is always hidden below `md` and the toggle is md-only (navigation there is the
+  BottomNav). `AppShell` renders `<SidebarShell …>{children}</SidebarShell>`.
 - **`components/navigation/Sidebar.tsx`** (`"use client"` — needs `usePathname` for active
-  state) — desktop only (`hidden md:flex`), fixed 240px. Renders the PREVÁDZKA items
+  state) — desktop only, fixed 240px, **shown only when `expanded`** (`hidden` + `md:flex`
+  gated on the prop; SidebarShell owns the state). A header **collapse button**
+  (`PanelLeftClose`, `aria-label="Skryť menu"`) closes it. Renders the PREVÁDZKA items
   (icon + label, active state via `usePathname`). At the bottom: the logged-in staff name
   + role; and — **manager only** — the overdue **`UnpaidBadge`** (live, → `/unpaid`, hidden
   at 0) **above** the **SPRÁVA burger** (a `Settings`-icon button opening a shadcn
   `DropdownMenu` of the SPRÁVA items, text-only). Props: `{ role, staffName, unpaidCount,
-  realtimeJwt }` — `AppShell` mints the Realtime JWT + `getUnpaidCount` for managers and
-  passes them in. (The calendar header is mobile-only, so on desktop this sidebar badge is
-  the only unpaid affordance — see spec 14 §2.6.)
+  realtimeJwt, expanded, onCollapse }` — `AppShell` mints the Realtime JWT + `getUnpaidCount`
+  for managers and passes them in. (The calendar header is mobile-only, so on desktop this
+  sidebar badge is the only unpaid affordance — **reachable by expanding the sidebar** —
+  see spec 14 §2.6.)
 - **`components/navigation/BottomNav.tsx`** (`"use client"`) — mobile only
   (`md:hidden`), fixed to the bottom, `env(safe-area-inset-bottom)` padding. Four slots:
   the three PREVÁDZKA items (icon + short label) and — **manager only** — a fourth
@@ -259,11 +274,15 @@ grep -rn '/menu' app components | wc -l
 
 ### 4.3 Navigation & role gating (e2e, must pass)
 
-- As `manazer`: sidebar shows the 3 PREVÁDZKA items + the SPRÁVA `Settings` burger; the
-  burger dropdown lists all 5 SPRÁVA items and each navigates to its route
+- The desktop sidebar is **collapsed by default**: the `aside` is hidden and a top-left
+  **"Zobraziť menu"** toggle is shown; clicking it reveals the sidebar (and a **"Skryť menu"**
+  header button collapses it again). Tests expand it first (`expandSidebar` helper) before
+  asserting on the sidebar. The toggle never appears on mobile.
+- As `manazer` (sidebar expanded): it shows the 3 PREVÁDZKA items + the SPRÁVA `Settings`
+  burger; the burger dropdown lists all 5 SPRÁVA items and each navigates to its route
   (`/staff`, `/services`, `/settings/hours`, `/settings/sms-templates`, `/audit`).
-- As `prevadzka`: sidebar shows only the 3 PREVÁDZKA items and **no** SPRÁVA burger;
-  bottom nav (mobile viewport) shows only the 3 core items.
+- As `prevadzka` (sidebar expanded): it shows only the 3 PREVÁDZKA items and **no** SPRÁVA
+  burger; bottom nav (mobile viewport) shows only the 3 core items.
 - Active item reflects the current route (`usePathname`).
 
 ```bash
