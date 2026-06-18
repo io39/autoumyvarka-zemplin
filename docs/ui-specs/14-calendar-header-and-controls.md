@@ -183,8 +183,15 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
   `components/calendar/placeLanes.ts`): orders connected by overlap form a cluster split into
   equal lanes, one per order (2 → halves, 3 → thirds …); non-overlapping orders are full
   width. Each lane has a **minimum width** (car name legible); a box needing more lanes than
-  fit **widens its column and the grid scrolls horizontally** (`overflow-x-auto`) rather than
-  squeezing cards.
+  fit **widens its column and the grid scrolls horizontally** rather than squeezing cards.
+- **Horizontal scroll affordance.** Both grids are wrapped in the shadcn **`ScrollArea`**
+  (`components/ui/scroll-area.tsx`, unified `radix-ui` import) with a horizontal `ScrollBar`,
+  `type="auto"` (the bar shows only when the content actually overflows). The bottom scrollbar
+  is **desktop-only** (`hidden md:flex`); on mobile the viewport touch-scrolls natively with no
+  bar. So the grid doesn't fall below the fold of the tall page, the ScrollArea is **capped to
+  the viewport on desktop** (`md:max-h-[calc(100dvh-10rem)]`) → it scrolls **internally** there
+  (vertical + horizontal, bar pinned to the bottom of the on-screen calendar); mobile stays
+  uncapped (natural page flow).
 - **`DayView`** is a CSS grid (columns = axis + box(es), `gridTemplateRows: auto
   repeat(N, ROW_PX)` — fixed) with a **per-box relative layer** holding the absolutely
   positioned, lane-placed cards (`top`/`height` from the cumulative row offsets, `left`/`width`

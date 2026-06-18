@@ -3,6 +3,8 @@ import type { CalendarBlock } from "@/lib/actions/orders";
 import { bratislavaDateKey } from "@/lib/settings/availability";
 import { ROW_PX, SLOT_MIN, diffMinutes, pad, type Interval } from "@/lib/calendar/grid";
 import { cn } from "@/lib/utils";
+import { useFillHeight } from "@/lib/hooks/use-fill-height";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { BookingCard } from "./BookingCard";
 import { TimeAxis } from "./TimeAxis";
 import { placeBoxLanes, type PlacedBlock } from "./placeLanes";
@@ -50,8 +52,19 @@ export function WeekView({
     .map((d) => `minmax(${2 * d.lanes * WEEK_MIN_LANE_PX}px, 1fr)`)
     .join(" ")}`;
 
+  // Desktop: fill to the viewport so the grid scrolls internally and the bottom
+  // scrollbar stays on screen (mobile: undefined → natural page flow).
+  const { ref, height } = useFillHeight<HTMLDivElement>();
+
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    // Horizontal scroll with a visible bottom scrollbar on desktop (md:+); on
+    // mobile the viewport touch-scrolls natively and the bar stays hidden.
+    <div ref={ref}>
+      <ScrollArea
+        type="auto"
+        className="rounded-lg border"
+        style={height ? { height } : undefined}
+      >
       <div className="grid gap-1.5 p-2" style={{ gridTemplateColumns: colTemplate }}>
         <div />
         {weekDays.map((dk, i) => (
@@ -77,6 +90,8 @@ export function WeekView({
           />
         ))}
       </div>
+        <ScrollBar orientation="horizontal" className="hidden md:flex" />
+      </ScrollArea>
     </div>
   );
 }

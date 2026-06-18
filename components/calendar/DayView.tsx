@@ -6,7 +6,9 @@ import { bratislavaHHMM } from "@/lib/settings/availability";
 import { ROW_PX, SLOT_MIN, computeRowLayout, diffMinutes, type Interval } from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
+import { useFillHeight } from "@/lib/hooks/use-fill-height";
 import { cn } from "@/lib/utils";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { BookingCard } from "./BookingCard";
 import { placeBoxLanes } from "./placeLanes";
 
@@ -94,10 +96,21 @@ export function DayView({
   // Header row (auto) + per-slot rows (each ≥ ROW_PX; short bookings grow theirs).
   const rowTemplate = `auto ${rowHeights.map((h) => `${h}px`).join(" ")}`;
 
+  // Desktop: fill to the viewport so the grid scrolls internally and the bottom
+  // scrollbar stays on screen (mobile: undefined → natural page flow).
+  const { ref, height } = useFillHeight<HTMLDivElement>();
+
   return (
-    <div className="overflow-x-auto rounded-lg border p-2">
+    // Horizontal scroll with a visible bottom scrollbar on desktop (md:+); on
+    // mobile the viewport touch-scrolls natively and the bar stays hidden.
+    <div ref={ref}>
+      <ScrollArea
+        type="auto"
+        className="rounded-lg border"
+        style={height ? { height } : undefined}
+      >
       <div
-        className="grid gap-x-4"
+        className="grid gap-x-4 p-2"
         style={{ gridTemplateColumns: colTemplate, gridTemplateRows: rowTemplate }}
       >
         {/* Header row — explicit positions so the spanning frame/divider items
@@ -231,6 +244,8 @@ export function DayView({
           </>
         )}
       </div>
+        <ScrollBar orientation="horizontal" className="hidden md:flex" />
+      </ScrollArea>
     </div>
   );
 }
