@@ -78,8 +78,7 @@ export function SmsTemplatesEditor({ initial }: Props) {
               }
             />
             <p className="text-xs text-muted-foreground" data-sms-hint>
-              SMS sa odosielajú <strong>bez diakritiky</strong> (limit {SMS_SINGLE_SEGMENT} znakov
-              na jednu správu).
+              SMS sa odosielajú <strong>bez diakritiky</strong>. <br />
               {hasDiacritics && (
                 <>
                   {" "}
