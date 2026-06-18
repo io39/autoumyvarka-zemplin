@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { upsertDayOverride, removeDayOverride } from "@/lib/actions/settings";
 import type { DayOverrideRow } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -111,11 +112,11 @@ export function DayOverridesEditor({
           </div>
         </div>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+        <label htmlFor="override-closed" className="flex items-center gap-2 text-sm">
+          <Checkbox
+            id="override-closed"
             checked={isClosed}
-            onChange={(e) => setIsClosed(e.target.checked)}
+            onCheckedChange={(v) => setIsClosed(v === true)}
           />
           Zatvorené celý deň
         </label>

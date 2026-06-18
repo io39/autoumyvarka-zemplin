@@ -27,7 +27,7 @@ test.describe("order services on existing order (manager)", () => {
     await expect(page.locator('[data-step="services"]')).toBeVisible();
 
     // Check the first unchecked, enabled service → a second line.
-    const boxes = page.locator('[data-step="services"] label[data-service-id] input');
+    const boxes = page.locator('[data-step="services"] label[data-service-id] [role="checkbox"]');
     const count = await boxes.count();
     for (let i = 0; i < count; i++) {
       const cb = boxes.nth(i);
@@ -59,7 +59,7 @@ test.describe("order services on existing order (manager)", () => {
     await page.goto(`/orders/${o.orderId}`);
     await page
       .locator(`[data-service-line-id="${added.id}"]`)
-      .locator('input[type="checkbox"]')
+      .locator('[role="checkbox"]')
       .click();
     await expect(page.getByText("Platba zmenená.")).toBeVisible();
     const { data: after } = await db

@@ -13,6 +13,7 @@ import type { PricingCategory, ServiceKind } from "@/lib/supabase/types";
 import { formatPriceCents } from "@/lib/services/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -338,7 +339,7 @@ function NewServiceDialog({
             </div>
 
             <div className="flex items-center gap-2">
-              <input id="is_per_unit" name="is_per_unit" type="checkbox" />
+              <Checkbox id="is_per_unit" name="is_per_unit" />
               <Label htmlFor="is_per_unit" className="font-normal">
                 Cena za kus (/ks)
               </Label>

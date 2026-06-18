@@ -5,6 +5,7 @@ import type { OrderDetail } from "@/lib/actions/orders";
 import { formatPriceCents } from "@/lib/services/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * Service lines + totals (UI-STRUCTURE §7 #6). Removing a line and toggling its
@@ -56,12 +57,12 @@ export function BookingServicesList({
             </div>
             <div className="flex items-center gap-2">
               {canEdit && !l.removed_at && (
-                <label className="flex items-center gap-1 text-xs">
-                  <input
-                    type="checkbox"
+                <label htmlFor={`paid-${l.id}`} className="flex items-center gap-1.5 text-xs">
+                  <Checkbox
+                    id={`paid-${l.id}`}
                     checked={l.paid}
                     disabled={pending}
-                    onChange={(e) => onPaid(l.id, e.target.checked)}
+                    onCheckedChange={(v) => onPaid(l.id, v === true)}
                   />
                   Zaplatené
                 </label>

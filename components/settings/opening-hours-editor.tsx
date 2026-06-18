@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { saveOpeningHours } from "@/lib/actions/settings";
 import type { OpeningHoursRow } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -97,11 +98,11 @@ export function OpeningHoursEditor({
             className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-[120px_auto_1fr_1fr] sm:items-center"
           >
             <div className="font-medium">{WEEKDAY_LABEL[r.dayOfWeek]}</div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+            <label htmlFor={`closed-${r.dayOfWeek}`} className="flex items-center gap-2 text-sm">
+              <Checkbox
+                id={`closed-${r.dayOfWeek}`}
                 checked={r.isClosed}
-                onChange={(e) => update(r.dayOfWeek, { isClosed: e.target.checked })}
+                onCheckedChange={(v) => update(r.dayOfWeek, { isClosed: v === true })}
               />
               Zatvorené
             </label>

@@ -6,6 +6,7 @@ import type { Selection } from "@/lib/orders/booking";
 import { resolveServicePrice } from "@/lib/services/price-lookup";
 import { formatPriceCents } from "@/lib/services/format";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { QuantityStepper } from "./QuantityStepper";
 
 /**
@@ -45,10 +46,9 @@ export function ServiceGroup({
                 unavailable ? "opacity-50" : ""
               }`}
             >
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={!!sel}
-                onChange={() => onToggle(it.service.id)}
+                onCheckedChange={() => onToggle(it.service.id)}
                 disabled={unavailable}
               />
               <span className="flex-1 truncate">{it.service.name}</span>

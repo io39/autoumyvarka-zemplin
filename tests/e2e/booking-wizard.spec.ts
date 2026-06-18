@@ -254,7 +254,7 @@ test.describe("booking wizard — edit mode", () => {
     await expect(page.locator('[data-step="services"]')).toBeVisible();
 
     // Add another (enabled, unchecked) service — this widens the duration.
-    const services = page.locator('[data-step="services"] label[data-service-id] input');
+    const services = page.locator('[data-step="services"] label[data-service-id] [role="checkbox"]');
     const count = await services.count();
     for (let i = 0; i < count; i++) {
       const cb = services.nth(i);
@@ -290,7 +290,7 @@ test.describe("booking wizard — edit mode", () => {
     await expect(page.locator('[data-step="services"]')).toBeVisible();
 
     // Add another (longer) service…
-    const services = page.locator('[data-step="services"] label[data-service-id] input');
+    const services = page.locator('[data-step="services"] label[data-service-id] [role="checkbox"]');
     const count = await services.count();
     for (let i = 0; i < count; i++) {
       const cb = services.nth(i);

@@ -17,6 +17,7 @@ import type {
 import { formatPriceCents } from "@/lib/services/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -118,12 +119,7 @@ function ServiceDetailsForm({
           />
         </div>
         <div className="flex items-end gap-2">
-          <input
-            id="is_per_unit"
-            name="is_per_unit"
-            type="checkbox"
-            defaultChecked={service.is_per_unit}
-          />
+          <Checkbox id="is_per_unit" name="is_per_unit" defaultChecked={service.is_per_unit} />
           <Label htmlFor="is_per_unit" className="font-normal">
             Cena za kus
           </Label>
@@ -257,11 +253,11 @@ function CategoryPriceRow({
           placeholder={existing ? formatPriceCents(existing.price_cents) : ""}
         />
       </div>
-      <label className="flex items-center gap-2 text-xs sm:self-center">
-        <input
-          type="checkbox"
+      <label htmlFor={`pricefrom-${category}`} className="flex items-center gap-2 text-xs sm:self-center">
+        <Checkbox
+          id={`pricefrom-${category}`}
           checked={priceFrom}
-          onChange={(e) => setPriceFrom(e.target.checked)}
+          onCheckedChange={(v) => setPriceFrom(v === true)}
         />
         od
       </label>
