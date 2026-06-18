@@ -52,7 +52,7 @@ export function BookingCardContent({
       {services.length > 0 && (
         <div className="w-full truncate text-xs opacity-80">{services.join(", ")}</div>
       )}
-      {note && <div className="w-full truncate text-xs opacity-70">Pozn: {note}</div>}
+      {note && <div className="w-full truncate text-xs opacity-70">{note}</div>}
     </div>
   );
 }
