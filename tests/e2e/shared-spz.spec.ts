@@ -63,8 +63,13 @@ test.describe("shared ŠPZ", () => {
     expect(linkAudit?.action).toBe("car.link");
 
     // Searching the shared ŠPZ surfaces BOTH owners (spec 02 §4.6 last bullet).
+    // Search the FULL plate, not a 4-char prefix: every test uses the shared "TT"
+    // uniqueSpz() prefix, so a short prefix matches hundreds of accumulated rows
+    // and the two target owners fall outside the trigram result cap (the
+    // documented shared-DB search flake). The full ŠPZ is unique to this car yet
+    // still exercises the ŠPZ trigram match, and surfaces exactly its two owners.
     await page.goto("/clients");
-    await page.getByLabel("Hľadať klienta").fill(spz.slice(0, 4));
+    await page.getByLabel("Hľadať klienta").fill(spz);
     await expect(page.getByText(e164(phoneA))).toBeVisible();
     await expect(page.getByText(e164(phoneB))).toBeVisible();
   });

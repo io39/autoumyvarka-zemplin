@@ -36,7 +36,18 @@ test.describe("manager — /settings/hours", () => {
 
     // Exact match: the merged page also has an "Uložiť výnimku" button (overrides).
     await page.getByRole("button", { name: "Uložiť", exact: true }).click();
-    await expect(page.getByText("Otváracie hodiny uložené.")).toBeVisible();
+
+    // Closing Monday can orphan upcoming orders that OTHER suites seeded on
+    // far-future Mondays (shared DB). The out-of-hours warn-but-allow feature
+    // then holds the save behind a confirm dialog ("Napriek tomu uložiť") instead
+    // of saving outright — this is the real manager flow. Confirm it if it shows;
+    // in isolation (no orphaned orders) the toast appears directly. Wait on
+    // whichever surfaces first rather than a fixed delay.
+    const confirmOutside = page.getByRole("button", { name: "Napriek tomu uložiť" });
+    const savedToast = page.getByText("Otváracie hodiny uložené.");
+    await expect(confirmOutside.or(savedToast)).toBeVisible();
+    if (await confirmOutside.isVisible()) await confirmOutside.click();
+    await expect(savedToast).toBeVisible();
 
     // Verify in DB.
     const db = serviceClient();

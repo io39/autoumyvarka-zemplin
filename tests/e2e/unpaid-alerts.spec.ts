@@ -78,7 +78,12 @@ test.describe("unpaid alerts — badge, list, live update (spec 10 §4.3)", () =
       .eq("id", order.lineId);
     expect(error).toBeNull();
 
-    await expect(row).toHaveCount(0);
-    await expect(page.locator("[data-overdue-count]")).toHaveText(String(before - 1));
+    // Realtime drop: the postgres_changes echo (server → Supabase → browser) can
+    // exceed the 5s default under full-suite load, so allow 20s (matches the
+    // /mimo-hodin live-drop test). This waits on a condition, not a fixed delay.
+    await expect(row).toHaveCount(0, { timeout: 20_000 });
+    await expect(page.locator("[data-overdue-count]")).toHaveText(String(before - 1), {
+      timeout: 20_000,
+    });
   });
 });

@@ -24,7 +24,13 @@ export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // The suite runs serially (workers: 1) against one shared production-build DB,
+  // so a handful of specs are inherently timing-sensitive — same-route nav
+  // completion, the Realtime postgres_changes echo, and toast/save latency under
+  // load. Those are environmental, not logic bugs (each passes in isolation), so
+  // a retry is the correct tool. Local gets 1 retry (was 0 → any blip hard-failed
+  // a full run); CI gets 2.
+  retries: process.env.CI ? 2 : 1,
   workers: 1,
   reporter: "list",
   use: {

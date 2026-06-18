@@ -50,8 +50,13 @@ test.describe("unified fuzzy search", () => {
 
   test("browse: lists clients alphabetically with pagination", async ({ page }) => {
     // A unique tag so the later fuzzy search matches *only* these 6 clients
-    // (the e2e DB accumulates rows across tests).
-    const tag = "Zzb" + Date.now().toString(36);
+    // (the e2e DB accumulates rows across tests). LETTERS ONLY — name search is
+    // trigram-fuzzy, and a Date.now() tag shares its high-order base36 digits with
+    // every other suite's timestamp-named clients ("Zmaz Test <ts>", "Wizard <ts>"
+    // …), so a numeric tag fuzzy-matches them and breaks the exact-count assertion.
+    const rand = (n: number) =>
+      Array.from({ length: n }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join("");
+    const tag = "Zzb" + rand(8);
     // Seed enough clients to span more than one page (page size = 5).
     for (let i = 0; i < 6; i++) {
       await createClientViaUI(page, { phone: uniquePhone(), name: `${tag} ${i}` });
