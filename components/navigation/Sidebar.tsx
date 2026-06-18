@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UnpaidBadge } from "@/components/unpaid/unpaid-badge";
+import { OutsideHoursBadge } from "@/components/outside-hours/outside-hours-badge";
 import { prevadzkaItems, spravaItems, isActive } from "./navItems";
 
 const ROLE_LABEL: Record<StaffRole, string> = {
@@ -23,6 +24,7 @@ interface SidebarProps {
   role: StaffRole;
   staffName: string;
   unpaidCount: number;
+  outsideHoursCount: number;
   realtimeJwt: string;
   /** Collapsible desktop sidebar (SidebarShell). Hidden entirely when false. */
   expanded: boolean;
@@ -40,6 +42,7 @@ export function Sidebar({
   role,
   staffName,
   unpaidCount,
+  outsideHoursCount,
   realtimeJwt,
   expanded,
   onCollapse,
@@ -94,8 +97,9 @@ export function Sidebar({
 
       <div className="mt-auto border-t p-3">
         {isManager && realtimeJwt && (
-          <div className="mb-2 px-3">
+          <div className="mb-2 space-y-2 px-3">
             <UnpaidBadge initialCount={unpaidCount} realtimeJwt={realtimeJwt} />
+            <OutsideHoursBadge initialCount={outsideHoursCount} realtimeJwt={realtimeJwt} />
           </div>
         )}
         {isManager && (

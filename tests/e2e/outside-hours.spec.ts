@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { accessHeaders, MANAGER_EMAIL, WORKER_EMAIL, seedOrder, serviceClient } from "./support";
+import { accessHeaders, expandSidebar, MANAGER_EMAIL, WORKER_EMAIL, seedOrder, serviceClient } from "./support";
 
 test.describe("outside-hours worklist (manager)", () => {
   test.use({ extraHTTPHeaders: accessHeaders(MANAGER_EMAIL) });
@@ -10,6 +10,17 @@ test.describe("outside-hours worklist (manager)", () => {
     const row = page.locator(`[data-section="outside-hours"] [data-order-id="${o.orderId}"]`);
     await expect(row).toBeVisible();
     await expect(row.getByRole("link")).toHaveAttribute("href", `/orders/${o.orderId}`);
+  });
+
+  test("the sidebar badge shows the count and links to /mimo-hodin", async ({ page }) => {
+    await seedOrder({ date: "2031-03-14", time: "18:00" });
+    await page.goto("/");
+    await expandSidebar(page); // desktop sidebar is collapsed by default
+    const badge = page.locator("[data-outside-hours-badge]");
+    await expect(badge).toBeVisible();
+    expect(Number(await badge.getAttribute("data-count"))).toBeGreaterThanOrEqual(1);
+    await badge.click();
+    await page.waitForURL(/\/mimo-hodin$/);
   });
 
   test("rescheduling an order into open hours drops it from the list live", async ({ page }) => {
