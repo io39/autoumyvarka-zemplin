@@ -19,11 +19,12 @@ feature — derived warning when a manager narrows/closes hours over an existing
 inside hatched closed zones (specs 04/10/14); (2) the earlier UI round — order-detail edits
 route into the wizard (+ `changeOrderCar`), per-car **Upraviť**, shadcn **Checkbox** everywhere,
 a **collapsible desktop sidebar**, and a **desktop horizontal scrollbar** on the calendar. Both
-are in the first two "Recent app fixes" entries. **Three more commits this session are committed
-to `main` locally but NOT yet pushed** (push from your own terminal): the **Realtime
-shared-singleton client** fix (`3d6229f` — kills the "Multiple GoTrueClient instances" warning),
-the **e2e shared-DB flake fixes** (`8d13389`), and a **`data-model.md` workers/order_staff doc
-fix** (`e75371d`) — see the top "Recent app fixes" entry. **Last updated:** 2026-06-18.
+are in the first two "Recent app fixes" entries. **Several more commits this session are committed
+to `main` locally but NOT yet pushed** (push from your own terminal): **SMS bez diakritiky +
+GSM-7 160-char limit** (`bc0a47d` + hint tweak `f1433c3`), the **Realtime shared-singleton
+client** fix (`3d6229f` — kills the "Multiple GoTrueClient instances" warning), the **e2e
+shared-DB flake fixes** (`8d13389`), and a **`data-model.md` workers/order_staff doc fix**
+(`e75371d`) — see the top "Recent app fixes" entries. **Last updated:** 2026-06-18.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -82,6 +83,22 @@ plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- **SMS sent bez diakritiky + GSM-7 160-char limit** (2026-06-18, commit `bc0a47d`, editor-hint
+  tweak `f1433c3`; committed to `main` locally, **NOT yet pushed**). Slovak text with diacritics
+  is UCS-2 → only **70 chars/SMS** (one accented char forces the whole message into UCS-2); stripped,
+  it's **GSM-7 → 160 chars/segment** (cheaper, renders on every handset). `lib/sms/render.ts`:
+  new `stripDiacritics()` (NFD + combining-mark removal, covers every Slovak accent) applied **after**
+  token substitution in `renderTemplate` (so an accented `{nazov}`/`{spz}` is caught too); `smsCharCount`/
+  `smsSegmentCount` count the stripped GSM-7 body at **160** (153 concatenated; `€{}[]~^\|` extension
+  chars count as 2). Template editor shows `charCount/160`, warns past one segment, and shows a
+  bez-diakritiky preview. **Behavior = WARN, don't block** (user-chosen): never truncates — a long
+  runtime value just sends as concatenated parts. **Provider note:** this is the GSM standard, not a
+  provider quirk — every Slovak provider bills per segment (160 GSM-7 / 70 UCS-2); the real provider is
+  still the `fake` adapter (PRD §13#4) so confirm once pinned, but 160/GSM-7 is universal.
+  **Supersedes the original 70-char-with-diacritics rule** (PRD §8); docs updated in **spec 07
+  §1.1/§2.2/§4.3/§4.8 + data-model §2.9**. Verified: typecheck/lint clean, **245 unit**, **sms e2e 18/18**
+  on a clean reset + **fresh** prod server (`CI=1`). ⚠️ When finalizing SMS wording with the client
+  (PRD §13#4), note they'll see messages like "Dobry den, pripominame termin…" without accents.
 - **Realtime browser client → shared singleton** (2026-06-18, commit `3d6229f`; committed to
   `main` locally, **NOT yet pushed** — push from your own terminal). Fixes the browser console
   warning *"Multiple GoTrueClient instances detected in the same browser context"*. Each Realtime
