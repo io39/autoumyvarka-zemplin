@@ -125,8 +125,19 @@ export function CalendarView({
       if (minOpen === null || v.open < minOpen) minOpen = v.open;
       if (maxClose === null || v.close > maxClose) maxClose = v.close;
     }
-    return { open: minOpen ?? DEFAULT_INTERVAL.open, close: maxClose ?? DEFAULT_INTERVAL.close };
-  }, [view, date, dayIntervals, dayBlocks]);
+    // Extend the week union to cover any out-of-hours bookings (same as day view),
+    // so an order before/after every day's hours renders at its true time in the
+    // greyed closed zone instead of clipping.
+    let open = minOpen ?? DEFAULT_INTERVAL.open;
+    let close = maxClose ?? DEFAULT_INTERVAL.close;
+    for (const b of blocks) {
+      const s = bratislavaHHMM(new Date(b.order.starts_at));
+      const e = bratislavaHHMM(new Date(b.order.ends_at));
+      if (s < open) open = floorTo15(s);
+      if (e > close) close = ceilTo15(e);
+    }
+    return { open, close };
+  }, [view, date, dayIntervals, dayBlocks, blocks]);
 
   const rows = useMemo(() => buildRows(interval.open, interval.close), [interval]);
 

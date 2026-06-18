@@ -10,6 +10,7 @@ import { useFillHeight } from "@/lib/hooks/use-fill-height";
 import { cn } from "@/lib/utils";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { BookingCard } from "./BookingCard";
+import { ClosedZone } from "./closed-zone";
 import { placeBoxLanes } from "./placeLanes";
 
 // Minimum width of a single lane (overlapping-reservations redesign): wide enough
@@ -20,11 +21,6 @@ const MIN_LANE_PX = 104;
 // A card with a note shows a 3rd row, so a short note-bearing booking needs a
 // taller minimum than the default (car name + services only).
 const MIN_CARD_PX_NOTE = 60;
-
-// Diagonal hatch marking a closed (outside-opening-hours) zone — the universal
-// "unavailable" pattern, so it reads unmistakably even at a glance.
-const CLOSED_HATCH =
-  "repeating-linear-gradient(45deg, rgba(113,113,122,0.22) 0, rgba(113,113,122,0.22) 5px, transparent 5px, transparent 11px)";
 
 /**
  * Day view (overlapping-reservations redesign): a CSS grid of the time axis +
@@ -210,27 +206,9 @@ export function DayView({
               {/* Closed zones (before open / after close) — striped grey hatch +
                   a boundary line + a label, so it clearly reads as "outside
                   opening hours". Rendered behind the cards. */}
-              {closedTopPx > 0 && (
-                <div
-                  data-closed-zone="before"
-                  className="pointer-events-none absolute inset-x-0 flex items-center justify-center overflow-hidden border-b border-zinc-300 bg-zinc-200/70"
-                  style={{ top: 0, height: closedTopPx, backgroundImage: CLOSED_HATCH }}
-                >
-                  <span className="px-1 text-center text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-                    Mimo otváracích hodín
-                  </span>
-                </div>
-              )}
+              {closedTopPx > 0 && <ClosedZone top={0} height={closedTopPx} side="before" label />}
               {closedBottomPx < totalPx && (
-                <div
-                  data-closed-zone="after"
-                  className="pointer-events-none absolute inset-x-0 flex items-center justify-center overflow-hidden border-t border-zinc-300 bg-zinc-200/70"
-                  style={{ top: closedBottomPx, height: totalPx - closedBottomPx, backgroundImage: CLOSED_HATCH }}
-                >
-                  <span className="px-1 text-center text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-                    Mimo otváracích hodín
-                  </span>
-                </div>
+                <ClosedZone top={closedBottomPx} height={totalPx - closedBottomPx} side="after" label />
               )}
               {placed.map((p) => {
                 // top/height from the cumulative (variable) row offsets so the

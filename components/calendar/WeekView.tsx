@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useFillHeight } from "@/lib/hooks/use-fill-height";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { BookingCard } from "./BookingCard";
+import { ClosedZone } from "./closed-zone";
 import { TimeAxis } from "./TimeAxis";
 import { placeBoxLanes, type PlacedBlock } from "./placeLanes";
 
@@ -166,21 +167,15 @@ function DayCell({
               style={{ top: i * ROW_PX, height: ROW_PX }}
             />
           ))}
-          {/* Greyed-out closed zones (top + bottom). */}
-          {closedTop > 0 && (
-            <div
-              className="absolute left-0 right-0 bg-zinc-200/70"
-              style={{ top: 0, height: closedTop }}
-            />
-          )}
+          {/* Hatched closed zones (before open / after close). Narrow week columns
+              omit the label — the hatch carries the "outside opening hours" meaning
+              (matches the day view). A fully-closed day also shows "zatvorené". */}
+          {closedTop > 0 && <ClosedZone top={0} height={closedTop} side="before" />}
           {dayInterval && closedBottomStart < heightPx && (
-            <div
-              className="absolute left-0 right-0 bg-zinc-200/70"
-              style={{ top: closedBottomStart, bottom: 0 }}
-            />
+            <ClosedZone top={closedBottomStart} height={heightPx - closedBottomStart} side="after" />
           )}
           {!dayInterval && (
-            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground">
+            <div className="absolute inset-0 z-10 flex items-center justify-center text-[10px] font-medium text-zinc-500">
               zatvorené
             </div>
           )}
