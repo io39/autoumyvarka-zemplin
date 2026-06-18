@@ -29,9 +29,9 @@ export function UnpaidBadge({
 
   useRealtimeChannel(
     realtimeJwt,
-    (client) =>
+    (client, channelName) =>
       client
-        .channel("unpaid-badge")
+        .channel(channelName)
         .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => refresh())
         .on(
           "postgres_changes",

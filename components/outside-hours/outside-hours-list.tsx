@@ -35,9 +35,9 @@ export function OutsideHoursList({
 
   useRealtimeChannel(
     realtimeJwt,
-    (client) =>
+    (client, channelName) =>
       client
-        .channel("outside-hours")
+        .channel(channelName)
         .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => refresh())
         .subscribe(),
     [],

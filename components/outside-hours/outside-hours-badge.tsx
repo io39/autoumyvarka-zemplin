@@ -30,9 +30,9 @@ export function OutsideHoursBadge({
 
   useRealtimeChannel(
     realtimeJwt,
-    (client) =>
+    (client, channelName) =>
       client
-        .channel("outside-hours-badge")
+        .channel(channelName)
         .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => refresh())
         .subscribe(),
     [],

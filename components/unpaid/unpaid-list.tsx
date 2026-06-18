@@ -47,9 +47,9 @@ export function UnpaidList({
   // it from the list. Subscribe to both tables (data-model §3.1) — no new plumbing.
   useRealtimeChannel(
     realtimeJwt,
-    (client) =>
+    (client, channelName) =>
       client
-        .channel("unpaid-alerts")
+        .channel(channelName)
         .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => refresh())
         .on(
           "postgres_changes",

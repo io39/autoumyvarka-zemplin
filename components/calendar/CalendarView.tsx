@@ -158,9 +158,9 @@ export function CalendarView({
   // so the actor's own change can't fall into a resubscribe gap.
   useRealtimeChannel(
     realtimeJwt,
-    (client) =>
+    (client, channelName) =>
       client
-        .channel(`orders-${view}-${date}`)
+        .channel(channelName)
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "orders" },
