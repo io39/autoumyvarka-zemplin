@@ -110,18 +110,27 @@ pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder G
     `OutsideHoursConfirmDialog` is confirmed. Mirrors the box-overlap `allowOverlap` pattern;
     `ActionResult` gained `outsideHoursWarning?`.
   - **Calendar shows out-of-hours orders at true time + hatched closed zones**
-    (`3b9b8d6`→`627d246`→`3b6748e`→`7652476`, the calendar follow-ups): `CalendarView` **extends
-    the day/week grid range** to cover out-of-hours bookings (`floorTo15`/`ceilTo15`), so they
-    render at their real time; the closed parts use a shared **`ClosedZone`**
-    (`components/calendar/closed-zone.tsx`) — diagonal grey **hatch** + boundary line + a "Mimo
-    otváracích hodín" label (day view; week columns omit the label, hatch carries it; a fully-
-    closed day keeps "zatvorené"). The out-of-hours card keeps the amber ring.
-  - **Verified:** typecheck/lint clean, **237 unit**, **29 e2e** on a clean DB; final
-    code-reviewer pass (0 blockers; 2 should-fix applied — the closed-day day-view marker + a
-    parallelized `AppShell` count). ⚠️ **Known flake:** the `/mimo-hodin` realtime live-drop e2e
-    is timing-sensitive under full-suite load (channel-establish latency) — passes in isolation
-    on a clean reset; the assertion already uses a 20s timeout. Same class as the documented
-    trigram-search / shared-DB flakes — not a regression.
+    (`3b9b8d6`→`627d246`→`3b6748e`→`7652476`→`243d3f8`, the calendar follow-ups + the mobile
+    badge): `CalendarView` **extends the day/week grid range** to cover out-of-hours bookings
+    (`floorTo15`/`ceilTo15` in `lib/calendar/grid.ts`), so they render at their real time; the
+    closed parts use a shared **`ClosedZone`** (`components/calendar/closed-zone.tsx`) — diagonal
+    grey **hatch** + boundary line + a label. Day view labels the band **"Mimo otváracích hodín"**
+    (partial) or **"Zatvorené"** (fully-closed day); the narrow week columns omit the label (hatch
+    carries it) and keep "zatvorené" for closed days. The out-of-hours card keeps the amber ring.
+    The **"Mimo hodín" badge** is added to the **mobile `CalendarHeader`** next to "Po termíne"
+    (`app/page.tsx` mints `getOutsideHoursCount`); badge e2e scoped to `:visible` (two breakpoint
+    slots, like the unpaid badge).
+  - **Code-review pass on the calendar rendering** (`215f28e`, after the feature's own review):
+    0 blockers, 1 should-fix + nits applied — dropped dead `Link`/`Button` imports + a commented
+    button block (and the unused `date` prop) from `CalendarHeader`; `ClosedZone` label made a
+    string so the day-view fully-closed case says **"Zatvorené"** (was "Mimo otváracích hodín",
+    inconsistent with the week view); `ceilTo15` ≤23:45 assumption documented.
+  - **Verified:** typecheck/lint clean, **239 unit**, the calendar/header/outside-hours e2e green
+    on a clean DB; the feature's own final code-reviewer pass (0 blockers; 2 should-fix applied —
+    the closed-day day-view marker + a parallelized `AppShell` count). ⚠️ **Known flake:** the
+    `/mimo-hodin` realtime live-drop e2e is timing-sensitive under full-suite load
+    (channel-establish latency) — passes in isolation on a clean reset; the assertion already uses
+    a 20s timeout. Same class as the documented trigram-search / shared-DB flakes — not a regression.
 - **Order-detail edits → wizard, per-car Upraviť, car switch, redirect fix, checkbox + nav +
   scrollbar UI** (4 commits, 2026-06-18; `7453628`→`af23e06`→`2a0cfbc`→`2c40977`). All
   verified (typecheck/lint/229 unit + targeted e2e on a clean reset). Specs updated in place

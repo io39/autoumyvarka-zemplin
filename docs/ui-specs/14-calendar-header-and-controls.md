@@ -191,8 +191,9 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
   renders at its **true** time instead of clamping to the edge. The parts of the (extended) grid
   outside the day's open interval are drawn as a shared **`ClosedZone`**
   (`components/calendar/closed-zone.tsx`): a diagonal grey **hatch** + a boundary line at the
-  open/close edge, with a "Mimo otváracích hodín" label in the wide day-view columns (omitted in
-  the narrow week columns; a fully-closed day also shows "zatvorené"). The out-of-hours card
+  open/close edge, with a label in the wide day-view columns — **"Mimo otváracích hodín"** for a
+  partial closed band, **"Zatvorené"** for a fully-closed day (the narrow week columns omit the
+  label — the hatch carries it — and keep "zatvorené" for closed days). The out-of-hours card
   keeps its amber ring (spec 10 §2.7). A booking at/after the grid's last slot is still clamped
   to a 1-slot sliver as a `NaN`-height guard, but with the extended range that path is unreached.
 - **Horizontal scroll affordance.** Both grids are wrapped in the shadcn **`ScrollArea`**
