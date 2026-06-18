@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DateField } from "./date-field";
+import { OutsideHoursConfirmDialog } from "./OutsideHoursConfirmDialog";
+import type { OutsideHoursWarning } from "@/lib/actions/result";
 
 function hhmm(t: string | null): string {
   if (!t) return "";
@@ -24,6 +26,7 @@ export function DayOverridesEditor({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [warn, setWarn] = useState<{ warning: OutsideHoursWarning; confirm: () => void } | null>(null);
 
   // Form state for the "add/edit" row.
   const [day, setDay] = useState("");
@@ -48,7 +51,7 @@ export function DayOverridesEditor({
     setLabel("");
   }
 
-  function save() {
+  function save(allowOutsideHours = false) {
     if (!day) {
       toast.error("Vyberte dátum.");
       return;
@@ -60,26 +63,36 @@ export function DayOverridesEditor({
         openTime: isClosed ? undefined : openTime,
         closeTime: isClosed ? undefined : closeTime,
         label: label || undefined,
+        allowOutsideHours,
       });
-      if (result.ok) {
-        toast.success("Výnimka uložená.");
-        reset();
-        router.refresh();
-      } else {
+      if (!result.ok) {
+        if (result.outsideHoursWarning) {
+          setWarn({ warning: result.outsideHoursWarning, confirm: () => { setWarn(null); save(true); } });
+          return;
+        }
         toast.error(result.message);
+        return;
       }
+      setWarn(null);
+      toast.success("Výnimka uložená.");
+      reset();
+      router.refresh();
     });
   }
 
-  function remove(d: string) {
+  function remove(d: string, allowOutsideHours = false) {
     startTransition(async () => {
-      const result = await removeDayOverride({ day: d });
-      if (result.ok) {
-        toast.success("Výnimka odstránená.");
-        router.refresh();
-      } else {
+      const result = await removeDayOverride({ day: d, allowOutsideHours });
+      if (!result.ok) {
+        if (result.outsideHoursWarning) {
+          setWarn({ warning: result.outsideHoursWarning, confirm: () => { setWarn(null); remove(d, true); } });
+          return;
+        }
         toast.error(result.message);
+        return;
       }
+      toast.success("Výnimka odstránená.");
+      router.refresh();
     });
   }
 
@@ -152,7 +165,7 @@ export function DayOverridesEditor({
           <Button variant="ghost" onClick={reset} type="button">
             Vyčistiť
           </Button>
-          <Button onClick={save} disabled={pending} type="button">
+          <Button onClick={() => save()} disabled={pending} type="button">
             {pending ? "Ukladám…" : "Uložiť výnimku"}
           </Button>
         </div>
@@ -203,6 +216,13 @@ export function DayOverridesEditor({
           </article>
         ))}
       </section>
+
+      <OutsideHoursConfirmDialog
+        warning={warn?.warning ?? null}
+        pending={pending}
+        onConfirm={() => warn?.confirm()}
+        onCancel={() => setWarn(null)}
+      />
     </div>
   );
 }

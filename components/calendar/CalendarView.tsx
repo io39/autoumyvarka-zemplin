@@ -225,6 +225,7 @@ export function CalendarView({
           rows={rows}
           interval={interval}
           blocks={dayBlocks}
+          dayClosed={dayIntervals.get(date) === null}
         />
       ) : (
         <WeekView

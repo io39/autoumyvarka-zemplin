@@ -39,12 +39,17 @@ export function DayView({
   rows,
   interval,
   blocks,
+  dayClosed,
 }: {
   activeBox: 1 | 2;
   date: string;
   rows: string[];
   interval: Interval;
   blocks: CalendarBlock[];
+  /** The day is fully closed (grid uses the default interval) → every booking is
+      out of hours. The offset check below can't detect this (a 09:00 order sits
+      inside the default 08:00–17:00 grid), so flag it explicitly. */
+  dayClosed: boolean;
 }) {
   const isDesktop = useMediaQuery("(min-width: 640px)");
   const boxes: (1 | 2)[] = isDesktop ? [1, 2] : [activeBox];
@@ -199,12 +204,14 @@ export function DayView({
                 const eSlot = Math.min(n, Math.max(sSlot + 1, Math.round(p.endMin / SLOT_MIN)));
                 const top = rowTop[sSlot];
                 const height = rowTop[eSlot] - rowTop[sSlot];
+                const outsideHours = dayClosed || p.startMin < 0 || p.endMin > n * SLOT_MIN;
                 return (
                   <BookingCard
                     key={p.block.order.id}
                     block={p.block}
                     density="rich"
                     className="absolute"
+                    outsideHours={outsideHours}
                     style={{
                       top: top + 1,
                       height: height - 2,

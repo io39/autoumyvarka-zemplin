@@ -2,7 +2,7 @@ import { getCurrentStaff } from "@/lib/auth/session";
 import { getIdentity } from "@/lib/auth/identity";
 import { isUnauthenticatedError, isForbiddenError } from "@/lib/auth/errors";
 import { mintRealtimeToken } from "@/lib/realtime/token";
-import { getUnpaidCount } from "@/lib/actions/orders";
+import { getUnpaidCount, getOutsideHoursCount } from "@/lib/actions/orders";
 import { SidebarShell } from "./SidebarShell";
 import { BottomNav } from "./BottomNav";
 
@@ -35,10 +35,15 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   // workers, and the badge is hidden from them — spec 10 §1.4).
   const isManager = staff.role === "manazer";
   let unpaidCount = 0;
+  let outsideHoursCount = 0;
   let realtimeJwt = "";
   if (isManager) {
-    realtimeJwt = await mintRealtimeToken(await getIdentity());
-    unpaidCount = await getUnpaidCount();
+    // Independent reads — run them concurrently (the token mint + both badge counts).
+    [realtimeJwt, unpaidCount, outsideHoursCount] = await Promise.all([
+      mintRealtimeToken(await getIdentity()),
+      getUnpaidCount(),
+      getOutsideHoursCount(),
+    ]);
   }
 
   return (
@@ -47,6 +52,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         role={staff.role}
         staffName={staff.display_name}
         unpaidCount={unpaidCount}
+        outsideHoursCount={outsideHoursCount}
         realtimeJwt={realtimeJwt}
       >
         {children}

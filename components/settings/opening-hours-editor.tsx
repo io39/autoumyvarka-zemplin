@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OutsideHoursConfirmDialog } from "./OutsideHoursConfirmDialog";
+import type { OutsideHoursWarning } from "@/lib/actions/result";
 
 // 0 = Pondelok … 6 = Nedeľa (data-model §2.12).
 const WEEKDAY_LABEL = [
@@ -54,6 +56,7 @@ export function OpeningHoursEditor({
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(() => toEditable(initialHours));
   const [pending, startTransition] = useTransition();
+  const [warn, setWarn] = useState<OutsideHoursWarning | null>(null);
 
   function update(dow: number, patch: Partial<Row>) {
     setRows((prev) =>
@@ -61,7 +64,7 @@ export function OpeningHoursEditor({
     );
   }
 
-  function onSubmit() {
+  function save(allowOutsideHours = false) {
     const payload = {
       rows: rows.map((r) => ({
         dayOfWeek: r.dayOfWeek,
@@ -69,15 +72,21 @@ export function OpeningHoursEditor({
         openTime: r.isClosed ? undefined : r.openTime,
         closeTime: r.isClosed ? undefined : r.closeTime,
       })),
+      allowOutsideHours,
     };
     startTransition(async () => {
       const result = await saveOpeningHours(payload);
-      if (result.ok) {
-        toast.success("Otváracie hodiny uložené.");
-        router.refresh();
-      } else {
+      if (!result.ok) {
+        if (result.outsideHoursWarning) {
+          setWarn(result.outsideHoursWarning);
+          return;
+        }
         toast.error(result.message);
+        return;
       }
+      setWarn(null);
+      toast.success("Otváracie hodiny uložené.");
+      router.refresh();
     });
   }
 
@@ -139,10 +148,17 @@ export function OpeningHoursEditor({
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={onSubmit} disabled={pending}>
+        <Button onClick={() => save()} disabled={pending}>
           {pending ? "Ukladám…" : "Uložiť"}
         </Button>
       </div>
+
+      <OutsideHoursConfirmDialog
+        warning={warn}
+        pending={pending}
+        onConfirm={() => { setWarn(null); save(true); }}
+        onCancel={() => setWarn(null)}
+      />
     </div>
   );
 }

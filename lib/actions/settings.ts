@@ -5,8 +5,13 @@ import { getCurrentStaff } from "@/lib/auth/session";
 import { requireManager } from "@/lib/auth/require";
 import { writeAudit } from "@/lib/audit";
 import { getServiceClient } from "@/lib/supabase/server";
-import type { OpeningHoursRow, DayOverrideRow } from "@/lib/supabase/types";
+import type { OpeningHoursRow, DayOverrideRow, OrderStatus } from "@/lib/supabase/types";
 import { type ActionResult, toActionError } from "./result";
+import type { OutsideHoursWarning } from "./result";
+import { bratislavaDateKey, bratislavaDateDisplay, bratislavaHHMM } from "@/lib/settings/availability";
+import { bratislavaLocalDayRange } from "@/lib/time/bratislava";
+import { isOutsideHours } from "@/lib/orders/out-of-hours";
+import { formatCarLabel, NO_SPZ_LABEL } from "@/lib/cars/format";
 import {
   saveOpeningHoursSchema,
   upsertDayOverrideSchema,
@@ -15,6 +20,63 @@ import {
 } from "@/lib/validation/settings";
 
 const NOT_FOUND_MESSAGE = "Záznam sa nenašiel.";
+const OUTSIDE_HOURS_MESSAGE = "Táto zmena ponechá objednávky mimo otváracích hodín.";
+
+/**
+ * Upcoming vytvorená orders (today onward, optionally just one date) that would
+ * be NEWLY pushed outside opening hours by the PROPOSED config change. Only
+ * orders that are currently inside hours but would fall outside the proposed
+ * config are counted — orders already outside hours before the change are
+ * ignored. Returns an OutsideHoursWarning (count + up to 5 samples) or null
+ * when none. Reuses isOutsideHours.
+ */
+async function checkOutsideHours(
+  db: ReturnType<typeof getServiceClient>,
+  proposedHours: OpeningHoursRow[],
+  proposedOverrides: DayOverrideRow[],
+  currentHours: OpeningHoursRow[],
+  currentOverrides: DayOverrideRow[],
+  dayFilter?: string,
+): Promise<OutsideHoursWarning | null> {
+  const today = bratislavaDateKey(new Date());
+  let q = db
+    .from("orders")
+    .select("id, starts_at, ends_at, status, deleted_at, car:car_id(spz, brand, model)")
+    .is("deleted_at", null)
+    .eq("status", "vytvorena")
+    .gte("starts_at", bratislavaLocalDayRange(today).start.toISOString())
+    .order("starts_at");
+  if (dayFilter) {
+    const range = bratislavaLocalDayRange(dayFilter);
+    q = q.lt("starts_at", range.end.toISOString());
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+
+  type Row = {
+    id: string;
+    starts_at: string;
+    ends_at: string;
+    status: OrderStatus;
+    deleted_at: string | null;
+    car: { spz: string | null; brand: string | null; model: string | null } | null;
+  };
+  // Only flag orders newly orphaned by this change: outside proposed AND currently inside.
+  const affected = ((data ?? []) as unknown as Row[]).filter(
+    (o) =>
+      isOutsideHours(o, proposedHours, proposedOverrides, today) &&
+      !isOutsideHours(o, currentHours, currentOverrides, today),
+  );
+  if (affected.length === 0) return null;
+  return {
+    count: affected.length,
+    sample: affected.slice(0, 5).map((o) => {
+      const at = new Date(o.starts_at);
+      const label = `${o.car?.spz || formatCarLabel(o.car?.brand ?? null, o.car?.model ?? null) || NO_SPZ_LABEL} · ${bratislavaDateDisplay(at)} ${bratislavaHHMM(at)}`;
+      return { id: o.id, label };
+    }),
+  };
+}
 
 /** List the 7 weekday rows in 0=Mon … 6=Sun order. Both roles. */
 export async function getOpeningHours(): Promise<OpeningHoursRow[]> {
@@ -64,6 +126,18 @@ export async function saveOpeningHours(input: unknown): Promise<ActionResult> {
       close_time: r.isClosed ? null : (r.closeTime ?? null),
     }));
 
+    if (!data.allowOutsideHours) {
+      const { data: overrides } = await db.from("day_overrides").select("*");
+      const warning = await checkOutsideHours(
+        db,
+        payload as OpeningHoursRow[],
+        (overrides ?? []) as DayOverrideRow[],
+        (before ?? []) as OpeningHoursRow[],
+        (overrides ?? []) as DayOverrideRow[],
+      );
+      if (warning) return { ok: false, message: OUTSIDE_HOURS_MESSAGE, outsideHoursWarning: warning };
+    }
+
     const { error } = await db
       .from("opening_hours")
       .upsert(payload, { onConflict: "day_of_week" });
@@ -106,6 +180,28 @@ export async function upsertDayOverride(input: unknown): Promise<ActionResult> {
       close_time: data.isClosed ? null : (data.closeTime ?? null),
       label: data.label ?? null,
     };
+
+    if (!data.allowOutsideHours) {
+      const [{ data: hours }, { data: existing }] = await Promise.all([
+        db.from("opening_hours").select("*"),
+        db.from("day_overrides").select("*"),
+      ]);
+      const currentOverrides = (existing ?? []) as DayOverrideRow[];
+      const proposedOverrides = [
+        ...currentOverrides.filter((o) => o.day !== data.day),
+        payload as DayOverrideRow,
+      ];
+      const warning = await checkOutsideHours(
+        db,
+        (hours ?? []) as OpeningHoursRow[],
+        proposedOverrides,
+        (hours ?? []) as OpeningHoursRow[],
+        currentOverrides,
+        data.day,
+      );
+      if (warning) return { ok: false, message: OUTSIDE_HOURS_MESSAGE, outsideHoursWarning: warning };
+    }
+
     const { error } = await db
       .from("day_overrides")
       .upsert(payload, { onConflict: "day" });
@@ -131,6 +227,24 @@ export async function removeDayOverride(input: unknown): Promise<ActionResult> {
     const actor = await getCurrentStaff();
     requireManager(actor);
     const db = getServiceClient();
+
+    if (!data.allowOutsideHours) {
+      const [{ data: hours }, { data: existing }] = await Promise.all([
+        db.from("opening_hours").select("*"),
+        db.from("day_overrides").select("*"),
+      ]);
+      const currentOverrides = (existing ?? []) as DayOverrideRow[];
+      const proposedOverrides = currentOverrides.filter((o) => o.day !== data.day);
+      const warning = await checkOutsideHours(
+        db,
+        (hours ?? []) as OpeningHoursRow[],
+        proposedOverrides,
+        (hours ?? []) as OpeningHoursRow[],
+        currentOverrides,
+        data.day,
+      );
+      if (warning) return { ok: false, message: OUTSIDE_HOURS_MESSAGE, outsideHoursWarning: warning };
+    }
 
     // Hard-delete is intentional here: a day override is an ad-hoc
     // exception, not domain history. CLAUDE.md's soft-delete rule

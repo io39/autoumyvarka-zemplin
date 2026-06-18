@@ -104,9 +104,9 @@ All validate with zod, call `requireManager()`, write `audit_log`.
 | --- | --- | --- |
 | `getOpeningHours` | — | — (read; both roles) |
 | `getDayOverrides` | `{ from?, to? }` | — (read; both roles) |
-| `saveOpeningHours` | `{ rows: [{ dayOfWeek 0–6, isClosed, openTime?, closeTime? }] × 7 }` | `settings.hours_update` |
-| `upsertDayOverride` | `{ day, isClosed, openTime?, closeTime?, label? }` | `settings.override_set` |
-| `removeDayOverride` | `{ day }` | `settings.override_remove` |
+| `saveOpeningHours` | `{ rows: [{ dayOfWeek 0–6, isClosed, openTime?, closeTime? }] × 7, allowOutsideHours? }` | `settings.hours_update` |
+| `upsertDayOverride` | `{ day, isClosed, openTime?, closeTime?, label?, allowOutsideHours? }` | `settings.override_set` |
+| `removeDayOverride` | `{ day, allowOutsideHours? }` | `settings.override_remove` |
 
 - `saveOpeningHours` validates: when `isClosed=false`, both times present,
   `openTime < closeTime`, and **both on a 15-minute boundary** (minutes ∈ {00,15,30,45},
@@ -115,6 +115,26 @@ All validate with zod, call `requireManager()`, write `audit_log`.
 - `upsertDayOverride` validates: when `isClosed=false`, both times present,
   `openTime < closeTime`, both on a 15-minute boundary; when `isClosed=true`, times
   cleared. Keyed by `day` (pk) → idempotent upsert (re-saving the same date edits it).
+
+#### Warn-but-allow: hours changes that orphan existing orders
+
+Orders are always created **inside** hours (`createOrder`/`moveOrder` enforce
+`isRangeOpen`), so the only way an order ends up outside hours is a manager **narrowing
+or closing** hours after it already exists. All three mutating actions guard against
+silently orphaning upcoming orders, mirroring the box-overlap `allowOverlap` mechanism:
+
+- Before writing, each action recomputes upcoming **`vytvorena`** orders (today onward;
+  `upsert`/`remove` scoped to the affected date) against the **proposed** config and flags
+  the ones **newly** orphaned — *outside the proposed hours **and** inside the current
+  hours* (so an unrelated save isn't blocked by a pre-existing out-of-hours order). The
+  shared predicate is `isOutsideHours` (`lib/orders/out-of-hours.ts`, reusing `isRangeOpen`).
+- If any are newly orphaned and `allowOutsideHours` is not `true`, the action **does not
+  save** — it returns a soft `{ ok:false, message, outsideHoursWarning: { count, sample } }`
+  (`sample` = up to 5 car·date·time labels). The hours editors show a confirm dialog
+  (`OutsideHoursConfirmDialog`) naming them; confirming re-calls the action with
+  `allowOutsideHours: true`, which saves. No extra audit beyond the normal hours audit.
+- The orphaned orders then surface on the manager worklist `/mimo-hodin` (spec 10 §2.7)
+  until rescheduled/cancelled.
 
 ### 2.4 Data & migrations
 

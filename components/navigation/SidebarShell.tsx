@@ -10,6 +10,7 @@ interface SidebarShellProps {
   role: StaffRole;
   staffName: string;
   unpaidCount: number;
+  outsideHoursCount: number;
   realtimeJwt: string;
   children: React.ReactNode;
 }
@@ -30,6 +31,7 @@ export function SidebarShell({
   role,
   staffName,
   unpaidCount,
+  outsideHoursCount,
   realtimeJwt,
   children,
 }: SidebarShellProps) {
@@ -55,6 +57,7 @@ export function SidebarShell({
         role={role}
         staffName={staffName}
         unpaidCount={unpaidCount}
+        outsideHoursCount={outsideHoursCount}
         realtimeJwt={realtimeJwt}
         expanded={expanded}
         onCollapse={() => setExpanded(false)}
