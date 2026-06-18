@@ -53,6 +53,14 @@ test.describe("outside-hours worklist (manager)", () => {
     await expect(row).toHaveCount(0, { timeout: 20000 });
   });
 
+  test("an out-of-hours order's calendar card carries the mimo-hodín marker", async ({ page }) => {
+    const o = await seedOrder({ date: "2031-03-14", time: "18:00" }); // after 17:00 close
+    await page.goto("/?view=day&date=2031-03-14");
+    const card = page.locator(`[data-order-id="${o.orderId}"]`);
+    await expect(card).toBeVisible();
+    await expect(card).toHaveAttribute("data-outside-hours", "");
+  });
+
   test("narrowing a day's hours warns about an existing order, then allows on confirm", async ({ page }) => {
     const date = nextWeekdayDate(2); // next Wednesday (open 08:00–17:00)
     const o = await seedOrder({ date, time: "09:00" });

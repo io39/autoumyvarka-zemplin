@@ -186,12 +186,16 @@ function DayCell({
           )}
           {placedFor(box as 1 | 2).map((p) => {
             const heightMin = Math.max(SLOT_MIN, p.endMin - p.startMin);
+            const dayStartMin = dayInterval ? diffMinutes(gridInterval.open, dayInterval.open) : 0;
+            const dayEndMin = dayInterval ? diffMinutes(gridInterval.open, dayInterval.close) : 0;
+            const outsideHours = !dayInterval || p.startMin < dayStartMin || p.endMin > dayEndMin;
             return (
               <BookingCard
                 key={p.block.order.id}
                 block={p.block}
                 density="compact"
                 className="absolute text-xs"
+                outsideHours={outsideHours}
                 style={{
                   top: (p.startMin / SLOT_MIN) * ROW_PX,
                   height: (heightMin / SLOT_MIN) * ROW_PX - 2,

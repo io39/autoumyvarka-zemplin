@@ -67,11 +67,13 @@ export function BookingCard({
   density,
   className,
   style,
+  outsideHours,
 }: {
   block: CalendarBlock;
   density: "rich" | "compact" | "line";
   className?: string;
   style?: CSSProperties;
+  outsideHours?: boolean;
 }) {
   const openOrder = useOpenOrderSheet();
   const c = STATE_COLOR[block.order.status];
@@ -80,14 +82,18 @@ export function BookingCard({
     c.bg,
     c.border,
     c.text,
+    outsideHours && "ring-2 ring-amber-500 ring-offset-1",
     className,
   );
+  const title = outsideHours ? "Mimo otváracích hodín" : undefined;
 
   if (openOrder) {
     return (
       <button
         type="button"
         data-order-id={block.order.id}
+        data-outside-hours={outsideHours ? "" : undefined}
+        title={title}
         className={classes}
         style={style}
         onClick={() => openOrder(block.order.id)}
@@ -101,6 +107,8 @@ export function BookingCard({
     <Link
       href={`/orders/${block.order.id}`}
       data-order-id={block.order.id}
+      data-outside-hours={outsideHours ? "" : undefined}
+      title={title}
       className={classes}
       style={style}
     >

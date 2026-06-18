@@ -199,12 +199,14 @@ export function DayView({
                 const eSlot = Math.min(n, Math.max(sSlot + 1, Math.round(p.endMin / SLOT_MIN)));
                 const top = rowTop[sSlot];
                 const height = rowTop[eSlot] - rowTop[sSlot];
+                const outsideHours = p.startMin < 0 || p.endMin > n * SLOT_MIN;
                 return (
                   <BookingCard
                     key={p.block.order.id}
                     block={p.block}
                     density="rich"
                     className="absolute"
+                    outsideHours={outsideHours}
                     style={{
                       top: top + 1,
                       height: height - 2,
