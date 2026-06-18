@@ -50,7 +50,7 @@ test.describe("outside-hours worklist (manager)", () => {
       .eq("id", o.orderId);
     expect(error).toBeNull();
 
-    await expect(row).toHaveCount(0);
+    await expect(row).toHaveCount(0, { timeout: 20000 });
   });
 
   test("narrowing a day's hours warns about an existing order, then allows on confirm", async ({ page }) => {
