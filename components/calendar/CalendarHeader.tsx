@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { StaffRole } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
 import { UnpaidBadge } from "@/components/unpaid/unpaid-badge";
+import { OutsideHoursBadge } from "@/components/outside-hours/outside-hours-badge";
 
 const ROLE_LABEL: Record<StaffRole, string> = {
   manazer: "Manažér",
@@ -9,26 +10,24 @@ const ROLE_LABEL: Record<StaffRole, string> = {
 };
 
 /**
- * Calendar header actions (spec 14 §2.1 / §2.6). Right-aligned on desktop:
- * the manager-only `UnpaidBadge` + a `Nová rezervácia` button. On mobile the
- * actions stack: identity (left) + unpaid (right) on one line, then a
- * full-width `Nová rezervácia` below.
- *
- * The whole row is **mobile-only** (`md:hidden`): on desktop the sidebar footer
- * carries the identity and the sidebar carries the `UnpaidBadge`, so the calendar
- * needs no header there at all.
+ * Calendar header (spec 14 §2.1 / §2.6) — **mobile-only** (`md:hidden`). The row
+ * is identity (left) + the manager-only badges (right): `UnpaidBadge` ("Po termíne")
+ * and `OutsideHoursBadge` ("Mimo hodín"). On desktop the sidebar footer carries the
+ * identity and the sidebar carries both badges, so the calendar needs no header there.
  */
 export function CalendarHeader({
   date,
   role,
   staffName,
   unpaidCount,
+  outsideHoursCount,
   realtimeJwt,
 }: {
   date: string;
   role: StaffRole;
   staffName: string;
   unpaidCount: number;
+  outsideHoursCount: number;
   realtimeJwt: string;
 }) {
   const isManager = role === "manazer";
@@ -42,7 +41,12 @@ export function CalendarHeader({
         <span className="text-sm text-muted-foreground md:hidden" data-identity>
           {staffName} • {ROLE_LABEL[role]}
         </span>
-        {isManager && <UnpaidBadge initialCount={unpaidCount} realtimeJwt={realtimeJwt} />}
+        {isManager && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <UnpaidBadge initialCount={unpaidCount} realtimeJwt={realtimeJwt} />
+            <OutsideHoursBadge initialCount={outsideHoursCount} realtimeJwt={realtimeJwt} />
+          </div>
+        )}
       </div>
       {/* <Button asChild className="w-full md:w-auto">
         <Link href={`/orders/new?date=${date}`}>Nová rezervácia</Link>

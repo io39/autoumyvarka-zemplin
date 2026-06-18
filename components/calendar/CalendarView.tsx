@@ -32,6 +32,7 @@ interface CalendarViewProps {
   staffName: string;
   role: StaffRole;
   unpaidCount: number;
+  outsideHoursCount: number;
 }
 
 /**
@@ -50,6 +51,7 @@ export function CalendarView({
   staffName,
   role,
   unpaidCount,
+  outsideHoursCount,
 }: CalendarViewProps) {
   const router = useRouter();
   const [blocks, setBlocks] = useState(initialBlocks);
@@ -200,6 +202,7 @@ export function CalendarView({
         role={role}
         staffName={staffName}
         unpaidCount={unpaidCount}
+        outsideHoursCount={outsideHoursCount}
         realtimeJwt={realtimeJwt}
       />
 

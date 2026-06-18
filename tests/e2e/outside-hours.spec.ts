@@ -24,11 +24,13 @@ test.describe("outside-hours worklist (manager)", () => {
     await expect(row.getByRole("link")).toHaveAttribute("href", `/orders/${o.orderId}`);
   });
 
-  test("the sidebar badge shows the count and links to /mimo-hodin", async ({ page }) => {
+  test("the badge shows the count and links to /mimo-hodin", async ({ page }) => {
     await seedOrder({ date: "2031-03-14", time: "18:00" });
     await page.goto("/");
     await expandSidebar(page); // desktop sidebar is collapsed by default
-    const badge = page.locator("[data-outside-hours-badge]");
+    // The badge exists in two breakpoint slots (desktop sidebar / mobile calendar
+    // header); scope to the visible one for this desktop-viewport run.
+    const badge = page.locator("[data-outside-hours-badge]:visible");
     await expect(badge).toBeVisible();
     expect(Number(await badge.getAttribute("data-count"))).toBeGreaterThanOrEqual(1);
     await badge.click();

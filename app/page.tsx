@@ -3,7 +3,7 @@ import { getIdentity } from "@/lib/auth/identity";
 import { isUnauthenticatedError } from "@/lib/auth/errors";
 import { UnauthenticatedView } from "@/components/auth/auth-error-views";
 import { CalendarView } from "@/components/calendar/CalendarView";
-import { getCalendar, getUnpaidCount } from "@/lib/actions/orders";
+import { getCalendar, getUnpaidCount, getOutsideHoursCount } from "@/lib/actions/orders";
 import { getOpeningHours, getDayOverrides } from "@/lib/actions/settings";
 import { mintRealtimeToken } from "@/lib/realtime/token";
 import { weekRange } from "@/lib/calendar/grid";
@@ -46,9 +46,12 @@ export default async function HomePage({
     getIdentity(),
   ]);
   const realtimeJwt = await mintRealtimeToken(identity);
-  // Overdue badge is manager-only; getUnpaidCount throws for workers, so only
-  // call it for managers (workers never see the badge — spec 10 §1.4).
-  const unpaidCount = staff.role === "manazer" ? await getUnpaidCount() : 0;
+  // Badges are manager-only; the count actions throw for workers, so only call
+  // them for managers (workers never see the badges — spec 10 §1.4 / §2.7).
+  const isManager = staff.role === "manazer";
+  const [unpaidCount, outsideHoursCount] = isManager
+    ? await Promise.all([getUnpaidCount(), getOutsideHoursCount()])
+    : [0, 0];
 
   return (
     <CalendarView
@@ -61,6 +64,7 @@ export default async function HomePage({
       staffName={staff.display_name}
       role={staff.role}
       unpaidCount={unpaidCount}
+      outsideHoursCount={outsideHoursCount}
     />
   );
 }
