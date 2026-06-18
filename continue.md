@@ -12,8 +12,8 @@ pushing is hook-blocked here. A **TEST deployment is now live** (Coolify + Supab
 EU + Cloudflare Access) — see the **Deployment status** section below and the full runbook
 `docs/deployment.md`. **Production hardening (Phase 4) is NOT done** and the VPS origin is
 unhardened (no tunnel) — test/fake data only. Still ahead: the real SMS provider and the
-client's open questions. **Two rounds of work (2026-06-18) are committed to `main` (all
-unpushed — 27 commits ahead of `origin/main`):** (1) a new **orders-outside-opening-hours**
+client's open questions. **Two rounds of work (2026-06-18) are committed to `main` and
+PUSHED to `origin/main`:** (1) a new **orders-outside-opening-hours**
 feature — derived warning when a manager narrows/closes hours over an existing order, a
 `/mimo-hodin` worklist + badge, and the calendar now showing such orders at their **true time**
 inside hatched closed zones (specs 04/10/14); (2) the earlier UI round — order-detail edits
@@ -80,7 +80,7 @@ pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder G
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
 - **Orders outside opening hours — warning + worklist + calendar rendering** (2026-06-18, a
   spec-driven feature built on a short-lived `feat/orders-outside-opening-hours` branch, merged
-  to `main` via `abeb804`, plus calendar follow-ups; **all unpushed**). Built via the
+  to `main` via `abeb804`, plus calendar follow-ups; **pushed to `origin/main`**). Built via the
   superpowers brainstorm→plan→subagent-driven flow — **design** `docs/superpowers/specs/
   2026-06-18-orders-outside-opening-hours-design.md`, **plan** `docs/superpowers/plans/
   2026-06-18-orders-outside-opening-hours.md`. **Folded into specs 04 §2.3 + 10 §2.7 + 14**
