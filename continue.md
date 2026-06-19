@@ -19,12 +19,12 @@ feature — derived warning when a manager narrows/closes hours over an existing
 inside hatched closed zones (specs 04/10/14); (2) the earlier UI round — order-detail edits
 route into the wizard (+ `changeOrderCar`), per-car **Upraviť**, shadcn **Checkbox** everywhere,
 a **collapsible desktop sidebar**, and a **desktop horizontal scrollbar** on the calendar. Both
-are in the first two "Recent app fixes" entries. **Several more commits this session are committed
-to `main` locally but NOT yet pushed** (push from your own terminal): **SMS bez diakritiky +
+are in the first two "Recent app fixes" entries. **Several more commits (2026-06-18→19) are on
+`main` and PUSHED to `origin/main` (HEAD `b04be15`):** **SMS bez diakritiky +
 GSM-7 160-char limit** (`bc0a47d` + hint tweak `f1433c3`), the **Realtime shared-singleton
 client** fix (`3d6229f` — kills the "Multiple GoTrueClient instances" warning), the **e2e
 shared-DB flake fixes** (`8d13389`), and a **`data-model.md` workers/order_staff doc fix**
-(`e75371d`) — see the top "Recent app fixes" entries. **Last updated:** 2026-06-18.
+(`e75371d`) — see the top "Recent app fixes" entries. **Last updated:** 2026-06-19.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -84,7 +84,7 @@ pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder G
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
 - **SMS sent bez diakritiky + GSM-7 160-char limit** (2026-06-18, commit `bc0a47d`, editor-hint
-  tweak `f1433c3`; committed to `main` locally, **NOT yet pushed**). Slovak text with diacritics
+  tweak `f1433c3`; **pushed to `origin/main`**). Slovak text with diacritics
   is UCS-2 → only **70 chars/SMS** (one accented char forces the whole message into UCS-2); stripped,
   it's **GSM-7 → 160 chars/segment** (cheaper, renders on every handset). `lib/sms/render.ts`:
   new `stripDiacritics()` (NFD + combining-mark removal, covers every Slovak accent) applied **after**
@@ -99,8 +99,8 @@ pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder G
   §1.1/§2.2/§4.3/§4.8 + data-model §2.9**. Verified: typecheck/lint clean, **245 unit**, **sms e2e 18/18**
   on a clean reset + **fresh** prod server (`CI=1`). ⚠️ When finalizing SMS wording with the client
   (PRD §13#4), note they'll see messages like "Dobry den, pripominame termin…" without accents.
-- **Realtime browser client → shared singleton** (2026-06-18, commit `3d6229f`; committed to
-  `main` locally, **NOT yet pushed** — push from your own terminal). Fixes the browser console
+- **Realtime browser client → shared singleton** (2026-06-18, commit `3d6229f`; **pushed to
+  `origin/main`**). Fixes the browser console
   warning *"Multiple GoTrueClient instances detected in the same browser context"*. Each Realtime
   consumer (calendar + unpaid/out-of-hours badges & lists) was doing its own `createClient`, and
   the calendar re-created one on every view/date re-subscribe → a new `GoTrueClient` per consumer/
@@ -125,7 +125,7 @@ pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder G
   (commit `8d13389` — deterministic `createClientViaUI` via DB-id lookup, full-ŠPZ/letter-tag
   searches, out-of-hours confirm in `settings-permissions`, 20s realtime timeout, local retries
   0→1) and **`data-model.md` workers/order_staff doc fix** (commit `e75371d`, the post-0009 §2.14
-  + new §2.15). Both committed locally, **not yet pushed**.
+  + new §2.15). All **pushed to `origin/main`**.
 - **Orders outside opening hours — warning + worklist + calendar rendering** (2026-06-18, a
   spec-driven feature built on a short-lived `feat/orders-outside-opening-hours` branch, merged
   to `main` via `abeb804`, plus calendar follow-ups; **pushed to `origin/main`**). Built via the
