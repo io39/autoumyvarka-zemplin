@@ -25,6 +25,7 @@ import {
   hhmmToMin,
   minToHHMM,
   nearestFreeStarts,
+  unionSlotRange,
   type BusyInterval,
 } from "@/lib/orders/slot-grid";
 import { assignLanes } from "@/lib/calendar/lanes";
@@ -152,24 +153,26 @@ export function Step4TimeSlot({
   const loading = data.key !== wantKey;
 
   // Shared axis range: union of the days' open intervals AND every booking's
-  // extent, so nothing is clipped outside the grid.
+  // extent, so nothing is clipped outside the grid. Snapped to the 15-min grid
+  // (`unionSlotRange`) so an off-grid out-of-hours booking (e.g. 07:39) can't
+  // shift the axis origin and make every clicked start miss the quarter-hour.
   const grid = useMemo(() => {
-    let openMin: number | null = null;
-    let closeMin: number | null = null;
-    const fold = (a: number, b: number) => {
-      openMin = openMin === null ? a : Math.min(openMin, a);
-      closeMin = closeMin === null ? b : Math.max(closeMin, b);
-    };
+    const intervals: { startMin: number; endMin: number }[] = [];
+    const blks: { startMin: number; endMin: number }[] = [];
     for (const d of days) {
       const dd = data.byDay[d];
-      if (dd?.interval) fold(hhmmToMin(dd.interval.open), hhmmToMin(dd.interval.close));
-      for (const b of dd?.blocks ?? []) fold(blockStartMin(b), blockEndMin(b));
+      if (dd?.interval) {
+        intervals.push({ startMin: hhmmToMin(dd.interval.open), endMin: hhmmToMin(dd.interval.close) });
+      }
+      for (const b of dd?.blocks ?? []) {
+        blks.push({ startMin: blockStartMin(b), endMin: blockEndMin(b) });
+      }
     }
-    if (openMin === null) {
-      openMin = hhmmToMin(DEFAULT_INTERVAL.open);
-      closeMin = hhmmToMin(DEFAULT_INTERVAL.close);
-    }
-    return { openMin, closeMin: closeMin as number };
+    const r = unionSlotRange(intervals, blks, {
+      startMin: hhmmToMin(DEFAULT_INTERVAL.open),
+      endMin: hhmmToMin(DEFAULT_INTERVAL.close),
+    });
+    return { openMin: r.startMin, closeMin: r.endMin };
   }, [days, data]);
 
   const rows = useMemo(() => buildRows(minToHHMM(grid.openMin), minToHHMM(grid.closeMin)), [grid]);

@@ -204,10 +204,16 @@ picker whose header mirrors the calendar (§4).
   **hover-preview ghost is mouse-only** (`useMediaQuery("(hover: hover)")`): touch devices
   don't fire `mouseleave`, so a touch hover would otherwise leave a stray ghost on the
   first-tapped column. Occupied bookings render with the shared `BookingCardContent`
-  **line** density (car name). **Variable row heights** (`computeRowLayout`, shared with the
+  **line** density (car name + the **category label** only — no price/note). **Variable row
+  heights** (`computeRowLayout`, shared with the
   Day view): a short occupied booking grows its 15-min row(s) — across all columns + the
   shared axis — so it stays readable; the click→time mapping follows the variable rows
-  (`slotAtOffset`). **Lane-aware column width:** each box column is
+  (`slotAtOffset`). **Shared axis range** = the union of the visible days' open intervals and
+  every booking's extent (`unionSlotRange`), **snapped out to the 15-min grid** so the axis
+  origin always lands on a quarter-hour. The snap is load-bearing: a clicked start is
+  `origin + row × 15`, so an off-grid out-of-hours booking (e.g. a 07:39 order created before a
+  manager narrowed the hours) would otherwise drag the origin off-grid and every pick would be
+  rejected by `createOrder`'s "musí byť na štvrťhodine" check. **Lane-aware column width:** each box column is
   `minmax(max(lanes × PICKER_MIN_LANE_PX, BOX_MIN_PX), 1fr)` where `lanes` = occupied + the
   reserved free lane, with a `BOX_MIN_PX` floor so the header fits even on an empty (1-lane)
   box; every lane stays a readable width and the grid **scrolls horizontally** when the columns

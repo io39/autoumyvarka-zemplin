@@ -29,6 +29,39 @@ export function minToHHMM(min: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
+/** Floor / ceil minutes-of-day to the 15-min slot grid. */
+export function floorToStep(min: number): number {
+  return Math.floor(min / STEP_MIN) * STEP_MIN;
+}
+export function ceilToStep(min: number): number {
+  return Math.ceil(min / STEP_MIN) * STEP_MIN;
+}
+
+/**
+ * The shared picker axis range: the union of the days' open intervals AND every
+ * visible booking's extent, snapped OUT to the 15-min grid so the origin always
+ * lands on a quarter-hour. Returns `fallback` when there is nothing to union.
+ *
+ * The snap is load-bearing: an out-of-hours booking can start off-grid (e.g.
+ * 07:39, created before a manager narrowed the hours). Without flooring, that
+ * start would become the axis origin and — because a clicked start is
+ * `origin + row × 15` — every pickable time would inherit the 9-min offset and be
+ * rejected by `createOrder`'s "must be on the quarter-hour" check. Mirrors the
+ * main calendar's `floorTo15`/`ceilTo15` range extension.
+ */
+export function unionSlotRange(intervals: Range[], blocks: Range[], fallback: Range): Range {
+  let startMin: number | null = null;
+  let endMin: number | null = null;
+  const fold = (a: number, b: number) => {
+    startMin = startMin === null ? a : Math.min(startMin, a);
+    endMin = endMin === null ? b : Math.max(endMin, b);
+  };
+  for (const iv of intervals) fold(iv.startMin, iv.endMin);
+  for (const b of blocks) fold(b.startMin, b.endMin);
+  if (startMin === null || endMin === null) return { ...fallback };
+  return { startMin: floorToStep(startMin), endMin: ceilToStep(endMin) };
+}
+
 /**
  * Free gaps within `[openMin, closeMin)` not covered by any busy interval.
  * Busy intervals may overlap/extend past the open window; they are clamped.

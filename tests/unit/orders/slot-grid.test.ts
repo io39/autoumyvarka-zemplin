@@ -7,6 +7,7 @@ import {
   minToHHMM,
   nearestFreeStarts,
   offsetToStartMin,
+  unionSlotRange,
   validStarts,
   type BusyInterval,
 } from "@/lib/orders/slot-grid";
@@ -68,6 +69,27 @@ describe("slot-grid math (interactive picker)", () => {
     expect(minToHHMM(earliestStartToday(hhmmToMin("13:16")))).toBe("13:15"); // 13:00 closed, 13:15 open
     expect(minToHHMM(earliestStartToday(hhmmToMin("13:00")))).toBe("13:00"); // exactly on the boundary
     expect(minToHHMM(earliestStartToday(hhmmToMin("13:14")))).toBe("13:00"); // still in the 13:00 slot
+  });
+
+  it("unionSlotRange snaps an off-grid out-of-hours booking so the axis origin stays on the quarter-hour", () => {
+    const fallback = { startMin: hhmmToMin("08:00"), endMin: hhmmToMin("17:00") };
+    // An out-of-hours booking at 07:39–08:09 (created before hours were narrowed)
+    // must NOT drag the grid origin to 07:39 — that would offset every clicked
+    // start by 9 min and the "must be on the quarter-hour" check would reject it.
+    const r = unionSlotRange(
+      [{ startMin: hhmmToMin("08:00"), endMin: hhmmToMin("17:00") }],
+      [{ startMin: hhmmToMin("07:39"), endMin: hhmmToMin("08:09") }],
+      fallback,
+    );
+    expect(r.startMin % 15).toBe(0);
+    expect(r.endMin % 15).toBe(0);
+    expect(minToHHMM(r.startMin)).toBe("07:30"); // floored to cover 07:39
+    expect(minToHHMM(r.endMin)).toBe("17:00");
+  });
+
+  it("unionSlotRange falls back when there are no intervals or blocks", () => {
+    const fallback = { startMin: hhmmToMin("08:00"), endMin: hhmmToMin("17:00") };
+    expect(unionSlotRange([], [], fallback)).toEqual(fallback);
   });
 
   it("offsetToStartMin snaps a pixel offset to a 15-min start", () => {
