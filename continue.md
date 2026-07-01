@@ -24,7 +24,12 @@ are in the first two "Recent app fixes" entries. **Several more commits (2026-06
 GSM-7 160-char limit** (`bc0a47d` + hint tweak `f1433c3`), the **Realtime shared-singleton
 client** fix (`3d6229f` — kills the "Multiple GoTrueClient instances" warning), the **e2e
 shared-DB flake fixes** (`8d13389`), and a **`data-model.md` workers/order_staff doc fix**
-(`e75371d`) — see the top "Recent app fixes" entries. **Last updated:** 2026-06-19.
+(`e75371d`) — see the top "Recent app fixes" entries. **Two more commits (2026-07-01) are on
+`main` but NOT yet pushed (push from your own terminal — pushing is hook-blocked here):**
+(1) **calendar order cards now show a category label + price + multi-line notes** (`1234ea9`,
+`feat(calendar)`, specs 14/16); (2) a **Step-4 picker quarter-hour bug fix** for off-grid
+out-of-hours bookings (`0d0b9af`, `fix(wizard)`, spec 16). Both are the top two "Recent app
+fixes" entries. **Last updated:** 2026-07-01.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -83,6 +88,51 @@ plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- **Calendar order cards: category label + price + multi-line notes** (2026-07-01, commit
+  `1234ea9`, `feat(calendar)`; **NOT yet pushed** — push from your own terminal). Client request:
+  surface more at-a-glance info on the calendar cards during phone bookings. **Pure UI** — all
+  data was already on `CalendarBlock` (no schema/action/authz change). Changes:
+  - **Day-view card** (`rich`) row 1 is now a flex row: **car name** (truncates) · **category
+    label** (`CategoryTag` → `CATEGORY_BADGE`, e.g. OS/DOD/SUV) · **order price**. Price =
+    `effectiveTotalCents(lineSum, order.price_override_cents)` (manager override wins, same
+    precedence as order detail / unpaid) → `formatPriceCents`. Row 3 **note** changed from
+    single-line `truncate` to **`line-clamp-3 wrap-break-word`** (wraps to up to 3 lines).
+  - **Step-4 picker** occupied blocks (`line` density) show the **category label only** (no
+    price/note). **Week view** (`compact`) left unchanged (car name only) — confirmed with user.
+  - **Card growth for notes** (`components/calendar/DayView.tsx` + `lib/calendar/grid.ts`): a
+    note-bearing card grows via the new pure **`noteCardMinPx(note.length)`** — a length-based
+    estimate reserving **1–3 note lines** (capped to match `line-clamp-3`), so short notes reserve
+    no extra space up front. **`NOTE_LINE_PX = 15 < ROW_PX = 20`** (+ tighter `NOTE_BASE_PX = 36`)
+    so a booking whose duration **already spans enough rows is NOT stretched** (the
+    `computeRowLayout` deficit is 0) — this fixed a user-reported "notes stretch a tall card even
+    when there's room" issue. ⚠️ The line-count is a **length-based estimate**, not a pixel
+    measurement of wrapping — on very wide cards a long note may reserve a row it doesn't strictly
+    need, and on very narrow overlapping cards it clamps at 3 lines (full note always in the order
+    Sheet on click). `NOTE_CHARS_PER_LINE` / `NOTE_LINE_PX` are tunable; switch to DOM measurement
+    if pixel-exact fit is ever needed.
+  - Specs **14** (§8, BookingCard detail, acceptance) + **16** (Step-4 line density) updated in
+    place. Tests: unit `noteCardMinPx` + a **tall-booking-no-stretch** `computeRowLayout` case
+    (`tests/unit/calendar/grid.test.ts`); e2e `calendar-sheet` (day card shows OS + € + a
+    `line-clamp-3` wrapping note) + `booking-wizard` (Step-4 block shows OS, no €); `seedOrder`
+    gained an optional `note`. Verified: typecheck/lint clean, **251 unit**, `calendar-sheet` 4/4
+    + `booking-wizard` 15/15 on a clean `pnpm supabase db reset`. code-reviewer pass applied
+    (stale JSDoc, `Pozn:` spec mismatch, duplicate filter, min-height derivation).
+- **Step-4 picker quarter-hour bug fix (off-grid out-of-hours booking)** (2026-07-01, commit
+  `0d0b9af`, `fix(wizard)`; **NOT yet pushed**). **User-reported:** on a day that had an
+  out-of-hours order at an **off-grid** time (07:39–08:09, created before a manager narrowed the
+  hours), the Step-4 picker offered starts like 10:09/10:24/10:39 and rejected them with
+  **"Termín musí byť na štvrťhodine."** — only on that day; quick-slots were fine. **Root cause:**
+  `Step4TimeSlot`'s shared axis range folded each booking's **raw** start/end into the origin
+  **without snapping to 15 min**, so a 07:39 booking made `grid.openMin = 07:39`; since a clicked
+  start is `origin + row × 15`, every pick was ≡ 9 mod 15 (off the quarter-hour). The main
+  `CalendarView` already avoids this with `floorTo15`/`ceilTo15`; Step 4 was the one place missing
+  the snap. **Fix:** new pure **`unionSlotRange(intervals, blocks, fallback)`** in
+  `lib/orders/slot-grid.ts` that unions the range and **snaps it OUT to the 15-min grid**
+  (`floorToStep`/`ceilToStep`); `Step4TimeSlot` uses it instead of the inline unsnapped fold.
+  Spec **16** updated. Unit regression in `tests/unit/orders/slot-grid.test.ts` (a 07:39 booking
+  floors the origin to 07:30, both bounds on the quarter-hour). Verified: typecheck/lint clean,
+  **249→251 unit**, `booking-wizard` 15/15. (Chose a pure unit test over a pixel-level e2e — a raw
+  grid-offset click is geometry-dependent/flaky, matching how the codebase tests calendar math.)
 - **SMS sent bez diakritiky + GSM-7 160-char limit** (2026-06-18, commit `bc0a47d`, editor-hint
   tweak `f1433c3`; **pushed to `origin/main`**). Slovak text with diacritics
   is UCS-2 → only **70 chars/SMS** (one accented char forces the whole message into UCS-2); stripped,
