@@ -28,6 +28,23 @@ test.describe("calendar order popup Sheet (manager)", () => {
     await expect(sheet).toBeHidden();
   });
 
+  test("day-view card shows the category label, price, and a wrapping note", async ({ page }) => {
+    const note = "Klient si praje aj vyleštenie diskov a voňavku do interiéru, dôkladne prosím";
+    const o = await seedOrder({ note });
+    await page.goto(`/?date=${o.date}`);
+
+    const card = page.locator(`[data-order-id="${o.orderId}"]`).first();
+    await expect(card).toBeVisible();
+    // Category label (seed cars are "os") + a formatted price + the full note.
+    await expect(card).toContainText("OS");
+    await expect(card).toContainText("€");
+    const noteEl = card.getByText(note);
+    await expect(noteEl).toBeVisible();
+    // The note wraps (up to 3 lines), it is not the single-line truncate.
+    await expect(noteEl).toHaveClass(/line-clamp-3/);
+    await expect(noteEl).not.toHaveClass(/truncate/);
+  });
+
   test("advancing status from the Sheet persists", async ({ page }) => {
     const o = await seedOrder();
     await page.goto(`/?date=${o.date}`);

@@ -39,9 +39,11 @@ badge (spec 12); the header is **mobile-only**. Clicking a block opens the popup
    the hour/half-hour lines at **higher contrast** than the quarter lines. Compress the row
    height (`ROW_PX = 20`) so a full day fits with minimal scrolling.
 8. **Order cards** (`BookingCard`, overlapping-reservations redesign) are **left-top
-   aligned** (Day view): row 1 = **car name** (make + model → ŠPZ), row 2 = **services**,
-   row 3 = **`Pozn: …`** when the order has a note. No time range, no category badge. Text
-   truncates.
+   aligned** (Day view): row 1 = **car name** (make + model → ŠPZ, truncates) + the
+   **category label** (`CATEGORY_BADGE`, e.g. OS/DOD/SUV) + the **order price**
+   (`effectiveTotalCents` → `formatPriceCents`), row 2 = **services** (truncated), row 3 =
+   the **note** when the order has one, wrapping to **up to 3 lines** (`line-clamp-3`). No
+   time range.
 9. **Overlapping bookings** in a box render in **equal side-by-side lanes** (2 → halves,
    3 → thirds …) with a minimum lane width; when many lanes don't fit, the grid scrolls
    horizontally. A **short booking grows its grid row** (pushing the time axis down) so it
@@ -170,12 +172,19 @@ Extract from the ~550-line `calendar.tsx` (keep behavior identical):
   only `:00`/`:30` but render a border on every 15-min row: quarter lines
   `border-muted-foreground/25`, hour/half `…/40`.
 - **`components/calendar/BookingCard.tsx`** (overlapping-reservations redesign) —
-  `BookingCardContent`, **left-top aligned**, no time range and no category badge:
+  `BookingCardContent`, **left-top aligned**, no time range:
   - **rich** (Day): row 1 = **car name** (make + model, falling back to ŠPZ; truncates
-    model → make when narrow), row 2 = **services** (truncated), row 3 = **`Pozn: …`** when
-    the order has a note (a note-bearing short booking grows to `MIN_CARD_PX_NOTE` so the 3rd
-    row isn't clipped — passed to `computeRowLayout` as a per-item `minPx`).
-  - **compact**/**line** (Week + Step-4 occupied): car name only.
+    model → make when narrow) + the **category label** (`CategoryTag` → `CATEGORY_BADGE`) +
+    the **order price** (`effectiveTotalCents(lineSum, price_override_cents)` →
+    `formatPriceCents`), row 2 = **services** (truncated), row 3 = the **note** when the
+    order has one, wrapping to **up to 3 lines** (`line-clamp-3`). A note-bearing short
+    booking grows to `noteCardMinPx(note.length)` so the note's estimated lines fit without
+    clipping — passed to `computeRowLayout` as a per-item `minPx`. The estimate is
+    length-based (1–3 lines), so a short note reserves no extra space beyond one line, and —
+    because one note line costs `NOTE_LINE_PX < ROW_PX` — a booking whose duration already
+    spans enough rows to show the note is **not** stretched (its `computeRowLayout` deficit is 0).
+  - **compact** (Week): car name only.
+  - **line** (Step-4 occupied): car name + the **category label** only (no price/note).
 
   Plus the clickable `BookingCard` wrapper (Sheet via `OpenOrderSheetContext`, else
   `/orders/[id]`), `data-order-id` preserved.
@@ -317,8 +326,8 @@ grep -q 'export function skWeekdayShort' lib/calendar/grid.ts && grep -q 'export
 - Manager sees the `UnpaidBadge` (→ `/unpaid`) — in the **desktop sidebar** above SPRÁVA and
   in the **mobile** header; prevádzka sees none.
 - Time axis labels only `:00`/`:30`; all 15-min lines render. Day cards show
-  time · model–services · category · note; a single-slot card with overflowing content grows
-  its row without overlapping neighbours.
+  car name · category label · price · services · note (note wraps to ≤3 lines); a single-slot
+  card with overflowing content grows its row without overlapping neighbours.
 - The date label is **view-dependent**: Day shows a Slovak weekday prefix (`Po. 01.06.2026`);
   Week shows the collapsed range (`01 – 07.06.2026`, widening across month/year boundaries).
 - **Day view, today**: a black current-time line spans both boxes and tracks the clock; it is

@@ -3,7 +3,14 @@
 import { Fragment, useEffect, useState } from "react";
 import type { CalendarBlock } from "@/lib/actions/orders";
 import { bratislavaHHMM } from "@/lib/settings/availability";
-import { ROW_PX, SLOT_MIN, computeRowLayout, diffMinutes, type Interval } from "@/lib/calendar/grid";
+import {
+  ROW_PX,
+  SLOT_MIN,
+  computeRowLayout,
+  diffMinutes,
+  noteCardMinPx,
+  type Interval,
+} from "@/lib/calendar/grid";
 import { todayKey } from "@/lib/calendar/today";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { useFillHeight } from "@/lib/hooks/use-fill-height";
@@ -18,9 +25,6 @@ import { placeBoxLanes } from "./placeLanes";
 // horizontally rather than squeezing cards below this.
 const MIN_LANE_PX = 104;
 
-// A card with a note shows a 3rd row, so a short note-bearing booking needs a
-// taller minimum than the default (car name + services only).
-const MIN_CARD_PX_NOTE = 60;
 
 /**
  * Day view (overlapping-reservations redesign): a CSS grid of the time axis +
@@ -60,11 +64,15 @@ export function DayView({
   // in either box grows that row for the whole grid.
   const allPlaced = boxes.flatMap((box) => placedByBox.get(box)?.placed ?? []);
   const { heights: rowHeights, top: rowTop } = computeRowLayout(
-    allPlaced.map((p) => ({
-      startMin: p.startMin,
-      endMin: p.endMin,
-      minPx: p.block.order.note?.trim() ? MIN_CARD_PX_NOTE : undefined,
-    })),
+    allPlaced.map((p) => {
+      const note = p.block.order.note?.trim();
+      return {
+        startMin: p.startMin,
+        endMin: p.endMin,
+        // Grow only as much as the note needs (1–3 lines), never reserved up front.
+        minPx: note ? noteCardMinPx(note.length) : undefined,
+      };
+    }),
     n,
   );
 

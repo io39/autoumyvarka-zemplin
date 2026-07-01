@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  NOTE_BASE_PX,
+  NOTE_LINE_PX,
   ROW_PX,
   buildRows,
   ceilTo15,
@@ -8,6 +10,7 @@ import {
   floorTo15,
   formatDMY,
   formatWeekRange,
+  noteCardMinPx,
   skWeekdayShort,
   slotAtOffset,
   toMinutes,
@@ -71,6 +74,42 @@ describe("computeRowLayout", () => {
       2,
     );
     expect(heights[0]).toBe(42); // max, not 42+extra
+  });
+});
+
+describe("noteCardMinPx", () => {
+  it("reserves rows in proportion to the note length, capped at 3 lines", () => {
+    expect(noteCardMinPx(0)).toBe(NOTE_BASE_PX + NOTE_LINE_PX); // never 0 lines
+    expect(noteCardMinPx(10)).toBe(NOTE_BASE_PX + NOTE_LINE_PX); // short → 1 line
+    expect(noteCardMinPx(40)).toBe(NOTE_BASE_PX + 2 * NOTE_LINE_PX); // medium → 2 lines
+    expect(noteCardMinPx(200)).toBe(NOTE_BASE_PX + 3 * NOTE_LINE_PX); // long → capped at 3
+  });
+
+  it("grows monotonically but never past the 3-line cap", () => {
+    const short = noteCardMinPx(5);
+    const long = noteCardMinPx(500);
+    expect(long).toBeGreaterThan(short);
+    expect(long).toBe(NOTE_BASE_PX + 3 * NOTE_LINE_PX);
+  });
+
+  it("a per-note line costs less than a full grid row, so a tall-enough booking keeps its rows", () => {
+    // A booking already tall enough to hold the note must NOT be stretched: one
+    // note line reserves fewer px than a 15-min row (ROW_PX), so its estimated
+    // minimum fits inside the booking's own duration height.
+    expect(NOTE_LINE_PX).toBeLessThan(ROW_PX);
+    // A 5-row booking (75 min → 100px) carrying a max 3-line note does not grow.
+    const { heights } = computeRowLayout(
+      [{ startMin: 0, endMin: 75, minPx: noteCardMinPx(200) }],
+      6,
+    );
+    expect(heights.slice(0, 5)).toEqual([20, 20, 20, 20, 20]);
+    expect(noteCardMinPx(200)).toBeLessThanOrEqual(5 * ROW_PX);
+  });
+
+  it("a short booking with a note still grows to fit it", () => {
+    // A 15-min booking (1 row → 20px) can't show a 2-line note, so it grows.
+    const { top } = computeRowLayout([{ startMin: 0, endMin: 15, minPx: noteCardMinPx(40) }], 4);
+    expect(top[1]).toBe(noteCardMinPx(40)); // the single spanned row grew to the note minimum
   });
 });
 

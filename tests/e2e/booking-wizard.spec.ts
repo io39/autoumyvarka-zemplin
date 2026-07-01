@@ -112,6 +112,9 @@ test.describe("booking wizard — create (manager)", () => {
       .locator(`[data-step="termin"] [data-day="${date}"] [data-occupied-order]`)
       .first();
     await expect(occupied).toBeVisible();
+    // The Step-4 occupied block shows the category label only (no price/note).
+    await expect(occupied).toContainText("OS");
+    await expect(occupied).not.toContainText("€");
 
     // Click the occupied block's area → picks an overlapping time (the block is
     // click-through). A slot is then selected.

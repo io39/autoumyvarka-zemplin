@@ -340,6 +340,7 @@ export async function seedOrder(opts?: {
   box?: 1 | 2;
   date?: string;
   time?: string;
+  note?: string;
 }): Promise<SeededOrder> {
   const db = serviceClient();
 
@@ -395,6 +396,7 @@ export async function seedOrder(opts?: {
       duration_min: duration,
       ends_at: new Date(new Date(startsAt).getTime() + duration * 60_000).toISOString(),
       status: opts?.status ?? "vytvorena",
+      note: opts?.note ?? null,
       created_by: manager!.id,
     })
     .select("id, ends_at")

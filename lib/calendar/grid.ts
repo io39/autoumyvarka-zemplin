@@ -19,6 +19,40 @@ export const ROW_PX = 20;
  */
 export const MIN_CARD_PX = 42;
 
+/**
+ * Approx. rendered height of one wrapped note line (text-xs, leading-tight).
+ * Deliberately **less than `ROW_PX`**: a note line takes less vertical space than
+ * a 15-min grid row, so a booking that already spans enough rows to show its note
+ * is not stretched (its own duration height absorbs the note).
+ */
+export const NOTE_LINE_PX = 15;
+/**
+ * Always-present part of a note-bearing Day card: the car/price row + the services
+ * row + card padding. The note lines are added on top of this.
+ */
+export const NOTE_BASE_PX = 36;
+/**
+ * Rough characters-per-line used to estimate how many lines a Day-view note wraps
+ * to. Cards vary in width (single-lane cards are wide; overlapping lanes narrow),
+ * so this is a deliberately conservative estimate, not a measurement — tune if
+ * notes clip or over-reserve. Cap the estimate at 3 lines (the note's `line-clamp-3`).
+ */
+export const NOTE_CHARS_PER_LINE = 24;
+
+/**
+ * Estimated minimum card height (px) for a Day-view booking that carries a note,
+ * so its row(s) grow just enough to show the note **without reserving space up
+ * front and without stretching a booking that is already tall enough**: a short
+ * note stays at ~1 extra line, a long one grows to at most 3 (matching the note's
+ * `line-clamp-3`). Because each line costs `NOTE_LINE_PX < ROW_PX`, a booking whose
+ * duration already spans the needed rows keeps its height (`computeRowLayout`'s
+ * deficit is 0). Length-based estimate — see `NOTE_CHARS_PER_LINE`.
+ */
+export function noteCardMinPx(noteLength: number): number {
+  const lines = Math.min(3, Math.max(1, Math.ceil(noteLength / NOTE_CHARS_PER_LINE)));
+  return NOTE_BASE_PX + lines * NOTE_LINE_PX;
+}
+
 export interface Interval {
   open: string; // "HH:MM"
   close: string; // "HH:MM"
