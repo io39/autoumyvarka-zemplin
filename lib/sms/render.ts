@@ -38,7 +38,9 @@ export function stripDiacritics(s: string): string {
 export interface OrderRenderContext {
   startsAt: Date;
   spz: string;
-  clientName: string | null;
+  /** Značka + model, e.g. "Škoda Octavia" — the `{nazov}` token. Empty when the
+   *  car has neither. */
+  carName: string;
 }
 
 const TOKEN_RE = /\{(\w+)\}/g;
@@ -47,7 +49,7 @@ export function renderTemplate(body: string, ctx: OrderRenderContext): string {
   const vars: Record<string, string> = {
     cas: bratislavaHHMM(ctx.startsAt),
     spz: ctx.spz,
-    nazov: ctx.clientName ?? "",
+    nazov: ctx.carName,
   };
   const substituted = body.replace(TOKEN_RE, (m, key: string) =>
     Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : m,

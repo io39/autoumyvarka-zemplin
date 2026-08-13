@@ -46,12 +46,16 @@ export async function dispatchOrderSms(input: DispatchInput): Promise<SmsMessage
   if (tplErr) throw tplErr;
   if (!tpl) return null;
 
+  const carName = formatCarLabel(o.car.brand, o.car.model);
   const ctx: OrderRenderContext = {
     startsAt: new Date(o.starts_at),
     // A plateless car: substitute the car label (brand/model), else leave the
     // {spz} token empty so the sentence still reads cleanly (product decision).
-    spz: o.car.spz ?? formatCarLabel(o.car.brand, o.car.model),
-    clientName: o.client.name,
+    spz: o.car.spz ?? carName,
+    // `{nazov}` is the CAR (značka + model), not the client — "názov" names a
+    // thing, and the client's own name adds nothing to a message they receive.
+    // Falls back to the ŠPZ so a brandless car still identifies itself.
+    carName: carName || o.car.spz || "",
   };
   const body = renderTemplate(tpl.body, ctx);
   const phone = o.client.phone;

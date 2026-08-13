@@ -22,9 +22,10 @@ export default async function SmsTemplatesPage() {
       <header>
         <h1 className="text-xl font-semibold">SMS šablóny</h1>
         <p className="text-sm text-muted-foreground">
-          Texty automatických správ. Placeholdery <code>{"{cas}"}</code>,{" "}
-          <code>{"{spz}"}</code>, <code>{"{nazov}"}</code> sa pri odoslaní nahradia.
-          Limit pre jednu SMS s diakritikou je 70 znakov.
+          Texty automatických správ. Pri odoslaní sa nahradia placeholdery{" "}
+          <code>{"{cas}"}</code> (čas termínu), <code>{"{spz}"}</code> (ŠPZ) a{" "}
+          <code>{"{nazov}"}</code> (značka a model auta). Správy sa odosielajú bez
+          diakritiky, takže do jednej SMS sa zmestí 160 znakov.
         </p>
       </header>
       <SmsTemplatesEditor initial={templates} />

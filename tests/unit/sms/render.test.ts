@@ -12,7 +12,7 @@ const baseCtx = {
   // 2026-05-28 09:30 Europe/Bratislava (CEST, UTC+2) → 07:30Z.
   startsAt: new Date("2026-05-28T07:30:00Z"),
   spz: "KE123AB",
-  clientName: "Ján",
+  carName: "Škoda Octavia",
 };
 
 describe("renderTemplate (always bez diakritiky — GSM-7)", () => {
@@ -21,9 +21,9 @@ describe("renderTemplate (always bez diakritiky — GSM-7)", () => {
     expect(out).toBe("Pripominame termin o 09:30, auto KE123AB.");
   });
 
-  it("strips diacritics from substituted token values (e.g. the client name)", () => {
-    expect(renderTemplate("Dobrý deň {nazov}, {spz}.", baseCtx)).toBe(
-      "Dobry den Jan, KE123AB.",
+  it("substitutes {nazov} with the car, not the client", () => {
+    expect(renderTemplate("Auto: {nazov}, {spz} je hotové.", baseCtx)).toBe(
+      "Auto: Skoda Octavia, KE123AB je hotove.",
     );
   });
 
@@ -33,10 +33,10 @@ describe("renderTemplate (always bez diakritiky — GSM-7)", () => {
     );
   });
 
-  it("handles missing client name without producing 'undefined'", () => {
+  it("handles a car with no brand or model without producing 'undefined'", () => {
     expect(
-      renderTemplate("Dobrý deň{nazov}.", { ...baseCtx, clientName: null }),
-    ).toBe("Dobry den.");
+      renderTemplate("Auto{nazov}.", { ...baseCtx, carName: "" }),
+    ).toBe("Auto.");
   });
 });
 
