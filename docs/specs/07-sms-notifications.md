@@ -65,25 +65,56 @@ the order detail but don't manage it.
 ### 2.1 Provider adapter
 
 - `lib/sms/provider.ts` — a minimal interface: `send({ to, body }) →
-  { providerMessageId } | throws`. One concrete implementation for the chosen Slovak
-  provider; a `fake` implementation for local/dev/tests (logs, never sends).
-- Selected via env (`SMS_PROVIDER`, `SMS_PROVIDER_API_KEY`). In local/dev the `fake`
-  adapter is the default so no real SMS is ever sent during development.
+  { providerMessageId } | throws`. Two implementations: **`bulkgate`** (the pinned
+  provider) and `fake` for local/dev/tests (never sends).
+- Selected via env (`SMS_PROVIDER`). `fake` is the default, so no real SMS is ever
+  sent during development; an unknown value throws rather than silently falling back.
+
+**BulkGate — Simple Transactional API**
+(`POST https://portal.bulkgate.com/api/1.0/simple/transactional`, `application/json`).
+"Simple" rather than "Advanced": the two are identical for a single-recipient send,
+and Advanced's only additions are server-side `variables` templating (which would
+duplicate §2.2 and split template editing across two systems) and `admin`.
+
+- **Auth:** `application_id` + `application_token` in the body — env
+  `SMS_PROVIDER_APP_ID` / `SMS_PROVIDER_API_KEY`, both required at construction so a
+  missing credential surfaces as a config error, not a provider 400.
+- **`unicode: false`** is sent explicitly. `renderTemplate` already strips diacritics
+  (§2.2), so the body is GSM-7 at 160 chars/segment; relying on BulkGate's
+  auto-detection would let one stray accented character silently halve capacity.
+- **Number format:** the leading `+` is stripped, matching the "international format
+  without +" that delivery reports use for `to`, so both sides stay comparable.
+- **Sender:** `sender_id` (+ `sender_id_value`) from `SMS_SENDER_ID` /
+  `SMS_SENDER_ID_VALUE`, defaulting to `gSystem` (BulkGate's shared system number).
+  An alphanumeric sender (`gText`) needs SK registration and cannot receive replies.
+- **Response:** `data.sms_id` → `sms_messages.provider_message_id`. A non-2xx (their
+  `{type, code, error, detail}` shape) or a 2xx with no `sms_id` throws, so the attempt
+  is logged `failed` rather than an unmatchable `sent`.
+- **Applications are per-environment:** the delivery-report URL is configured per
+  BulkGate application, so test and production need separate applications.
 
 ### 2.2 Templates & rendering
 
 - `sms_templates` (data-model §2.10): one row per `sms_type` (`reminder`, `ready`),
-  `body` with placeholders (e.g. `{cas}`, `{spz}`, `{nazov}`).
+  `body` with placeholders:
+  - `{cas}` — the reservation start, `HH:MM` in Europe/Bratislava.
+  - `{spz}` — the car's ŠPZ.
+  - `{nazov}` — the car's **značka + model** (`formatCarLabel`, e.g. "Škoda Octavia").
+    Names the **car, not the client**: "názov" names a thing, and the recipient's own
+    name tells them nothing. There is deliberately **no client-name token**.
 - `lib/sms/render.ts` — `renderTemplate(body, ctx) → string`, substituting placeholders
   then **stripping diacritics** (`stripDiacritics`, applied *after* substitution so an
   accented `{nazov}`/`{spz}` is caught too). Messages are therefore always **GSM-7**, so a
   single SMS holds **160 chars** (concatenated parts 153), not 70. `smsCharCount` /
   `smsSegmentCount` count the **stripped** body; the template editor shows the diacritic-free
   preview and **warns past one 160-char segment** (PRD §8 — superseded from the original
-  70-char-with-diacritics rule). We never truncate; a runtime value (e.g. a long client name)
-  that pushes past 160 simply sends as concatenated parts. For a **plateless car**
-  (`spz IS NULL`, spec 02) the `{spz}` token expands to the car label (brand/model via
-  `formatCarLabel`), else an empty string so the sentence still reads.
+  70-char-with-diacritics rule). We never truncate; a runtime value (e.g. a long car name)
+  that pushes past 160 simply sends as concatenated parts. **Fallbacks** keep both car
+  tokens meaningful in either direction: for a **plateless car** (`spz IS NULL`, spec 02)
+  `{spz}` expands to the car label, and for a car with no značka/model `{nazov}` expands to
+  the ŠPZ; each falls back to an empty string only when the car has neither.
+  ⚠️ A template using **both** tokens therefore repeats itself on a car that has only one
+  of the two (e.g. "Auto: Skoda Octavia, Skoda Octavia") — prefer one token per template.
 - Seed simple Slovak placeholders (replaced later, PRD §13#4), e.g.
   - reminder: `Dobrý deň, pripomíname termín umytia auta o {cas}. Autoumyváreň Zemplín.`
   - ready: `Vaše auto {spz} je umyté a pripravené na vyzdvihnutie. Autoumyváreň Zemplín.`
@@ -114,13 +145,36 @@ the order detail but don't manage it.
   now()+30min+ε` (ε = cron period) so each order is caught exactly once; `reminded_at`
   is the hard guard against doubles.
 
-### 2.5 Delivery webhook (Route Handler)
+### 2.5 Delivery webhook (Route Handlers)
 
-- `app/api/sms/webhook/route.ts` (POST): the provider posts delivery status. **Verify**
-  the shared `SMS_WEBHOOK_SECRET` (and/or provider signature); **zod-validate** the body
-  at the boundary (CLAUDE.md). Map `provider_message_id` → `sms_messages` row, update
-  `status` (`delivered`/`failed`), `delivered_at`, `error`. Unknown id → 200 + log (no
-  crash); bad signature → 401.
+Two routes, both zod-validated at the boundary (CLAUDE.md), both mapping
+`provider_message_id` → `sms_messages` and updating `status` / `delivered_at` /
+`error`. Unknown id → **200 + log** in both (a non-2xx makes a provider retry
+forever); bad secret → 401.
+
+- **`app/api/sms/webhook/route.ts` (POST)** — the generic, provider-agnostic shape
+  (`{providerMessageId, status, deliveredAt?, error?}`), authenticated by the
+  `x-sms-webhook-secret` **header**.
+- **`app/api/sms/webhook/bulkgate/[secret]/route.ts` (POST)** — BulkGate's bulk
+  delivery confirmations: an **array** of `{status, smsID, to, price, channel, date}`.
+  Interpretation lives in the pure `lib/sms/delivery-report.ts`
+  (`mapDeliveryStatus` + `parseDeliveryReports`) so it is unit-testable without a
+  request or a database.
+  - **Status mapping** — only two codes are terminal: **1** → `delivered`, **3** →
+    `failed`. **2** (buffered on the SMSC) may still be followed by a 1, and **10**
+    (incoming SMS) / **13** (Viber seen) are unrelated to outbound state, so all three
+    leave the row untouched. Out-of-order reports never walk a `delivered` row back.
+  - **Malformed entries are skipped, not rejected** — one bad report must not cost us
+    the delivery status of every other message in the same POST. A payload that isn't
+    an array at all → 400 (a genuine integration mismatch, e.g. bulk DLRs switched off).
+  - ⚠️ **The secret is a URL path segment, not a header** — BulkGate's callback cannot
+    set custom headers, which reverses the generic handler's deliberate "no secrets in
+    the URL" stance. Consequence: it appears in Cloudflare/proxy access logs, so treat
+    it as lower-grade and rotate if those logs are shared. Blast radius is bounded — the
+    route can only set a delivery status on an `sms_messages` row that already exists.
+  - **Portal settings:** enable "Bulk DLRs — bulk request" (gives POST + JSON instead
+    of the default GET + query string); leave "Report only when error occurs" **off**,
+    or successful deliveries are never reported.
 
 ### 2.6 Failure visibility & retry
 
@@ -148,7 +202,8 @@ the order detail but don't manage it.
 | `resendSms({ smsId })` | Server Action | manager | manual resend; audit `sms.resend` |
 | `sendOrderSms({ orderId, type: "ready" })` | Server Action | both | send a suppressed `ready` SMS (idempotent); audit `sms.send` |
 | `POST /api/reminders` | Route Handler | `REMINDER_TRIGGER_SECRET` | pg_cron → send due reminders |
-| `POST /api/sms/webhook` | Route Handler | `SMS_WEBHOOK_SECRET` | provider delivery callbacks |
+| `POST /api/sms/webhook` | Route Handler | `SMS_WEBHOOK_SECRET` (header) | generic provider delivery callbacks |
+| `POST /api/sms/webhook/bulkgate/[secret]` | Route Handler | `SMS_WEBHOOK_SECRET` (URL path) | BulkGate bulk delivery confirmations |
 
 ### 2.8 Data & migrations
 
@@ -161,10 +216,11 @@ Migration `0008_sms.sql`:
   so it must be reachable — exposed as a public route but **secret-verified** in-handler.
 - pg_cron + pg_net setup for the reminder trigger (architecture §6).
 
-> **Note (webhook ingress):** the delivery webhook is the one path that bypasses
-> Cloudflare Access (external provider can't authenticate to Access). It is exposed via
-> a Cloudflare Access **service token / bypass policy** for that route only, and the
-> handler verifies `SMS_WEBHOOK_SECRET`. Confirm the exact bypass mechanism at deploy.
+> **Note (webhook ingress):** the delivery webhooks bypass Cloudflare Access (an
+> external provider can't authenticate to Access). Each is exposed via a Cloudflare
+> Access **bypass policy** for that route only — including the
+> `/api/sms/webhook/bulkgate/*` prefix — and the handler verifies
+> `SMS_WEBHOOK_SECRET` itself.
 
 ### 2.9 Error handling
 
