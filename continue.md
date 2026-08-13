@@ -28,8 +28,11 @@ shared-DB flake fixes** (`8d13389`), and a **`data-model.md` workers/order_staff
 `main` but NOT yet pushed (push from your own terminal — pushing is hook-blocked here):**
 (1) **calendar order cards now show a category label + price + multi-line notes** (`1234ea9`,
 `feat(calendar)`, specs 14/16); (2) a **Step-4 picker quarter-hour bug fix** for off-grid
-out-of-hours bookings (`0d0b9af`, `fix(wizard)`, spec 16). Both are the top two "Recent app
-fixes" entries. **Last updated:** 2026-07-01.
+out-of-hours bookings (`0d0b9af`, `fix(wizard)`, spec 16). **Four more commits (2026-08-13)
+are on `main` but NOT yet pushed:** the **real SMS provider is now pinned — BulkGate**
+(`4a8e760`), the **`{nazov}` token now renders the car instead of the client** (`9b4c481`),
+a **lint-hook fix** (`0c979f0`), and this doc (`docs`). See the top "Recent app fixes"
+entries. **Last updated:** 2026-08-13.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -88,6 +91,68 @@ plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- **SMS provider pinned: BulkGate** (2026-08-13, commits `4a8e760` `feat(sms)`, `9b4c481`
+  `feat(sms)`, `0c979f0` `fix(hooks)`; **NOT yet pushed**). Closes the long-open PRD §13#4
+  provider question. `fake` is still the default everywhere except production.
+  - **Adapter** (`lib/sms/provider.ts` → `BulkGateProvider`, `SMS_PROVIDER=bulkgate`):
+    **Simple** Transactional API, `POST https://portal.bulkgate.com/api/1.0/simple/transactional`,
+    JSON. **Simple, not Advanced** — identical for a single-recipient send; Advanced only adds
+    server-side `variables` templating (would duplicate `render.ts` and split template editing
+    across two systems) and `admin`. `unicode: false` **explicit** (we strip diacritics, so
+    GSM-7/160 — auto-detect could silently halve it); leading `+` stripped so the number matches
+    the format delivery reports use; `country: "sk"`; sender from `SMS_SENDER_ID` /
+    `SMS_SENDER_ID_VALUE`, default `gSystem`. Credentials (`SMS_PROVIDER_APP_ID` +
+    `SMS_PROVIDER_API_KEY`) are required **at construction**. `data.sms_id` →
+    `provider_message_id`; a non-2xx **or a 2xx with no `sms_id`** throws, so nothing is ever
+    logged `sent` with an unmatchable id.
+  - **Delivery reports** — new `app/api/sms/webhook/bulkgate/[secret]/route.ts` +
+    pure `lib/sms/delivery-report.ts`. ⚠️ **The secret is a URL path segment, not a header** —
+    BulkGate's callback cannot set custom headers, reversing the generic webhook's deliberate
+    "no query/URL secrets" stance. It therefore lands in access logs: treat it as lower-grade
+    and rotate if logs are shared; blast radius is bounded (it can only set a delivery status
+    on an existing row). Enable **"Bulk DLRs — bulk request"** in the portal (POST + JSON array
+    instead of GET + query string) and leave **"Report only when error occurs" OFF**.
+    Status mapping: **1 → delivered, 3 → failed; 2 (buffered), 10 (incoming SMS), 13 (Viber
+    seen) leave the row untouched**; out-of-order reports never walk a `delivered` row back
+    (`.neq("status","delivered")`); a malformed entry is **skipped**, not batch-fatal; a
+    non-array payload → 400; unknown ids → 200 + log.
+  - **`{nazov}` now renders the CAR** (`formatCarLabel` → "Škoda Octavia"), not the client —
+    client request; "názov" names a thing, and the recipient's own name adds nothing. **There is
+    no client-name token any more.** Fallbacks: `{nazov}` → ŠPZ when the car has no značka/model;
+    `{spz}` **unchanged** (still the plate; falls back to the car label only for a plateless car,
+    as since `73f5edd`). ⚠️ A template using **both** repeats itself on a car that has only one —
+    prefer one token per template. Templates page helper text also corrected: it still claimed
+    **70 znakov "s diakritikou"**, wrong since `bc0a47d` (the editor below already counted to 160).
+  - **Verified:** typecheck/lint clean, **271 unit** (20 new: adapter against a mocked fetch,
+    delivery-report mapping), **7 new e2e** (`sms-webhook-bulkgate.spec.ts`) + the four existing
+    SMS suites green on a clean `pnpm supabase db reset`. A **real send** through the test
+    application succeeded — returned `sms-6a7d741132d30` (**not** a `tmp…` id).
+  - **Cost:** ~**0.788 credits** per SMS looked alarming but is normal — credits are CZK, not
+    EUR: SK list price €0.026 (Orange/Telekom) ≈ 0.65 CZK, +21 % CZ VAT ≈ 0.788. ~€0.031/SMS.
+    `gSystem` is already the cheapest sender tier. The **diacritics stripping is what keeps this
+    at one segment** — the 72-char seeded templates would be 2 segments with diacritics.
+  - ⚠️ **Still unproven: the delivery-report round trip.** No DLR has ever reached our route —
+    it needs DELIVERY_URL in the portal + a Cloudflare Access bypass for
+    `/api/sms/webhook/bulkgate/*`. The real send returning `sms-…` (not `tmp…`) suggests the
+    send id and the reported `smsID` agree, but confirm on the first live callback; the route
+    logs `unmatched delivery reports` if they don't.
+  - **Reminder cron — the "reminders never fire" mystery is CONFIG, not code.** The pg_cron job
+    runs every minute and reports `succeeded`, but exits immediately while
+    `app.reminder_url`/`app.reminder_secret` are unset (by design, migration `0008`) — so
+    **local dev and the Cloud test box have never sent a single reminder.** Locally fixed with
+    `alter database postgres set app.reminder_url = 'http://host.docker.internal:3000/api/reminders'`
+    + `…reminder_secret = 'dev-reminder-secret'` — **must run as `supabase_admin`**, the `postgres`
+    role isn't superuser, and the setting **does not survive `supabase db reset`**. Verified
+    end-to-end: pg_net logged a **200** from the cron's own POST, and idempotency held under a
+    real race (cron + a manual curl within milliseconds → exactly one row). **The same two GUCs
+    are still unset on Supabase Cloud** (deployment.md §8) — reminders won't fire there either.
+  - **Reminder lead time is 30 min**, hardcoded (`lib/sms/reminder-window.ts`, ±2 min window,
+    `orders.reminded_at` the hard idempotency guard). One reminder per order; no "day before".
+    Worth confirming with the client — it's a one-line change now, annoying later.
+  - ⚠️ **Never run e2e with `SMS_PROVIDER=bulkgate`** — `sms-ready`/`sms-reminder` dispatch for
+    real. It happened once this session: 14 attempts, all rejected `BulkGate 400: Invalid phone
+    number` (seeded numbers aren't real), nothing sent or billed. Use a one-off shell override
+    `SMS_PROVIDER=fake CI=1 pnpm test:e2e …` rather than editing `.env.local`.
 - **Calendar order cards: category label + price + multi-line notes** (2026-07-01, commit
   `1234ea9`, `feat(calendar)`; **NOT yet pushed** — push from your own terminal). Client request:
   surface more at-a-glance info on the calendar cards during phone bookings. **Pure UI** — all
@@ -1229,8 +1294,14 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
    GUCs `app.reminder_url` / `app.reminder_secret` (deployment.md §8); (c) stand up the
    dedicated prod VPS + env store. Cloudflare Access bypasses for `/api/sms/webhook` and
    `/api/reminders` are already in place on the test box.
-4. **Pick + pin the real Slovak SMS provider** (PRD §13#4 — provider AND final
-   wording both still open; `fake` adapter is the default in dev).
+4. **SMS provider — DONE (BulkGate, `4a8e760`).** Remaining SMS work: (a) **final Slovak
+   wording + signature** with the client (PRD §13#4 — templates are still placeholders;
+   remind them messages arrive **without diacritics**); (b) set **DELIVERY_URL** in the
+   BulkGate portal + the Cloudflare Access **bypass for `/api/sms/webhook/bulkgate/*`**, then
+   confirm the first live delivery report matches (see the caveat above); (c) create a
+   **separate BulkGate application for production** — DELIVERY_URL is per application, so
+   sharing one would send prod reports to the test box; (d) set the **reminder GUCs on Cloud**
+   (item 3b) or reminders never fire.
 5. **Resolve the client's open questions** (below) and tune where flagged.
 
 The redesign specs already exist — **do not re-run `spec-writer` for them.** Use
