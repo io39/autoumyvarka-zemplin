@@ -17,7 +17,7 @@ esac
 [ -f package.json ] || exit 0
 
 fail=0
-if ! pnpm lint --file "$file" >/tmp/hook-lint.log 2>&1; then
+if ! pnpm lint "$file" >/tmp/hook-lint.log 2>&1; then
   echo "Lint failed for $file:" >&2; cat /tmp/hook-lint.log >&2; fail=1
 fi
 if ! pnpm typecheck >/tmp/hook-tsc.log 2>&1; then
