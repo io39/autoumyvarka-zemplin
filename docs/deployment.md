@@ -8,15 +8,18 @@ is the operational source of truth for **how the app is deployed**; `architectur
 > **Status:** draft. Items marked `TBD` await a decision — see
 > [§9 Open decisions](#9-open-decisions). Fill them in before the first cutover.
 
-> ⚠️ **Current environment is a TEST deploy** (Coolify on a shared VPS, Cloudflare
-> proxy + Access, **no tunnel, no origin hardening**). The VPS origin (80/443) is
-> directly reachable, so the edge-auth header (`cf-access-authenticated-user-email`,
-> trusted unsigned by `lib/auth/identity.ts`) can be spoofed by connecting straight
-> to the origin IP. **Use fake/test data only — no real client PII.** Before the
-> real production deploy on a dedicated VPS, restore the secure topology: either the
-> **Cloudflare Tunnel** (no open ports — preferred, §5.1) **or** firewall 80/443 to
-> Cloudflare IP ranges **plus** Authenticated Origin Pulls (mTLS); and ideally
-> verify the signed `Cf-Access-Jwt-Assertion` JWT in-app as defense-in-depth.
+> ✅ **Origin hardening: DONE (2026-08-19).** The VPS runs a **Cloudflare Tunnel**
+> with **no open inbound ports**, and Access gates the hostname to selected identities
+> — the preferred topology of §5.1/§5.2. This closes the earlier header-spoofing
+> exposure: `lib/auth/identity.ts` trusts the **unsigned**
+> `cf-access-authenticated-user-email` header, which was forgeable while the origin
+> was directly reachable, and is now only reachable through the tunnel.
+>
+> Remaining defense-in-depth, in priority order:
+> 1. **Rate-limit the two bypassed API paths** (§5.5) — they are the only unauthenticated
+>    ingress.
+> 2. Verify the signed `Cf-Access-Jwt-Assertion` JWT in-app, so the app stops trusting an
+>    unsigned header even if the edge is ever misconfigured.
 
 ---
 
@@ -31,11 +34,14 @@ VPS ─────────────────────────�
 ```
 
 - The VPS is **never** exposed publicly. The only ingress is the Cloudflare Tunnel;
-  there is no open inbound port for the app.
-- Cloudflare Access (Zero Trust) authenticates every request **except** the single
-  SMS-webhook path (§5.3). The app does **authorization only** (role mapping).
+  there is no open inbound port for the app. ✅ **In place as of 2026-08-19.**
+- Cloudflare Access (Zero Trust) authenticates every request **except** the SMS-webhook
+  paths (§5.3) and `/api/reminders` (§5.4), which carry their own shared secrets and
+  should additionally be rate-limited (§5.5). The app does **authorization only**
+  (role mapping).
 - Supabase Cloud is reached **outbound** over HTTPS/WSS from the VPS.
 
+**Test hostname:** `autoumyvarka.nightsun.sk` (current TEST deploy).
 **Production hostname:** `TBD` (e.g. `rezervacie.<domena>.sk`).
 **VPS host / provider:** `TBD` (e.g. Hetzner EU).
 **Process manager:** `TBD` (recommended: systemd).
@@ -223,37 +229,113 @@ Run `cloudflared` as its own systemd service (`cloudflared service install`).
   match the `staff` rows from §4.
 - **Session duration:** long, for the shared tablet (PRD §3). `TBD` — pick the value.
 
-### 5.3 Access — bypass for the SMS webhook ⚠️ critical
-`POST /api/sms/webhook` is the **one** path the SMS provider cannot authenticate
-through Access. Add a path-scoped **Bypass / public** policy for it. The handler
-self-verifies `SMS_WEBHOOK_SECRET` in-process (spec 07 §2.8) — that is its only gate.
+### 5.3 Access — bypass for the SMS webhooks ⚠️ critical
+The SMS provider cannot authenticate through Access, so its callback paths need a
+path-scoped **Bypass / public** policy. There are **two** routes, and the bypass must
+cover both:
+
+| Path | Secret carried as |
+| --- | --- |
+| `POST /api/sms/webhook` | `x-sms-webhook-secret` **header** |
+| `POST /api/sms/webhook/bulkgate/<secret>` | **URL path segment** — BulkGate's callback cannot set custom headers |
+
+A policy scoped to the bare `/api/sms/webhook` will **not** match the BulkGate route;
+use a wildcard (`/api/sms/webhook/*`) or add a second policy. Both handlers
+self-verify `SMS_WEBHOOK_SECRET` in-process (spec 07 §2.8) — that is their only gate.
 Everything else stays behind Access.
 
-### 5.4 Access — reaching `/api/reminders`  ⚠️ decision
-The pg_cron job (§6) calls `https://<hostname>/api/reminders` via `pg_net`, so that
-request also transits Cloudflare Access. Choose one (`TBD`, §9):
-- **(a)** an Access **service token** for that path (Supabase sends the
-  `CF-Access-Client-Id`/`Secret` headers), **plus** the in-handler
-  `REMINDER_TRIGGER_SECRET`; or
-- **(b)** a path **Bypass** policy on `/api/reminders`, relying solely on
-  `REMINDER_TRIGGER_SECRET` (simpler; the secret is the only gate, like the webhook).
+⚠️ Because the BulkGate secret travels in the URL it lands in Cloudflare/proxy access
+logs. Treat it as lower-grade than a header secret and rotate it if those logs are
+shared; the blast radius is bounded — the route can only set a delivery status on an
+`sms_messages` row that already exists.
+
+**Verify** (a wrong secret is enough, and keeps the real one out of your logs):
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  https://<hostname>/api/sms/webhook/bulkgate/wrong -d '[]' -H 'content-type: application/json'
+```
+`401` = the request reached the app (bypass works). A `302` to `*.cloudflareaccess.com`
+means Access is still intercepting; `404` means the route was never deployed.
+
+### 5.4 Access — reaching `/api/reminders`  ✅ resolved: path bypass
+The pg_cron job (§8) calls `https://<hostname>/api/reminders` via `pg_net`, so that
+request also transits Cloudflare Access. **Decision: option (b)** — a path **Bypass**
+policy on `/api/reminders`, relying solely on the in-handler `REMINDER_TRIGGER_SECRET`,
+exactly like the SMS webhook. (The rejected alternative was an Access **service token**,
+with Supabase sending `CF-Access-Client-Id`/`Secret` headers.)
+
+⚠️ **This failure mode cost real debugging time — read it before trusting a green cron.**
+Without the bypass, Access answers the cron's POST with a `302` to the login page.
+`pg_net` **follows the redirect** and records the *login page's* status, so
+`net._http_response` shows a healthy-looking **`200`** while the app never received
+anything. A `200` there is therefore **not** evidence that reminders work. Verify from
+outside instead:
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<hostname>/api/reminders \
+  -H 'content-type: application/json' -d '{}'
+```
+`401` = the bypass works (our handler rejecting a missing secret). `302` = still gated.
+
+### 5.5 Hardening the bypassed paths ⚠️ recommended
+`/api/sms/webhook`, `/api/sms/webhook/bulkgate/*` and `/api/reminders` are the **only**
+ingress that skips Access, so they deserve edge protection beyond their shared secrets.
+
+**Do: rate limiting at the edge.** A Cloudflare **WAF rate-limiting rule** per path
+(e.g. 60 requests/min per IP → block) stops brute-forcing of the secrets and keeps abuse
+off the tunnel entirely. Set it well above real traffic: BulkGate posts one bulk DLR per
+batch and pg_cron fires once a minute, so legitimate volume is tiny.
+
+**Consider: source-IP allowlisting**, which is stricter than rate limiting — restrict
+`/api/reminders` to the Supabase project's egress addresses and the BulkGate callback
+path to their published ranges. Only do this if the provider documents stable ranges;
+a silent change breaks delivery reports in a way that is tedious to diagnose.
+
+**Do NOT bother with CORS.** CORS is a *browser* policy governing which origins may
+**read** a response; BulkGate and `pg_net` are server-side HTTP clients that ignore it,
+as does anyone with `curl`. It would add the appearance of protection and no substance.
+
+**Already in place** (don't remove): both handlers verify a shared secret and return
+`401` otherwise; the BulkGate route can only set a delivery status on an `sms_messages`
+row that **already exists**; and `/api/reminders` is idempotent via `orders.reminded_at`,
+so replaying it cannot double-send.
 
 ---
 
-## 6. Phase 5 — SMS provider
+## 6. Phase 5 — SMS provider ✅ BulkGate
 
-Still open (PRD §13#4 — provider **and** final wording both TBD). Until pinned:
-- Production runs `SMS_PROVIDER=fake` → sends nothing (safe).
-- **Never** set `SMS_FAKE_ALLOW_FAILURE` in production (a real customer number could
-  trip the forced-failure path).
+**Provider pinned: BulkGate** (Simple Transactional API, no SDK — plain `fetch` in
+`lib/sms/provider.ts`). `SMS_PROVIDER=fake` remains the default everywhere except
+production. Final Slovak **wording** is still open (PRD §13#4).
 
-When the provider is chosen:
-1. Write the adapter in `lib/sms/provider.ts`; pin its SDK to an exact minor
-   (architecture §9 — fast-moving dep).
-2. Finalize the Slovak text in `sms_templates` (PRD §13#4).
-3. Set `SMS_PROVIDER` + `SMS_PROVIDER_API_KEY`; share `SMS_WEBHOOK_SECRET` with the
-   provider's delivery-callback config.
-4. Document the provider's DPA (only phone number + message leave the EU set — §7).
+Per-environment setup:
+1. Create a **separate BulkGate application for production.** `DELIVERY_URL` is
+   configured *per application*, so sharing one with the test box would send
+   production delivery reports to the test box.
+2. Set `SMS_PROVIDER=bulkgate`, `SMS_PROVIDER_APP_ID`, `SMS_PROVIDER_API_KEY` (§7).
+3. **Sender** — `SMS_SENDER_ID` + `SMS_SENDER_ID_VALUE`:
+   - `gSystem` (default) = BulkGate's shared system number; cheapest, accepts replies.
+   - `gText` + a name (≤11 chars, no diacritics) = alphanumeric sender; needs
+     registration for SK and **cannot receive replies**.
+   - `gProfile` + a numeric profile id = a portal-managed **Sender ID profile**;
+     preferred, because the actual sender can then be changed per country in the
+     portal with no redeploy. *(Test box uses `gProfile` / `19147`.)*
+   - ⚠️ `sender_id` is sent on **every** call and defaults to `gSystem` when the env
+     var is unset — leaving it blank does **not** defer to the application's portal
+     default, it overrides it.
+4. In the BulkGate portal set **DELIVERY_URL** to
+   `https://<hostname>/api/sms/webhook/bulkgate/<SMS_WEBHOOK_SECRET>`, enable
+   **"Bulk DLRs — bulk request"** (POST + JSON array; the GET/query-string form is
+   rejected with a 400), and leave **"Report only when error occurs" OFF** — with it
+   on, successful messages stay at `sent` forever.
+5. **Never** set `SMS_FAKE_ALLOW_FAILURE` in production (a real customer number could
+   trip the forced-failure path), and never run e2e with `SMS_PROVIDER=bulkgate` —
+   the SMS suites dispatch for real.
+6. Document the provider's DPA (only phone number + message leave the EU set — §7).
+
+**Cost note:** ~0.788 credits/SMS looks alarming but is normal — BulkGate credits are
+CZK: SK list €0.026 ≈ 0.65 CZK, +21 % CZ VAT ≈ 0.788, i.e. ~€0.031/SMS. The diacritics
+stripping in `render.ts` is what keeps a message to **one** segment (GSM-7, 160 chars);
+with diacritics the seeded ~72-char templates would be two.
 
 ---
 
@@ -270,29 +352,67 @@ See `.env.example` for the documented full set.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Cloud `anon` key | Supabase §2.5 |
 | `SUPABASE_SERVICE_ROLE_KEY` | Cloud `service_role` key | Supabase §2.5 (server-only) |
 | `SUPABASE_JWT_SECRET` | Cloud JWT secret | Supabase §2.5 (mints Realtime JWT) |
-| `SMS_PROVIDER` | `fake` until provider pinned (§6) | you |
-| `SMS_PROVIDER_API_KEY` | provider key (empty for `fake`) | provider |
-| `SMS_WEBHOOK_SECRET` | strong random; shared with provider | `openssl rand -hex 32` |
-| `REMINDER_TRIGGER_SECRET` | strong random; shared with the pg_cron GUC (§8) | `openssl rand -hex 32` |
+| `SMS_PROVIDER` | `bulkgate` (§6) | you |
+| `SMS_PROVIDER_APP_ID` | BulkGate application id | BulkGate portal |
+| `SMS_PROVIDER_API_KEY` | BulkGate application token | BulkGate portal |
+| `SMS_SENDER_ID` | `gSystem` \| `gText` \| `gProfile` (§6) | you |
+| `SMS_SENDER_ID_VALUE` | sender name / profile id; unset for `gSystem` | you |
+| `SMS_WEBHOOK_SECRET` | strong random; **also** the path segment in DELIVERY_URL (§6) | `openssl rand -hex 32` |
+| `REMINDER_TRIGGER_SECRET` | strong random; **must equal** the `reminder_secret` Vault secret (§8) | `openssl rand -hex 32` |
 | `DEV_AUTH_EMAIL` | **unset** | — |
 | `DEV_AUTH_ROLE` | **unset** | — |
 
 ---
 
-## 8. Phase 6 — Scheduled reminder (pg_cron GUCs)
+## 8. Phase 6 — Scheduled reminder (Supabase Vault)
 
-Migration `0008_sms.sql` registers the `sms-reminders` job (every minute), but its
-body reads two per-database GUCs that are unset until you set them — while unset it
-exits with a NOTICE (no 401 noise). After the app is reachable, run against Cloud:
+Migration `0008_sms.sql` registers the `sms-reminders` job (every minute); migration
+`0019_reminder_config_vault.sql` re-scheduled it to read its config from **Supabase
+Vault**. While the config is missing the job exits with a NOTICE (no 401 noise).
+
+> ⚠️ **Do not use `alter database ... set app.reminder_url`.** That was the original
+> `0008` mechanism and it **cannot work on Supabase Cloud**: setting a custom `app.*`
+> parameter requires superuser, the dashboard/CLI run as `postgres`, and
+> `supabase_admin` cannot log in there. It fails with
+> `ERROR: 42501: permission denied to set parameter "app.reminder_url"`. It works only
+> locally, where you can act as `supabase_admin` — which is exactly why the gap went
+> unnoticed. The GUCs are still honoured as a **fallback** for existing local stacks.
+
+Run once per environment, against Cloud (SQL Editor is sufficient — no superuser needed):
 ```sql
-alter database postgres set app.reminder_url    = 'https://<hostname>/api/reminders';
-alter database postgres set app.reminder_secret = '<REMINDER_TRIGGER_SECRET>';
+select vault.create_secret('https://<hostname>/api/reminders', 'reminder_url');
+select vault.create_secret('<REMINDER_TRIGGER_SECRET>',        'reminder_secret');
 ```
-- `<hostname>` = the production hostname (§0).
-- `<REMINDER_TRIGGER_SECRET>` must equal the env var (§7).
-- The reachability of `/api/reminders` through Access is the §5.4 decision.
+Rotate with:
+```sql
+select vault.update_secret(id, '<new value>')
+  from vault.decrypted_secrets where name = 'reminder_secret';
+```
+- `<REMINDER_TRIGGER_SECRET>` must equal the env var (§7) **exactly** — a mismatch
+  produces a silent 401 every minute.
+- `/api/reminders` must be reachable through Access (§5.4).
+- `alter database` settings apply only to **new** sessions; give pg_cron a minute.
+
+**Verifying (read §5.4 first — `net._http_response` can lie).** A `200` there may be
+the Cloudflare login page, not our handler. Confirm from outside with the real secret:
+```bash
+curl -s -X POST https://<hostname>/api/reminders \
+  -H 'x-reminder-secret: <REMINDER_TRIGGER_SECRET>' \
+  -H 'content-type: application/json' -d '{}'
+```
+`{"ok":true,"considered":N,"sent":…,"failed":…}` is the handler answering.
+`considered:0` just means no order currently sits in the window.
+
+**Testing a reminder end to end:** book an order **35–40 min out** and leave it
+`vytvorená`. The handler only picks up orders whose start is in `now+30min ± 2min` — a
+4-minute window the clock passes through once. An order created less than ~28 min
+before its start never enters it. Marking it `hotová`, deleting, or moving it also
+disqualifies it. The handler stamps `reminded_at` **before** dispatching (so a crash
+can't spam the customer), which also means a failed send never auto-retries — clear it
+with `update orders set reminded_at = null where id = '…';`.
 
 The handler is idempotent (`orders.reminded_at`), so a duplicate cron fire is harmless.
+**Lead time is 30 min, hardcoded** in `lib/sms/reminder-window.ts` (PRD open question).
 
 ---
 
@@ -301,13 +421,17 @@ The handler is idempotent (`orders.reminded_at`), so a duplicate cron fire is ha
 These block a clean first cutover — resolve, then update the `TBD`s above.
 
 1. **VPS provider + process manager** — host (e.g. Hetzner EU) and systemd vs pm2
-   (recommended: systemd, §3.3).
+   (recommended: systemd, §3.3). *(The test box runs Coolify/Nixpacks instead — §3.)*
 2. **Production hostname** — drives the tunnel ingress (§5.1) and the reminder URL (§8).
-3. **`/api/reminders` past Access** — service token (5.4a) vs path bypass (5.4b).
-4. **Access session duration** — the shared-tablet long session value (§5.2).
+3. **Access session duration** — the shared-tablet long session value (§5.2).
+4. **Final Slovak SMS wording + signature** (PRD §13#4) — templates are still
+   placeholders. Note messages arrive **without diacritics** (§6).
 
 > Resolved: prod seeding now lives in `supabase/seed.prod.sql` (§2.4) — edit the
 > manager-email placeholder and run it once.
+> Resolved: **`/api/reminders` past Access** — path bypass, option (b) (§5.4).
+> Resolved: **SMS provider** — BulkGate (§6).
+> Resolved: **reminder cron config** — Supabase Vault, not GUCs (§8).
 
 ---
 
@@ -321,9 +445,16 @@ These block a clean first cutover — resolve, then update the `TBD`s above.
 - [ ] All production env vars set in the secret store; dev shim vars unset (§7)
 - [ ] Tunnel routes `<hostname>` → `127.0.0.1:3000` (§5.1)
 - [ ] Access gates the whole site; manager/worker emails allowed; long tablet session (§5.2)
-- [ ] Access **bypass** policy for `POST /api/sms/webhook` (§5.3)
-- [ ] `/api/reminders` reachability decided + configured (§5.4)
-- [ ] pg_cron GUCs `app.reminder_url` / `app.reminder_secret` set (§8)
+- [ ] Access **bypass** covering **both** `POST /api/sms/webhook` **and**
+      `/api/sms/webhook/bulkgate/*` (§5.3) — verified: a wrong secret returns `401`,
+      not a `302`
+- [ ] Access **bypass** on `/api/reminders` (§5.4) — verified the same way
+- [ ] Vault secrets `reminder_url` / `reminder_secret` created; `reminder_secret`
+      equals `REMINDER_TRIGGER_SECRET` (§8)
+- [ ] Separate **production** BulkGate application; DELIVERY_URL + "Bulk DLRs" on,
+      "report only on error" off (§6)
+- [ ] Reminder verified end to end: order 35–40 min out → SMS received
+- [ ] Delivery report verified: an `sms_messages` row reaches `delivered` (§6)
 - [ ] Smoke test: load calendar, create an order, verify Realtime update, check audit log
 - [ ] Backups confirmed; provider DPA documented (§2.6, §7)
 ```

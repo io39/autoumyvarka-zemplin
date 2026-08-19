@@ -8,11 +8,11 @@ order-detail panel width, header-mobile-only + sidebar unpaid badge, wizard dupl
 / shared badge / Doplnkové accordion / step-3 note / stepper subtitles) is **done + committed
 to `main` locally** and **merged into the specs it touches — 12/14/15/16** (no separate spec
 file, per the single-source-of-truth rule in `CLAUDE.md`). Push from your own terminal —
-pushing is hook-blocked here. A **TEST deployment is now live** (Coolify + Supabase Cloud
-EU + Cloudflare Access) — see the **Deployment status** section below and the full runbook
-`docs/deployment.md`. **Production hardening (Phase 4) is NOT done** and the VPS origin is
-unhardened (no tunnel) — test/fake data only. Still ahead: the real SMS provider and the
-client's open questions. **Two rounds of work (2026-06-18) are committed to `main` and
+pushing is hook-blocked here. A **TEST deployment is live** (Coolify + Supabase Cloud
+EU + Cloudflare Tunnel + Access) — see the **Deployment status** section below and the full
+runbook `docs/deployment.md`. **Origin hardening is DONE as of 2026-08-19** (tunnel, no open
+ports), so the old header-spoofing caveat no longer applies. Still ahead: rate-limiting the
+bypassed API paths, a dedicated prod box, and the client's open questions. **Two rounds of work (2026-06-18) are committed to `main` and
 PUSHED to `origin/main`:** (1) a new **orders-outside-opening-hours**
 feature — derived warning when a manager narrows/closes hours over an existing order, a
 `/mimo-hodin` worklist + badge, and the calendar now showing such orders at their **true time**
@@ -32,7 +32,10 @@ out-of-hours bookings (`0d0b9af`, `fix(wizard)`, spec 16). **Four more commits (
 are on `main` but NOT yet pushed:** the **real SMS provider is now pinned — BulkGate**
 (`4a8e760`), the **`{nazov}` token now renders the car instead of the client** (`9b4c481`),
 a **lint-hook fix** (`0c979f0`), and this doc (`docs`). See the top "Recent app fixes"
-entries. **Last updated:** 2026-08-13.
+entries. **A deployment/config session (2026-08-19) closed the SMS + reminder gaps on the
+TEST box** — BulkGate delivery reports wired, the reminder cron finally firing (new
+migration **`0019`**, Vault instead of GUCs), and both Cloudflare Access bypasses fixed;
+see **"SMS + reminders: TEST box now fully wired"** below. **Last updated:** 2026-08-19.
 
 Read these first, in order: `CLAUDE.md` (conventions), `docs/prd.md` (Slovak
 requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.md`
@@ -45,17 +48,13 @@ requirements), `docs/architecture.md`, `docs/data-model.md`, `docs/specs/README.
 A **test** deployment is up; **production hardening (Phase 4) is NOT done.**
 `docs/deployment.md` is the runbook + source of truth for deploy steps.
 
-**⚠️ Pending on Cloud:** migrations **`0013`–`0018`** are committed + applied locally but **NOT
-yet `db push`ed to Cloud**. 0013 added `clients.deleted_at`; **0014 supersedes it** — drops that
-column and switches Odstrániť to a **hard-delete cascade** (`delete_client_cascade`). **0015** adds
-`orders.price_override_cents` (nullable int, manager-only manual order total). **0016** drops the
-`orders_no_box_overlap` exclusion constraint (overlaps are now a soft app-layer check). **0017**
-makes `cars.spz` **nullable** (plateless cars) + a `cars_spz_not_blank` CHECK. **0018** adds the
-`merge_cars(...)` function (car-merge flow). Run `supabase db push` **with/before** the next app
-redeploy; they apply in sequence (harmless). New app code calls `delete_client_cascade`, no longer
-references `clients.deleted_at`, reads `orders.price_override_cents` (a fresh checkout without 0015
-fails the price-override paths), allows plateless cars (0017), and calls `merge_cars` on a colliding
-plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate paths.
+**✅ Migrations on Cloud: up to date (2026-08-19).** `0013`–`0019` were pushed via
+`supabase db push`. Until then the deployed app ran against a schema that predated the code:
+`0014` client hard-delete cascade, `0015` `orders.price_override_cents`, `0016` drops the
+box-overlap exclusion constraint, `0017` nullable `cars.spz`, `0018` `merge_cars(...)`,
+`0019` reminder cron config via Vault — so client-delete, price-override, plateless-car and
+car-merge all failed on the test box. **Remember `git push` ships code only; `supabase db
+push` is a separate step.**
 
 **Done (test box):**
 - **Supabase Cloud EU** (eu-central-1): migrations `0001–0012` pushed (**`0013`+`0014` pending — see
@@ -78,19 +77,68 @@ plate (0018) — a checkout missing 0017/0018 will fail the add-car / edit-plate
   `/api/sms/webhook` and `/api/reminders`. The pg_cron reminder GUCs (`app.reminder_url` /
   `app.reminder_secret`) still need setting before reminders fire (deployment.md §8).
 
-**Skipped / deferred — the "VPS port" hardening (REQUIRED before real production):**
-- **No Cloudflare Tunnel; ports 80/443 are open** on the shared VPS. The app trusts the
-  **unsigned** `cf-access-authenticated-user-email` header (`lib/auth/identity.ts`), so a
-  directly-reachable origin = header spoofing = full manager impersonation. **Test box only
-  — fake data, no real client PII.** Before prod on a dedicated VPS: either the **Tunnel**
-  (no open ports, preferred) **or** firewall 80/443 to Cloudflare IP ranges **+**
-  Authenticated Origin Pulls (mTLS); ideally also verify the signed `Cf-Access-Jwt-Assertion`
-  JWT in-app as defense-in-depth. Recorded in `docs/deployment.md` (header + §5).
+**✅ Origin hardening — DONE (2026-08-19).** The app now runs on a VPS with **no open
+inbound ports**, reached via a **Cloudflare Tunnel**, with Access gating the hostname to
+selected identities and bypasses for the SMS/reminder API paths only. This closes the
+previously-documented exposure: `lib/auth/identity.ts` trusts the **unsigned**
+`cf-access-authenticated-user-email` header, which was forgeable while the origin was
+directly reachable. Remaining defense-in-depth: **rate-limit the three bypassed paths**
+(Cloudflare WAF rule — they are the only unauthenticated ingress; deployment.md §5.5) and,
+optionally, verify the signed `Cf-Access-Jwt-Assertion` in-app. **CORS is not worth adding**
+— it governs browsers, and both callers (BulkGate, `pg_net`) are server-side clients that
+ignore it.
 
 **Phase 4 (real production deploy + the hardening above) — NOT started.** Also still open:
 pick/pin the real Slovak SMS provider (still `fake`), set the pg_cron reminder GUCs.
 
 **Recent app fixes (committed to `main`, post-redesign; push from your own terminal):**
+- **SMS + reminders: TEST box now fully wired** (2026-08-19, migration `0019` in commit
+  `6e23f62`; the rest was environment/portal config, no app-code change). Everything below
+  was **configuration**, which is exactly why it was slow to diagnose — the code was right.
+  - **Reminders never fired: TWO independent causes, both silent.**
+    (1) **The GUC mechanism cannot work on Supabase Cloud.** `0008`'s cron body reads
+    `app.reminder_url` / `app.reminder_secret`, set via `alter database … set`. That needs
+    **superuser**; Cloud's `postgres` role isn't one and `supabase_admin` can't log in, so it
+    fails `42501: permission denied to set parameter`. It worked locally only because you can
+    become `supabase_admin` there. Fixed by **migration `0019_reminder_config_vault.sql`**,
+    which re-schedules `sms-reminders` to read the **Supabase Vault** secrets `reminder_url` /
+    `reminder_secret` (readable by `postgres`, so the same setup works in both environments),
+    **keeping the GUCs as a fallback** so configured local stacks keep working. No secret is in
+    the migration; per environment run `select vault.create_secret(…)` once (deployment.md §8).
+    Verified locally on all three branches (vault set / GUC-only / neither) **without a
+    `db reset`** — the migration only touches `cron.*`, so it applies to a running stack.
+    (2) **Cloudflare Access was intercepting `/api/reminders`** (302 → the Access login page),
+    despite this doc previously claiming the bypass existed. Fixed by adding the path bypass.
+  - ⚠️ **`net._http_response` reported a false `200`** — the trap that cost the most time.
+    `pg_net` **follows the 302** and records the *Access login page's* status, so the cron
+    looked healthy while the app never received a single POST. **A `200` there is not evidence
+    reminders work.** Verify from outside: `curl -X POST https://<host>/api/reminders` with no
+    secret must return our **`401`**, not a `302`. Same check for the webhook paths.
+  - **BulkGate delivery reports (DLR) wired.** Access bypass must cover
+    **`/api/sms/webhook/*`** — a policy scoped to the bare `/api/sms/webhook` does **not**
+    match `/api/sms/webhook/bulkgate/<secret>`. Portal: DELIVERY_URL =
+    `https://<host>/api/sms/webhook/bulkgate/<SMS_WEBHOOK_SECRET>`, **"Bulk DLRs — bulk
+    request" ON**, **"Report only when error occurs" OFF**.
+  - **Migrations `0013`–`0019` pushed to Cloud** — the long-pending gap. Until then the
+    deployed app's price-override, plateless-car, car-merge and client-delete paths were
+    broken against a schema that predated them. **`git push` ships code only; `supabase db
+    push` is a separate step** (this tripped us up mid-session).
+  - **Sender ID = BulkGate Sender ID profile** `gProfile` / `19147` (`SMS_SENDER_ID` +
+    `SMS_SENDER_ID_VALUE`). Preferred over `gText`: the actual sender is then changed per
+    country **in the portal**, no redeploy. ⚠️ `sender_id` is sent on **every** call and
+    defaults to `gSystem` when unset — leaving it blank does **not** defer to the portal
+    default, it overrides it. The provider is **module-cached** and reads `process.env` once,
+    so any sender/credential change needs a **process restart**, not just an env edit.
+  - **Test hostname: `autoumyvarka.nightsun.sk`** (was recorded nowhere; now in deployment.md §0).
+  - **Docs updated in place:** `deployment.md` (§0 hostname, §5.3 both webhook paths + verify
+    command, §5.4 resolved to the path bypass + the false-200 warning, §6 rewritten for
+    BulkGate incl. sender/DLR/cost, §7 env table, §8 rewritten for Vault, §9/§10),
+    **spec 07 §2.4**, and **architecture §6**.
+  - ⚠️ **Still to confirm:** a `sms_messages` row actually reaching **`delivered`** (the DLR
+    round trip — the send id `sms-…` and the reported `smsID` are believed to agree but the
+    loop has never visibly closed), and **rotating `REMINDER_TRIGGER_SECRET`** (it was pasted
+    in plaintext during the session) — rotate in **both** Coolify **and** the Vault secret,
+    since a mismatch fails silently.
 - **SMS provider pinned: BulkGate** (2026-08-13, commits `4a8e760` `feat(sms)`, `9b4c481`
   `feat(sms)`, `0c979f0` `fix(hooks)`; **NOT yet pushed**). Closes the long-open PRD §13#4
   provider question. `fake` is still the default everywhere except production.
@@ -1285,23 +1333,25 @@ Implement in spec order; each spec's "Tasks" + "Acceptance criteria" are the che
    - New shadcn primitives several specs add: `dropdown-menu` (12), `calendar`+`popover`
      (14), `sheet` (15), `accordion` (17).
 
-3. **Production deploy — TEST box done, PROD (Phase 4) pending.** A test environment is
-   live (Coolify + Supabase Cloud EU + Cloudflare Access) — see the **Deployment status**
-   section above and the runbook `docs/deployment.md`. Remaining for real production:
-   (a) the **origin hardening** that was deliberately skipped on the shared test VPS —
-   Cloudflare **Tunnel** (preferred) or firewall-to-CF-IPs + Authenticated Origin Pulls,
-   ideally + in-app `Cf-Access-Jwt-Assertion` verification; (b) set the pg_cron reminder
-   GUCs `app.reminder_url` / `app.reminder_secret` (deployment.md §8); (c) stand up the
-   dedicated prod VPS + env store. Cloudflare Access bypasses for `/api/sms/webhook` and
-   `/api/reminders` are already in place on the test box.
-4. **SMS provider — DONE (BulkGate, `4a8e760`).** Remaining SMS work: (a) **final Slovak
+3. **Production deploy — origin hardening DONE, dedicated PROD box pending.** The
+   environment is Coolify + Supabase Cloud EU + Cloudflare **Tunnel** (no open ports) +
+   Access — see **Deployment status** above and the runbook `docs/deployment.md`.
+   Remaining for a real production cutover: (a) **rate-limit the three bypassed paths**
+   at the Cloudflare WAF (§5.5); (b) stand up the **dedicated prod VPS + env store**, with
+   its **own** BulkGate application (DELIVERY_URL is per application) and its own Vault
+   secrets; (c) optionally verify the signed `Cf-Access-Jwt-Assertion` in-app so the app no
+   longer trusts an unsigned header. Access bypasses for the SMS webhooks and
+   `/api/reminders` are in place and verified (a wrong secret returns our `401`, not a `302`).
+
+4. **SMS — provider, DLR and reminders all wired on TEST (2026-08-19).** BulkGate is
+   pinned (`4a8e760`), DELIVERY_URL + the `/api/sms/webhook/*` Access bypass are configured,
+   and the reminder cron fires (migration `0019`, Vault). Remaining: (a) **final Slovak
    wording + signature** with the client (PRD §13#4 — templates are still placeholders;
-   remind them messages arrive **without diacritics**); (b) set **DELIVERY_URL** in the
-   BulkGate portal + the Cloudflare Access **bypass for `/api/sms/webhook/bulkgate/*`**, then
-   confirm the first live delivery report matches (see the caveat above); (c) create a
+   remind them messages arrive **without diacritics**); (b) **confirm a row reaches
+   `delivered`** — the DLR round trip has still never visibly closed; (c) create a
    **separate BulkGate application for production** — DELIVERY_URL is per application, so
-   sharing one would send prod reports to the test box; (d) set the **reminder GUCs on Cloud**
-   (item 3b) or reminders never fire.
+   sharing one would send prod reports to the test box; (d) **rotate
+   `REMINDER_TRIGGER_SECRET`** in both Coolify and the Vault secret.
 5. **Resolve the client's open questions** (below) and tune where flagged.
 
 The redesign specs already exist — **do not re-run `spec-writer` for them.** Use

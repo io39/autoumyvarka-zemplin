@@ -172,6 +172,9 @@ deployment is self-hosted (no Vercel Cron), the trigger is owned by **Supabase
 
 - A `pg_cron` job runs every minute and issues an HTTP request (via `pg_net`) to
   the reminder **Route Handler** on the app, passing `REMINDER_TRIGGER_SECRET`.
+  The job reads its target URL and that secret from **Supabase Vault** (secrets
+  `reminder_url` / `reminder_secret`, migration `0019`) — not from per-database GUCs,
+  which cannot be set on Supabase Cloud without superuser. See `deployment.md` §8.
 - The Route Handler selects orders whose start is ~30 min out, that are still in
   state *vytvorená*, and not yet reminded, then dispatches SMS and records the
   attempt (PRD §8: failures are logged and visible on the order).

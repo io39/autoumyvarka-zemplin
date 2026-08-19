@@ -141,6 +141,18 @@ duplicate §2.2 and split template editing across two systems) and `admin`.
   `orders.reminded_at` (idempotency — architecture §6). zod-validate any payload.
 - **pg_cron** job (in a migration): every minute, `pg_net` POST to the Route Handler
   with the secret. A duplicate fire is harmless because `reminded_at` gates re-send.
+- **Where the job reads its URL + secret: Supabase Vault.** `0008_sms.sql` originally
+  read the per-database GUCs `app.reminder_url` / `app.reminder_secret`; migration
+  `0019_reminder_config_vault.sql` re-scheduled the job to read the Vault secrets
+  `reminder_url` / `reminder_secret`, keeping the GUCs as a fallback. **The GUCs cannot
+  be set on Supabase Cloud** — a custom `app.*` parameter needs superuser, and the
+  `postgres` role there is not one (`42501: permission denied to set parameter`). While
+  the config is missing the job exits with a NOTICE, so it reports `succeeded` every
+  minute while sending nothing. Setup + verification: `docs/deployment.md` §8.
+- ⚠️ **`net._http_response` can report a false `200`.** If Cloudflare Access is not
+  bypassed for `/api/reminders`, the POST is redirected to the Access login page and
+  `pg_net` follows it, recording the login page's status. Verify from outside the
+  network instead (deployment.md §5.4), never from that table alone.
 - **Window choice** documented: select `starts_at BETWEEN now()+30min-ε AND
   now()+30min+ε` (ε = cron period) so each order is caught exactly once; `reminded_at`
   is the hard guard against doubles.
